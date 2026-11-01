@@ -30,7 +30,7 @@ This slice sets up the foundations every later milestone builds on: the reposito
 
 ## 3. The simulated device
 
-**Decided: a simulated power meter.** `simulators/modbus_meter.py`, using the pymodbus server.
+**Decided: a simulated power meter.** `simulators/modbus_meter.py` is a small self-contained Modbus TCP server (function codes 03 and 04). It does not use pymodbus or the BMS's own Modbus code, so a decoding bug in the BMS cannot be hidden by the same bug in the simulator. (The pymodbus server API was mid-rewrite in pymodbus 3.16.)
 
 | Item | Value |
 |---|---|
@@ -77,7 +77,7 @@ The site is defined by one file, `config/site.json`. **[Assumed]** It is the fir
 
 - The format is versioned with `"schema": "devine-bms-config/0"`, with a JSON Schema in the repository. Entities refer to each other by `name`, never by database ID.
 - On start-up the backend validates the file and **syncs** it into the database: it creates or updates entities by `name`. Points are never deleted automatically; points missing from the file are marked disabled, and their history is kept. **[Assumed]**
-- The example site for this milestone has one site, one space (`site`), one equipment (`meter1`, tagged `equip ac elec meter siteMeter`), the simulated device, and the five points from section 3, named for example `site_meter1_power` and tagged per Appendix A (for example `elec power sensor`).
+- The example site (`config/site.example.json`) has one site, no spaces, one equipment (`meter1`, tagged `equip ac elec meter siteMeter`), the simulated device, and the five points from section 3. The meter has no room, so its point names use `site` as the room part (for example `site_meter1_power`), and tagged per Appendix A (for example `elec power sensor`).
 
 ## 6. Backend
 

@@ -1,0 +1,17 @@
+{
+  "library": "devine",
+  "version": "1.0.0",
+  "basedOn": "haystack-defs v4.0.0",
+  "doc": "House tags for meanings Haystack 4.0.0 does not cover. Main spec Appendix A.4.",
+  "tags": {
+    "devineName": {"kind": "Str", "doc": "BMS point name <room>_<equipment>_<function> (5.2)"},
+    "devineErrorCode": {"kind": "Marker", "doc": "Point carrying a device error code or category"},
+    "devineProhibit": {"kind": "Marker", "doc": "Mitsubishi permit/prohibit flags (H6 members 13 to 16)"},
+    "devineComms": {"kind": "Marker", "doc": "Communication state reported by a gateway (for example M-NET)"},
+    "devineConfig": {"kind": "Marker", "doc": "Device configuration point with the extra confirm step (5.1)"},
+    "devineHand": {"kind": "Marker", "doc": "Hand mode or override flag (5.6)"},
+    "devineRunHours": {"kind": "Marker", "doc": "Run-hours maintenance counter point (5.10)"},
+    "devineStarts": {"kind": "Marker", "doc": "Start-count maintenance counter point (5.10)"},
+    "devineTemplate": {"kind": "Ref", "doc": "Equipment template and version an instance uses (5.1.2)"}
+  }
+}

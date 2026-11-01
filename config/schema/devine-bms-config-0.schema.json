@@ -1,0 +1,645 @@
+{
+  "$defs": {
+    "ByteOrder": {
+      "enum": [
+        "big",
+        "little"
+      ],
+      "title": "ByteOrder",
+      "type": "string"
+    },
+    "DataType": {
+      "enum": [
+        "bit",
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+        "float32"
+      ],
+      "title": "DataType",
+      "type": "string"
+    },
+    "Device": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "modbus_tcp",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "connection": {
+          "$ref": "#/$defs/ModbusTcpConnection"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "protocol",
+        "connection"
+      ],
+      "title": "Device",
+      "type": "object"
+    },
+    "Equip": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "space": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Space"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "tags": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9_]*$": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Tags",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "dis"
+      ],
+      "title": "Equip",
+      "type": "object"
+    },
+    "Feed": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "To",
+          "type": "string"
+        },
+        "medium": {
+          "$ref": "#/$defs/Medium"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "medium"
+      ],
+      "title": "Feed",
+      "type": "object"
+    },
+    "GeoCoord": {
+      "additionalProperties": false,
+      "properties": {
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Lat",
+          "type": "number"
+        },
+        "lng": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Lng",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lat",
+        "lng"
+      ],
+      "title": "GeoCoord",
+      "type": "object"
+    },
+    "Kind": {
+      "enum": [
+        "Number",
+        "Bool",
+        "Str"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "Medium": {
+      "enum": [
+        "air",
+        "chilledWater",
+        "hotWater",
+        "condenserWater",
+        "elec",
+        "refrig"
+      ],
+      "title": "Medium",
+      "type": "string"
+    },
+    "ModbusAddress": {
+      "additionalProperties": false,
+      "properties": {
+        "objectType": {
+          "$ref": "#/$defs/ObjectType"
+        },
+        "address": {
+          "description": "Wire address (0-based)",
+          "maximum": 65535,
+          "minimum": 0,
+          "title": "Address",
+          "type": "integer"
+        },
+        "dataType": {
+          "$ref": "#/$defs/DataType"
+        },
+        "byteOrder": {
+          "$ref": "#/$defs/ByteOrder",
+          "default": "big"
+        },
+        "wordOrder": {
+          "$ref": "#/$defs/WordOrder",
+          "default": "high_first"
+        },
+        "scale": {
+          "default": 1.0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "offset": {
+          "default": 0.0,
+          "title": "Offset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "objectType",
+        "address",
+        "dataType"
+      ],
+      "title": "ModbusAddress",
+      "type": "object"
+    },
+    "ModbusTcpConnection": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 502,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "unitId": {
+          "default": 1,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Unitid",
+          "type": "integer"
+        },
+        "timeoutS": {
+          "default": 3.0,
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Timeouts",
+          "type": "number"
+        },
+        "retries": {
+          "default": 2,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "blockSize": {
+          "default": 32,
+          "maximum": 125,
+          "minimum": 1,
+          "title": "Blocksize",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "host"
+      ],
+      "title": "ModbusTcpConnection",
+      "type": "object"
+    },
+    "ObjectType": {
+      "enum": [
+        "coil",
+        "discreteInput",
+        "holdingRegister",
+        "inputRegister"
+      ],
+      "title": "ObjectType",
+      "type": "string"
+    },
+    "Point": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "equip": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Equip"
+        },
+        "space": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Space"
+        },
+        "device": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Device",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/PointType"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "tags": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9_]*$": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Tags",
+          "type": "object"
+        },
+        "address": {
+          "$ref": "#/$defs/ModbusAddress"
+        },
+        "pollClass": {
+          "$ref": "#/$defs/PollClass",
+          "default": "normal"
+        },
+        "staleAfterS": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Staleafters"
+        },
+        "his": {
+          "default": true,
+          "title": "His",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "device",
+        "type",
+        "kind",
+        "address"
+      ],
+      "title": "Point",
+      "type": "object"
+    },
+    "PointType": {
+      "enum": [
+        "sensor",
+        "sp",
+        "cmd"
+      ],
+      "title": "PointType",
+      "type": "string"
+    },
+    "PollClass": {
+      "enum": [
+        "fast",
+        "normal",
+        "slow"
+      ],
+      "title": "PollClass",
+      "type": "string"
+    },
+    "Site": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "tz": {
+          "default": "Sydney",
+          "title": "Tz",
+          "type": "string"
+        },
+        "geoCoord": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeoCoord"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "areaM2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aream2"
+        },
+        "tags": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9_]*$": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Tags",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "dis"
+      ],
+      "title": "Site",
+      "type": "object"
+    },
+    "Space": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "tags": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9_]*$": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Tags",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "dis"
+      ],
+      "title": "Space",
+      "type": "object"
+    },
+    "WordOrder": {
+      "enum": [
+        "high_first",
+        "low_first"
+      ],
+      "title": "WordOrder",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "devine-bms-config/0",
+      "title": "Schema",
+      "type": "string"
+    },
+    "site": {
+      "$ref": "#/$defs/Site"
+    },
+    "spaces": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Space"
+      },
+      "title": "Spaces",
+      "type": "array"
+    },
+    "equips": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Equip"
+      },
+      "title": "Equips",
+      "type": "array"
+    },
+    "feeds": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Feed"
+      },
+      "title": "Feeds",
+      "type": "array"
+    },
+    "devices": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Device"
+      },
+      "title": "Devices",
+      "type": "array"
+    },
+    "points": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Point"
+      },
+      "title": "Points",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "site"
+  ],
+  "title": "Devine BMS site configuration",
+  "type": "object",
+  "$id": "devine-bms-config/0"
+}
