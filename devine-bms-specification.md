@@ -58,9 +58,9 @@ Status: **planning / pre-build.** The stack in section 4 is confirmed, but nativ
 
 Because there is no central service, a user who needs several sites logs in to each site dashboard separately (accounts are per site).
 
-### 3.1 Deployment modes (chosen at install) **[Assumed]**
+### 3.1 Deployment modes (chosen at install) (decided)
 
-The mode is chosen once by the provisioning script (`--mode full` or `--mode standalone`) and can be changed later by re-provisioning and importing the site configuration.
+The mode is chosen once by the provisioning script (`--mode full` or `--mode standalone`) and can be changed later by re-provisioning and importing the site configuration. **Storage (decided):** full mode keeps configuration and history in PostgreSQL + TimescaleDB; standalone mode keeps its configuration in **one file in the same format as the configuration export**, so the backend has a storage layer with two implementations behind one interface. Items inside this section still marked [Assumed] or [Open] remain so.
 
 | | **Full mode** (default) | **Standalone mode** (small sites) |
 |---|---|---|
@@ -168,17 +168,16 @@ Confidence in the stack: medium-high. Main risks: native MS/TP timing, the size 
 - **Scan and identify:** the Modbus scan tool checks a range of slave IDs or IP addresses, shows what answers, and flags **duplicate IDs or addresses**, which matter because many units ship with the same default.
 - Per-point settings: units, scaling, polling interval, read-only or writable, min/max for writes.
 
-### 5.1.1 Commissioning: add devices, map to rooms, tag points **[Assumed]**
-Adding a device is a guided procedure in the web app (served from the Pi in standalone mode). Each step can be saved and resumed, and nothing goes live until the final step. No code changes at any step.
+### 5.1.1 Commissioning: add devices, map to rooms, tag points (decided)
+Adding a device is a **4-step guided procedure** in the web app (served from the Pi in standalone mode). Each step can be saved and resumed, and nothing goes live until step 3. No code changes at any step. Templates (5.1.2, Appendix A) fill in almost everything, so the installer mainly checks and corrects.
 
-1. **Add the device.** Pick a built-in or saved template (section 20) or start a blank one. Enter the connection (5.1), then **Test connection**: read the whole point map and show pass or fail per point with the raw response. For BACnet, run Who-Is and choose from the list found.
-2. **Create points.** Points come from the template. Where a device presents many similar items (a Mitsubishi gateway with up to 50 groups of about 20 objects, or an I/O module with 8 inputs), the **bulk create** wizard asks for the repeat range (for example groups 1 to 12) and builds the points from a pattern, so nobody types hundreds of points.
-3. **Group points into equipment, from an equipment template where one exists (5.1.2).** Each device point belongs to a piece of equipment: an indoor unit, an AHU, a meter, a lighting circuit. One device often serves several pieces of equipment. For example one I/O module drives lights in three rooms, and one Mitsubishi group is one indoor unit. The wizard has a **split points into equipment** table (drag or multi-select) and a **one equipment per group** shortcut for gateways.
-4. **Assign a room or section.** Equipment and individual points can each be assigned to a room or section (a **location**). A point inherits its equipment's room unless it is set directly, which covers an I/O module whose inputs are spread across rooms. Rooms are created here by name first (for example Meeting room, Plant room, Store) and are the same rooms drawn on graphics (6.4) and shown as tabs (6.5). A room can be created later and points moved to it.
-5. **Name and tag.** The wizard suggests a point name from the pattern `<room>_<equipment>_<function>` (for example `meeting_ac1_room_temp`) and **suggested tags** from the template (for example `zone`, `air`, `temp`, `sensor`, `sp`, `cmd`, from Appendix A). The user can accept, edit, or apply tags to many points at once. Display names, units and scaling are set here as well (5.1). Names must be unique across the site; the wizard flags duplicates.
-6. **Set limits, alarms and logging.** Set write limits and override timers (5.6), alarm limits and delays (5.5), and which points are logged and at what rate (5.7). Templates ship with sensible defaults so most points need no change.
-7. **Place on graphics.** Choose where each piece of equipment appears: **add to a room tab**, **add to the Site tab**, or skip. The wizard drops the matching symbol with its points bound (for example a sensor point to a temperature symbol, an on/off state to a fan symbol), and the user then arranges it in the graphics editor (6.1). Rooms with no graphic yet get a default tab with their points listed.
-8. **Verify and go live.** A summary shows points created, points not yet assigned to a room, untagged points, duplicate names, points not communicating, and writable points with no limits. **Go live** is blocked until errors are fixed; warnings can be accepted. The change is audit-logged (5.6) and the configuration is versioned so it can be rolled back (10).
+1. **Add the device and test it.** Pick a built-in or saved device template (section 20) or start a blank one. Enter the connection (5.1), then **Test connection**: read the whole point map and show pass or fail per point with the raw response. For BACnet, run Who-Is and choose from the list found (or arrive here from Discover, 5.1.3).
+2. **Create equipment from a template, in one table.** Pick the equipment or space template (5.1.2). The BMS creates the points, groups them into equipment and binds the roles, then shows **one editable table** with a row per point and columns for equipment, room, point name, display name, tags, units and scaling:
+   - **Bulk create:** where a device presents many similar items (a Mitsubishi gateway with up to 50 groups of about 20 objects, or an I/O module with 8 inputs), the installer gives the repeat range (for example groups 1 to 12) and gets one instance per group, so nobody types hundreds of points. **Split points into equipment** (drag or multi-select) covers a device that serves several pieces of equipment, such as one I/O module driving lights in three rooms.
+   - **Room:** equipment and individual points can each be given a room or section (a **location**); a point inherits its equipment's room unless set directly. Rooms can be created here by name (for example Meeting room, Plant room, Store) and are the same rooms drawn on graphics (6.4) and shown as tabs (6.5). Room names can also be imported from a spreadsheet.
+   - **Names and tags** are filled in from the pattern `<room>_<equipment>_<function>` (5.2) and the template's tags (Appendix A). The installer can edit them or apply changes to many rows at once. Duplicate names are flagged.
+3. **Verify and go live.** Limits, alarms and logging come from the template defaults (write limits and override timers 5.6, alarm limits and delays 5.5, logging rates 5.7). This step shows them as a **checklist** with any changes from the defaults, alongside the checks: points with no room, untagged points, duplicate names, points not communicating, and writable points with no limits. Any of them can be edited here. **Go live** is blocked until errors are fixed; warnings can be accepted. The change is audit-logged (5.6) and the configuration is versioned so it can be rolled back (10).
+4. **Place on graphics (optional).** Choose where each piece of equipment appears: **add to a room tab**, **add to the Site tab**, or skip. The BMS drops a copy of the template graphic or matching symbol with its points bound (5.1.2), and the user arranges it in the graphics editor (6.1). This can be skipped and done later in the graphics editor. Rooms with no graphic yet get a default tab with their points listed.
 
 **Other commissioning tools:**
 - **Room mapping table.** A single table of every point or piece of equipment, with room, tags and graphic binding columns, editable in place, filtered by device, room or tag, and exportable and importable as a spreadsheet file (CSV) so a site can be set up in bulk offline.
@@ -187,9 +186,9 @@ Adding a device is a guided procedure in the web app (served from the Pi in stan
 - **Site setup export.** Devices, points, rooms, tags and graphic bindings export as one file (config export, 3.1) and import onto another site or as a starting template. History is not included.
 - **Standalone mode** uses the same procedure with a smaller limit on points (3.1). The web app runs from the Pi; the touch screen cannot add devices.
 
-**Data model change:** `Site > Equipment > Point` gains an optional **Location** (room or section) that equipment and points can each carry (see 5.2). Tags come from the house tag list (5.2), with suggested tags shipped per template.
+**Data model:** equipment and points can carry an optional **location** (room or section), and rooms can hold points directly (5.2). Tags come from the Haystack and house libraries (5.2, Appendix A), with suggested tags shipped per template.
 
-### 5.1.2 Equipment templates **[Assumed]**
+### 5.1.2 Equipment templates (decided)
 An **equipment template** describes a type of equipment once (for example Indoor unit, AHU, Room, Pump, Light circuit). Equipment is then created from it many times, and only the differences are entered per instance. This is separate from a **device template** (5.1), which describes a device's registers or objects. A device template says what a Mitsubishi gateway offers; an equipment template says what an indoor unit is, and which gateway points feed it.
 
 **A template holds:**
@@ -203,7 +202,7 @@ An **equipment template** describes a type of equipment once (for example Indoor
 1. Pick the template and enter the instance name and room.
 2. **Bind each role to a device point.** The wizard suggests a match from the device template (for example Mitsubishi member 09 for `room_temp`) and the user confirms. For gateways with numbered groups (H5, H6) the **bulk create** option makes one instance per group, binding by the instance-number pattern, with names typed or imported from a spreadsheet.
 3. **Adjust the finer detail per instance** without changing the template: rebind a role to a different point, change scale or limits, disable an optional role, or **add extra points** that exist only on this instance (for example a second temperature sensor). Each change is marked **overridden** in the instance.
-4. The instance gets its tags, limits, alarms, logging and graphic from the template, then the commissioning steps in 5.1.1 continue (room, names, verify, go live).
+4. The instance gets its tags, limits, alarms, logging and graphic from the template, then the commissioning procedure in 5.1.1 continues (verify and go live, then optionally place on graphics).
 
 **Changing a template later:**
 - Editing a template shows how many instances use it, and a **preview of changes** per instance.
@@ -212,7 +211,7 @@ An **equipment template** describes a type of equipment once (for example Indoor
 - **Rolling out a new version (decided).** Publishing a template version shows a **side-by-side difference** from the previous version (roles, tags, limits, alarms, graphic and logic) and lists the instances it affects. The admin then updates **all instances, a chosen group (by room, tag or list), or one at a time**. Instances not yet updated keep running on their current version, and the template page shows how many are on each version. This lets a change be tried on one unit first. Overrides still win (above).
 - **Unlink** turns an instance into plain equipment that no longer follows the template.
 
-**Graphics and templates (decided: copied per placement).** Placing a template graphic for an instance (in the commissioning wizard, 5.1.1 step 7, or in the graphics editor) makes an **independent copy** on that room or site graphic. The copy can be edited freely on that graphic: move, resize, add extra symbols for points only that instance has, or remove parts. **Template graphic changes do not reach existing copies**; they apply to new placements only. **[Assumed]** The copy stays bound to its instance by **role**, so rebinding a role in the instance (5.1.2) updates the copy without redrawing it. The graphics editor offers **Replace from template** on a copy, which swaps in the current template graphic after a warning that local edits will be lost. Rooms (6.4) can carry a template graphic in the same way.
+**Graphics and templates (decided: copied per placement).** Placing a template graphic for an instance (in the commissioning wizard, 5.1.1 step 4, or in the graphics editor) makes an **independent copy** on that room or site graphic. The copy can be edited freely on that graphic: move, resize, add extra symbols for points only that instance has, or remove parts. **Template graphic changes do not reach existing copies**; they apply to new placements only. **[Assumed]** The copy stays bound to its instance by **role**, so rebinding a role in the instance (5.1.2) updates the copy without redrawing it. The graphics editor offers **Replace from template** on a copy, which swaps in the current template graphic after a warning that local edits will be lost. Rooms (6.4) can carry a template graphic in the same way.
 
 **Built-in starter templates** (decided list): indoor unit (Mitsubishi H5, H6), AHU, **room (a space template, below)**, pump, fan, **exhaust fan**, **ERV** (energy recovery ventilator, including Mitsubishi Lossnay), light circuit, and **power meter** (power and energy consumption). Device-level starters also ship for supported hardware: relay outputs (H1, H2) and temperature and humidity sensors (H3, H4). Generic valve and damper templates are included. A site can copy and edit them, and export or import them as files (also between sites).
 
@@ -239,7 +238,7 @@ A **Discover** screen finds devices on every network the site uses and lets the 
 
 **Standalone mode:** the same screen, run from the web app on the Pi. The touch screen can't scan or add devices.
 
-#### 5.1.4 Polling **[Assumed]**
+#### 5.1.4 Polling (decided; exact intervals proven on the bench, open item 36)
 - **Speed classes per point (decided).** Each point in a device or equipment template (5.1, 5.1.2) has a speed class, which a site or instance can override:
 
 | Class | Default interval | Typical use |
@@ -290,7 +289,7 @@ Equipment can be created from an **equipment template** (5.1.2), which defines i
 - **Renaming (decided).** Every point and piece of equipment also has a hidden permanent ID (the Haystack `id`), which history, logic, alarms and the audit log use internally, so a rename never breaks them. When equipment moves room or a room is renamed, the BMS **offers** to rename the affected points, shows a preview of old and new names, and updates references in logic diagrams itself. The old names are kept as searchable **aliases**, and logic JSON or CSV that uses an old name still resolves to the right point on import (5.3.2). Renames are audit-logged (5.6). Section 5.3.2's rule that exports use names, never internal IDs, is unchanged. Display names are separate and editable.
 - Units stored in SI/metric, using **Haystack unit names** (for example `°C`, `%RH`, `kW`, `kWh`); converted for display. Timestamps stored in UTC, displayed in site local time (default Australia/Sydney).
 
-#### 5.2.1 Value quality **[Assumed]**
+#### 5.2.1 Value quality (decided)
 - **Every value carries a quality flag (decided): Good, Bad or Stale.** The reason is stored with it.
   - **Bad:** the device is offline, a read failed or timed out, the device returned an error, or the device itself reports a sensor fault (for example an open circuit on an input module).
   - **Stale:** no new value for longer than a set time. The default is **3 times the point's poll interval**, adjustable per point or template (5.1.2).
@@ -445,7 +444,7 @@ Logic can be written outside the editor and pasted in, as Node-RED does with its
   - It is the same tool as the test tool in 5.1 (raw request and response) but for live traffic, and it works in standalone mode, with a smaller buffer.
 - **Remote support** runs over Tailscale with the customer's consent (section 1), and the admin role is needed for these tools (section 7).
 
-### 5.10 Maintenance counters **[Assumed]**
+### 5.10 Maintenance counters (decided)
 - **Run hours and start counts are in v1 (decided).** Any equipment with a run state point (a true/false sensor role tagged `run`, 5.1.2) gets a **run-hours counter** and a **start counter** automatically. They are counted by the BMS from the state changes it sees.
 - **Where they show:** on the equipment panel (the tap-to-control screen, 6.4, and the web app), and as read-only points that logic (5.3.1), alarms (5.5) and trends can use.
 - **Service reminders:** each piece of equipment (or its template) can set a service interval in hours or starts. When it is reached the BMS raises an alarm at a chosen level (default Info, 5.5) with a message such as "Service due: ac1_indoor, 2,000 hours". An admin marks the service as done, which resets the "since service" counter and writes an audit entry (5.6). Total hours are never reset.
@@ -881,7 +880,7 @@ All figures are proposals and should be adjusted.
 | System graphics | Process diagrams and rooms are one graphic type (system graphics); rooms are squares with live values and a colour rule |
 | Hand mode timer | Operator picks 1, 2 or 8 hours, default 2 hours; site can change the default and choices |
 | Standalone overrides after power loss | Return to Auto; hand state is not saved to the SD card |
-| Commissioning | Guided procedure in the web app: add device, create points, group into equipment, assign room, name and tag, limits, place on graphics, verify and go live (5.1.1) |
+| Commissioning | 4-step guided procedure in the web app: add device and test; create equipment from a template in one editable table (points, grouping, room, names, tags); verify and go live with template defaults shown as a checklist; optional place on graphics (5.1.1) |
 | Room assignment | Equipment and points carry an optional location; a point inherits its equipment's room unless set directly |
 | Graphics tabs, both modes | Whole-site graphic on a Site tab plus a tab per room or section; full mode keeps its bottom bar of functions |
 | Standalone navigation | Tabs: a Site tab with a whole-site graphic, then a tab per room or section; bottom bar for Overrides, Schedules and Log |
