@@ -708,7 +708,7 @@ Plus one service **on the Proxmox host**:
 - Editor/IDE: _TBC_
 - Version control: Git, hosted on _TBC_
 - Runtimes and package managers: pin versions in the repo.
-- Environments: `dev` (a Proxmox box or VM that mirrors the site layout), `test` (bench with real hardware), `prod` (sites).
+- Environments: `dev` (developer machines with a native PostgreSQL + TimescaleDB install, plus a Proxmox box or VM that mirrors the site layout for deployment testing), `test` (bench with real hardware), `prod` (sites). **No Docker anywhere**, in development or on sites (decided).
 
 ### Raspberry Pi HMI
 - Model: **Raspberry Pi 4 or Pi 5** (decided). Exact model and RAM size _TBC_; older 32-bit-only boards (Pi 1, Pi 2, Pi Zero / Zero W) are not supported.
@@ -873,7 +873,9 @@ All figures are proposals and should be adjusted.
 | Updates | Triggered by you over Tailscale, snapshot and rollback |
 | Reporting v1 | Live dashboards, trends and CSV export; no separate energy reports in v1 (5.7) |
 | UI | Phone-first for overview, alarms and the graphics tabs; desktop-first for trends; editors and setup screens desktop or tablet (6.1). Light/dark switch, branding per site, built-in graphics editor |
-| Stack | Python/FastAPI, PostgreSQL + TimescaleDB, Mosquitto, React + TypeScript, bacnet-stack, React Flow for the logic editor |
+| Stack | Python/FastAPI, PostgreSQL + TimescaleDB, Mosquitto, React + TypeScript, bacnet-stack, React Flow for the logic editor; SQLAlchemy 2 + Alembic for database access and migrations; uPlot for trend charts |
+| Development setup | Native PostgreSQL + TimescaleDB on developer machines; no Docker anywhere |
+| History storage | A row on every poll for logged points, plus one on each status change; no change-of-value storage |
 | Graphics editing | Web app only; HMI shows graphics, view only |
 | Static elements and colour rules | Pipes and ducts take colour from a symbol state, value bands or proportional fill; set per element in the web app |
 | Tap to control | Tapping a symbol on a process diagram opens a control panel; PIN or login required; follows 5.6 command rules |
