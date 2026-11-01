@@ -1,6 +1,6 @@
 # Milestone 2: simulated Modbus device to stored data and a trend
 
-Status: **draft for review** (1 Nov 2026). Items marked **[Assumed]** need confirming before coding starts.
+Status: **reviewed** (1 Nov 2026). The five open choices are decided (section 12). Items still marked **[Assumed]** are build details that can be adjusted during the build and recorded in `docs/decisions/`.
 Main spec: `devine-bms-specification.md`, milestone 2 in section 18.
 
 ## 1. Goal
@@ -30,7 +30,7 @@ This slice sets up the foundations every later milestone builds on: the reposito
 
 ## 3. The simulated device
 
-`simulators/modbus_meter.py`, using the pymodbus server. **[Assumed]**
+**Decided: a simulated power meter.** `simulators/modbus_meter.py`, using the pymodbus server.
 
 | Item | Value |
 |---|---|
@@ -53,7 +53,7 @@ The mixed word order and the scaled integers are deliberate, so the driver's dec
 
 ## 4. Data model (first tables)
 
-All tables are created by migrations. **[Assumed]** SQLAlchemy 2 with asyncpg for database access and Alembic for migrations. IDs are UUIDs and serve as the Haystack `id` (5.2). Times are stored in UTC.
+All tables are created by migrations. **Decided:** SQLAlchemy 2 (async, with asyncpg) for database access and Alembic for migrations. TimescaleDB-specific steps (hypertable, retention policy) are written as raw SQL inside the Alembic migrations. IDs are UUIDs and serve as the Haystack `id` (5.2). Times are stored in UTC.
 
 | Table | Purpose and main columns |
 |---|---|
@@ -68,7 +68,7 @@ All tables are created by migrations. **[Assumed]** SQLAlchemy 2 with asyncpg fo
 
 - **Tags** are stored as Haystack tags in `tags` (jsonb). Markers are stored as `true`; values (`unit`, refs and so on) are typed. The standard and house libraries (Appendix A) are loaded from a versioned file and used to check tags when config is loaded. Unknown tags are allowed and treated as site custom tags (5.2).
 - **Current values** live in an in-memory cache in the backend (value, timestamp, status, reason). They are not written to a table on every poll. **[Assumed]**
-- **History rows** are written on every successful poll for points with `his` set, plus one row whenever the status changes (so gaps and their reasons are recorded). **[Assumed]** Change-of-value storage with a deadband is a later option.
+- **History rows (decided):** a row is written on every successful poll for points with `his` set, plus one row whenever the status changes (so gaps and their reasons are recorded). Change-of-value storage is not planned.
 - **Retention:** a TimescaleDB retention policy drops raw rows older than 30 days (5.7).
 
 ## 5. Site configuration file
@@ -114,7 +114,7 @@ An OpenAPI description is published by FastAPI at `/docs`.
 In `web/`, React + TypeScript + Vite. Light and dark themes (6.1); branding and logins come later.
 
 - **Points page:** a table of all points with name, display name, equipment, value with unit, status, and last update time, updated live over the WebSocket. Bad and Stale values are greyed, show the reason, and are never shown as a live number (5.2.1). A tag filter box.
-- **Trend page:** pick one or more points (up to 4) and a range (last 1 hour, 24 hours, 7 days, 30 days, or custom). The chart shows the history, extends live while it is open, shows gaps as gaps, and uses a separate axis per unit. **Export CSV** downloads the plotted range. **[Assumed]** The chart library is uPlot, chosen for speed with long time series; this is recorded as a decision when confirmed.
+- **Trend page:** pick one or more points (up to 4) and a range (last 1 hour, 24 hours, 7 days, 30 days, or custom). The chart shows the history, extends live while it is open, shows gaps as gaps, and uses a separate axis per unit. **Export CSV** downloads the plotted range. **Chart library (decided): uPlot**, chosen for speed with long time series and its small size, which also suits the Pi.
 - Usable on a phone, but laid out for desktop first (6.1: trends are desktop-first).
 
 ## 9. Tests
@@ -137,18 +137,22 @@ In `web/`, React + TypeScript + Vite. Light and dark themes (6.1); branding and 
 - Live values reach the web app within 1 to 5 seconds of a poll (section 17).
 - The schema, config format and decisions made during the build are recorded in `docs/decisions/`, and the main spec is updated where they differ.
 
-## 11. Developer setup **[Open]**
+## 11. Developer setup (decided: native install)
 
-PostgreSQL + TimescaleDB is needed on the developer machine. Sites use Proxmox with LXC and no Docker (section 11), but that rule is about sites. The options for development are:
-- **Docker Compose for development only** (database and simulator), which is the quickest to set up on any machine; or
-- **Native install** of PostgreSQL + TimescaleDB on the developer machine, or a Proxmox `dev` box that mirrors a site (section 13).
+Developers install **PostgreSQL + TimescaleDB natively** on their machine. **There is no Docker anywhere in the project**, in development or on sites (section 11 of the main spec).
 
-To be decided with the development machine details (section 13).
+- The README gives install steps for each supported developer OS, with the PostgreSQL and TimescaleDB versions pinned to match what sites will run. The developer OS list follows section 13 of the main spec (still TBC).
+- A script `deploy/dev/setup-db.sh` creates the development database, user and TimescaleDB extension, reading the password from `.env`. **[Assumed]**
+- The simulator runs as a normal Python process.
+- Claude Code cloud sessions and any CI runner install the same packages with a setup script. **[Assumed]**
+- A Proxmox `dev` box that mirrors a site (section 13) is still used later for deployment testing, not for day-to-day development.
 
-## 12. Open questions for this milestone
+## 12. Decisions for this milestone
 
-1. Simulated device: is a power meter the right first device, or should it be something else (for example the H1 I/O module or a temperature sensor)?
-2. Database access: SQLAlchemy 2 + asyncpg + Alembic, or plain asyncpg with SQL migration files?
-3. Chart library: uPlot, or another (for example Apache ECharts or Recharts)?
-4. Developer setup: Docker Compose for development only, native install, or a Proxmox dev box (section 11)?
-5. History storage: every poll (as proposed) or change-of-value with a deadband?
+| # | Question | Decision |
+|---|---|---|
+| 1 | Simulated device | A Modbus TCP power meter (section 3) |
+| 2 | Database access | SQLAlchemy 2 (async, asyncpg) and Alembic migrations (section 4) |
+| 3 | Chart library | uPlot (section 8) |
+| 4 | Developer setup | Native PostgreSQL + TimescaleDB install; no Docker anywhere (section 11) |
+| 5 | History storage | Every poll, plus a row on each status change (section 4) |
