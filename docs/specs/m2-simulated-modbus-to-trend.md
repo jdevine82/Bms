@@ -37,7 +37,7 @@ This slice sets up the foundations every later milestone builds on: the reposito
 | Protocol | Modbus TCP, default `127.0.0.1:5020` (5020 avoids needing root for port 502) |
 | Unit ID | 1 |
 | Behaviour | Values follow a repeating daily-style pattern with small random noise, so trends look realistic. Energy only increases. |
-| Fault injection | Command-line options to **stop answering** for a period, **return a Modbus exception**, and **pause value updates** (to test Stale). Used by the tests in section 9. |
+| Fault injection | Modes to **stop answering** (`down`), **return a Modbus exception** (`exception`) and **stop changing its values** (`frozen`). Used by the tests in section 9. |
 
 **Register map** (holding registers, function code 03; wire addresses are 0-based):
 
@@ -86,7 +86,7 @@ The site is defined by one file, `config/site.json`. **[Assumed]** It is the fir
 - `storage/`: a **storage interface** (load configuration, write history, read history) with a PostgreSQL + TimescaleDB implementation. Standalone mode adds a second implementation later (3.1).
 - `drivers/modbus/`: Modbus TCP client (pymodbus, async). Supports function codes 01, 02, 03 and 04, data types bit, int16, uint16, int32, uint32 and float32, byte and word order, scale and offset. Writes (05, 06, 15, 16) are not used yet.
 - `poller/`: polling by speed class (5.1.4): Fast every 5 s, Normal every 30 s, Slow every 5 min. **Block reads**: neighbouring registers on one device are read in one request, up to a block size set per device (default 32 registers). One connection per device, reconnecting with back-off after a failure.
-- `quality/`: value quality (5.2.1). **Good** on a valid read. **Bad** with reason `down` on a timeout or connection failure, or `fault` on a Modbus exception or a value that cannot be decoded (for example a NaN float). **Stale** when there has been no new value for `stale_after_s` (default 3 times the class interval), checked by a timer.
+- `poller/quality.py`: value quality (5.2.1). **When a device stops answering, every point on it goes Bad (`down`)**, not only the speed class being polled, and the poller retries the connection with back-off (1 s doubling to 30 s). **Good** on a valid read. **Bad** with reason `down` on a timeout or connection failure, or `fault` on a Modbus exception or a value that cannot be decoded (for example a NaN float). **Stale** when there has been no new value for `stale_after_s` (default 3 times the class interval), checked by a timer.
 - `api/`: FastAPI routes (section 7).
 
 **Logging:** structured logs (JSON lines) with levels; one line per connection change, not one per poll.
@@ -124,7 +124,7 @@ In `web/`, React + TypeScript + Vite. Light and dark themes (6.1); branding and 
   1. all five points are Good within one poll cycle and their values match the simulator;
   2. history rows are written and returned by the history API;
   3. when the simulator stops answering, the points go Bad (`down`) within the timeout plus retries, and the history records the status change;
-  4. when the simulator pauses value updates, the points go Stale after `stale_after_s`;
+  4. when a point gets no new value within `stale_after_s`, it goes Stale. A device that keeps answering with an unchanged value is still Good (its readings are new, even if the number is the same); Stale means no reading arrived in time, for example when polling falls behind. The test sets a stale time shorter than the poll interval;
   5. when the simulator returns a Modbus exception, the points go Bad (`fault`);
   6. after the simulator recovers, the points return to Good and polling resumes without restarting the backend.
 - **Web test (Playwright):** the points page shows live values, and the trend page draws a chart and downloads a CSV.

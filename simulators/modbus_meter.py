@@ -112,6 +112,7 @@ class MeterSimulator:
         self.requests_served = 0
         self._server: asyncio.base_events.Server | None = None
         self._updater: asyncio.Task | None = None
+        self._writers: set[asyncio.StreamWriter] = set()
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(self._handle_client, self.host, self.port)
@@ -121,11 +122,15 @@ class MeterSimulator:
         log.info("Simulated meter listening on %s:%s unit %s", self.host, self.port, self.unit_id)
 
     async def stop(self) -> None:
+        """Stop listening and drop every open connection (clients see the device go away)."""
         if self._updater:
             self._updater.cancel()
         if self._server:
             self._server.close()
+            for writer in list(self._writers):
+                writer.close()
             await self._server.wait_closed()
+            self._server = None
 
     async def _update_loop(self) -> None:
         while True:
@@ -134,6 +139,7 @@ class MeterSimulator:
                 self.model.update()
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self._writers.add(writer)
         try:
             while True:
                 header = await reader.readexactly(7)
@@ -152,6 +158,7 @@ class MeterSimulator:
         except (asyncio.IncompleteReadError, ConnectionResetError):
             pass
         finally:
+            self._writers.discard(writer)
             writer.close()
 
     def handle_pdu(self, unit_id: int, pdu: bytes) -> bytes | None:
