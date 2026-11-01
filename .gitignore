@@ -21,3 +21,6 @@ dist/
 .vscode/
 .idea/
 .DS_Store
+
+# Site configuration in use on a development machine (copy of config/site.example.json)
+config/site.json
