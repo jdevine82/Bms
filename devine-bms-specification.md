@@ -135,7 +135,7 @@ The mode is chosen once by the provisioning script (`--mode full` or `--mode sta
 | Added logic blocks | Limit (with optional rate limit), scale (linear range conversion with clamp), and astro time switch (sunrise and sunset with offsets, calculated locally from site latitude, longitude and time zone) (5.3.1) |
 | Variables on the HMI | Variables published as points can be changed from the HMI by a logged-in operator within limits, audit-logged; not adjustable in direct mode (5.3.1) |
 | Logic fail-safe default | Release to device; a block can choose hold last value or a stated value (5.3.1) |
-| HMI | Pi OS 64-bit, Chromium in kiosk mode loading the site UI (HMI layout) | Reuses the web UI |
+| HMI | Raspberry Pi 4 or 5 running **64-bit Raspberry Pi OS only** (32-bit is not supported), Chromium in kiosk mode loading the site UI (HMI layout) | Reuses the web UI; one build target with ready-made 64-bit Python packages |
 | Remote access | Tailscale | Chosen |
 | Alarms | Email, SMS gateway API (for example ClickSend or Twilio), ntfy push | Chosen |
 | Tests | pytest, Playwright, device simulators | See section 16 |
@@ -711,9 +711,9 @@ Plus one service **on the Proxmox host**:
 - Environments: `dev` (a Proxmox box or VM that mirrors the site layout), `test` (bench with real hardware), `prod` (sites).
 
 ### Raspberry Pi HMI
-- Model: _TBC_ (Pi 4 or 5 suggested)
+- Model: **Raspberry Pi 4 or Pi 5** (decided). Exact model and RAM size _TBC_; older 32-bit-only boards (Pi 1, Pi 2, Pi Zero / Zero W) are not supported.
 - Screen: 7 inch touch, 1024 x 600 landscape (used for the mockups in section 6.3). Specific model _TBC_.
-- OS: Raspberry Pi OS (64-bit), minimal install
+- OS: **Raspberry Pi OS (64-bit) only** (decided), minimal install. The 32-bit OS is not supported or tested, even though a Pi 4 or 5 can run it. A Pi that came with 32-bit Raspberry Pi OS is reflashed with the 64-bit image (Raspberry Pi Imager) before install, and the provisioning script refuses to install on a 32-bit OS. This applies to both the HMI and standalone mode.
 - Mode: auto-start into kiosk UI on boot, with a watchdog/auto-restart
 - Extra hardware: one **USB RS485 converter per serial bus** (each MS/TP trunk and each Modbus RTU line the HMI must take over), plus Ethernet to the device network. Sites have **at least 2 serial buses**.
 - Use quality isolated USB converters on a **powered USB hub**, with stable device names (udev rule by serial number). Plan for up to about 4 converters per Pi. **[Assumed]**
@@ -860,6 +860,7 @@ All figures are proposals and should be adjusted.
 | HMI on server failure | Automatic standby takeover (after heartbeat loss and a clear bus) through its own BACnet and Modbus connections, manual failback, manual control only (no BMS logic or schedules) |
 | HMI login | View open, PIN or login to command |
 | HMI screen | 7 inch touch, 1024 x 600 landscape; mockups in section 6.3 |
+| Pi hardware and OS | Raspberry Pi 4 or 5 with 64-bit Raspberry Pi OS only; 32-bit OS and 32-bit-only boards not supported (13) |
 | Alarms | Email, SMS gateway API, ntfy push |
 | Schedule master | The BMS (overwrites controller schedules, flags local changes) |
 | Login | Local accounts per site, optional 2FA |
