@@ -2,9 +2,9 @@
 
 Python 3.12 site backend. Milestone 2 spec: `../docs/specs/m2-simulated-modbus-to-trend.md`.
 
-This first part has the site configuration format, the database schema and migrations,
-the Modbus value decoder, the Haystack tag libraries, and the simulated power meter.
-Polling, the API and the web app come next.
+Done so far: the site configuration format, the database schema and migrations, the Haystack tag
+libraries, the simulated power meter, Modbus TCP polling with block reads and speed classes, value
+quality (Good, Bad, Stale), the live value cache and history storage. The API and web app come next.
 
 ## Developer setup (native install, no Docker)
 
@@ -66,6 +66,27 @@ uv run python ../simulators/modbus_meter.py --port 5020
 ```
 
 `--mode down | exception | frozen` starts it in a fault mode (see the file for details).
+
+## Run the backend
+
+Starts polling the devices in `config/site.json`, applies value quality, and stores history.
+The web API comes in part 3.
+
+```bash
+uv run python ../simulators/modbus_meter.py --port 5020
+```
+
+In a second terminal:
+
+```bash
+uv run python -m devine_bms.run
+```
+
+It syncs the config file into the database first, then logs one JSON line per connection change
+and a status line every minute. Stop it with Ctrl+C.
+
+**24-hour soak run (milestone 2 spec 9):** leave both running for 24 hours, then check the status
+lines show `failures 0` and steady memory use.
 
 ## Tests
 
