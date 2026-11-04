@@ -712,9 +712,9 @@ Plus one service **on the Proxmox host**:
 
 ### Raspberry Pi HMI
 - Model: **Raspberry Pi 4 or Pi 5** (decided). Exact model and RAM size _TBC_; older 32-bit-only boards (Pi 1, Pi 2, Pi Zero / Zero W) are not supported.
-- Screen: 7 inch touch, 1024 x 600 landscape (used for the mockups in section 6.3). Specific model _TBC_.
+- Screen: 7 inch touch, landscape. Specific model _TBC_. The mockups use 1024 x 600; the HMI layout is tested at both **1024 x 600** and **1280 x 720** (the official Raspberry Pi Touch Display 2, rotated) until the screen is chosen.
 - OS: **Raspberry Pi OS (64-bit) only** (decided), minimal install. The 32-bit OS is not supported or tested, even though a Pi 4 or 5 can run it. A Pi that came with 32-bit Raspberry Pi OS is reflashed with the 64-bit image (Raspberry Pi Imager) before install, and the provisioning script refuses to install on a 32-bit OS. This applies to both the HMI and standalone mode.
-- Mode: auto-start into kiosk UI on boot, with a watchdog/auto-restart
+- Mode: auto-start into kiosk UI on boot, with a watchdog/auto-restart. **Decided (milestone 3):** Raspberry Pi OS Lite (64-bit) with `cage` and Chromium in kiosk mode, a systemd service that restarts it, and the hardware watchdog; the HMI is the web app's HMI layout at `/hmi` (`hmi/README.md`).
 - Extra hardware: one **USB RS485 converter per serial bus** (each MS/TP trunk and each Modbus RTU line the HMI must take over), plus Ethernet to the device network. Sites have **at least 2 serial buses**.
 - Use quality isolated USB converters on a **powered USB hub**, with stable device names (udev rule by serial number). Plan for up to about 4 converters per Pi. **[Assumed]**
 - Storage: quality SD card or SSD; plan for write-wear (log rotation, limited local writes)

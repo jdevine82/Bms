@@ -1,0 +1,260 @@
+/* HMI layout (milestone 3 spec 4). Uses the dark tokens from styles.css (data-theme="dark"). */
+
+.hmi-root,
+.hmi-root body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.hmi-root body {
+  font-size: 16px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.hmi-root #root {
+  height: 100%;
+}
+
+.hmi {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.hmi-top,
+.hmi-banner,
+.hmi-tabs {
+  flex: none;
+}
+
+.hmi-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  min-height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.hmi-site {
+  font-weight: 600;
+  font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+
+.hmi-spacer {
+  flex: 1;
+}
+
+.hmi-conn,
+.hmi-lock {
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.hmi-conn.ok {
+  color: var(--ok);
+}
+
+.hmi-conn.bad {
+  color: var(--bad);
+  border-width: 2px;
+}
+
+.hmi-lock {
+  color: var(--text-muted);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hmi-clock {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hmi-banner {
+  padding: 8px 12px;
+  background: var(--bad);
+  color: #1a0b0a;
+  font-weight: 600;
+}
+
+.hmi-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 12px;
+  touch-action: pan-y;
+}
+
+.hmi-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.hmi-tabs button {
+  min-height: 56px;
+  padding: 0 6px;
+  border: none;
+  border-top: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Overrides the site app's nav button style (styles.css). */
+.hmi-tabs button.active {
+  background: var(--muted-bg);
+  border-top-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hmi-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+}
+
+.hmi-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.hmi-tile h2 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.hmi-tile-flag {
+  font-size: 13px;
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.hmi-tile ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hmi-tile li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 44px;
+  border-top: 1px solid var(--border);
+}
+
+.hmi-point {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hmi-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hmi-status {
+  grid-column: 1 / -1;
+  justify-self: end;
+  font-size: 12px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.hmi li.not-good .hmi-value,
+.hmi-offline .hmi-value {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.hmi-trends {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.hmi-trend-points {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.hmi-trend-points button,
+.hmi-ranges button {
+  min-height: 44px;
+  padding: 0 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.hmi-trend-points button.active,
+.hmi-ranges button.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.hmi-ranges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hmi-trend-chart .chart {
+  min-height: 0;
+}
+
+.hmi-small {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 6px 0 0;
+}
+
+.hmi-note,
+.hmi-later {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px 16px;
+}
+
+.hmi-later h2 {
+  color: var(--text);
+  margin: 0 0 8px;
+}

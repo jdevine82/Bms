@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from devine_bms import __version__
@@ -256,6 +256,14 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             rt.cache.unsubscribe(queue)
 
     if web_dist and web_dist.is_dir():
+        index = web_dist / "index.html"
+
+        # The Pi kiosk opens /hmi; the same app picks its HMI layout from the path (milestone 3 spec 4).
+        @app.get("/hmi", include_in_schema=False)
+        @app.get("/hmi/{rest:path}", include_in_schema=False)
+        async def hmi(rest: str = "") -> FileResponse:
+            return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     return app
 
