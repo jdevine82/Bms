@@ -74,12 +74,24 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
             medium=item.medium.value,
         ))
 
+    buses = await _by_name(session, db.Bus, site.id)
+    for item in config.buses:
+        settings = item.model_dump(mode="json", by_alias=True, exclude={"name", "dis", "type", "enabled"})
+        buses[item.name] = _upsert(
+            session, report, "bus", buses.get(item.name), db.Bus,
+            site_id=site.id, name=item.name, dis=item.dis, bus_type=item.type, settings=settings,
+            enabled=item.enabled,
+        )
+    await session.flush()
+
     devices = await _by_name(session, db.Device, site.id)
     for item in config.devices:
+        bus_name = getattr(item.connection, "bus", None)
         devices[item.name] = _upsert(
             session, report, "device", devices.get(item.name), db.Device,
             site_id=site.id, name=item.name, dis=item.dis, protocol=item.protocol,
             connection=item.connection.model_dump(mode="json", by_alias=True), enabled=item.enabled,
+            bus_id=buses[bus_name].id if bus_name else None,
         )
     await session.flush()
 
@@ -97,6 +109,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
         )
 
     in_file = {
+        "bus": {b.name for b in config.buses},
         "space": {s.name for s in config.spaces},
         "equip": {e.name for e in config.equips},
         "device": {d.name for d in config.devices},
@@ -110,6 +123,10 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
         if name not in in_file["device"] and row.enabled:
             row.enabled = False
             report.disabled.setdefault("device", []).append(name)
+    for name, row in buses.items():
+        if name not in in_file["bus"] and row.enabled:
+            row.enabled = False
+            report.disabled.setdefault("bus", []).append(name)
     for kind, rows in (("space", spaces), ("equip", equips)):
         missing = sorted(n for n in rows if n not in in_file[kind])
         if missing:

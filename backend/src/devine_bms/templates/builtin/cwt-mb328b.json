@@ -1,0 +1,371 @@
+{
+  "schema": "devine-bms-device-template/0",
+  "id": "cwt-mb328b",
+  "version": "1.0.0",
+  "hardwareId": "H1",
+  "vendor": "CWT (Comwintop)",
+  "model": "CWT-MB328B(II)",
+  "dis": "CWT-MB328B(II) Modbus I/O module, 8 digital inputs and 18 relay outputs",
+  "status": "datasheet only",
+  "protocols": [
+    "modbus_rtu",
+    "modbus_tcp"
+  ],
+  "defaults": {
+    "unitId": 1,
+    "baudrate": 9600,
+    "parity": "N",
+    "dataBits": 8,
+    "stopBits": 1,
+    "tcpHost": "192.168.1.1",
+    "tcpPort": 502,
+    "blockSize": 32
+  },
+  "notes": [
+    "Every unit ships as slave ID 1, and every -SE as 192.168.1.1: give each unit a unique ID or address before it joins a bus or network.",
+    "Inputs are wet (5 to 30 VDC). A dry contact needs a supply wired through it. Not for mains voltage.",
+    "Relays are rated 5 A resistive: switch motors, compressors and large lights through contactors.",
+    "What the relays do on loss of communications and at power-up is not documented. Do not use them where a stuck-on relay is unsafe until this is tested on the bench.",
+    "The manual uses 1-based addresses (00001, 10001); the template stores the 0-based wire address and shows the manual address."
+  ],
+  "points": [
+    {
+      "key": "di0",
+      "dis": "Digital input DI0",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10001",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 0,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "di1",
+      "dis": "Digital input DI1",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10002",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 1,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "di2",
+      "dis": "Digital input DI2",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10003",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 2,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "di3",
+      "dis": "Digital input DI3",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10004",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 3,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "di4",
+      "dis": "Digital input DI4",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10005",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 4,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "di5",
+      "dis": "Digital input DI5",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10006",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 5,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "di6",
+      "dis": "Digital input DI6",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10007",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 6,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "di7",
+      "dis": "Digital input DI7",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "10008",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 7,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do0",
+      "dis": "Relay output DO0",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00001",
+      "address": {
+        "objectType": "coil",
+        "address": 0,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do1",
+      "dis": "Relay output DO1",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00002",
+      "address": {
+        "objectType": "coil",
+        "address": 1,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do2",
+      "dis": "Relay output DO2",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00003",
+      "address": {
+        "objectType": "coil",
+        "address": 2,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do3",
+      "dis": "Relay output DO3",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00004",
+      "address": {
+        "objectType": "coil",
+        "address": 3,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do4",
+      "dis": "Relay output DO4",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00005",
+      "address": {
+        "objectType": "coil",
+        "address": 4,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do5",
+      "dis": "Relay output DO5",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00006",
+      "address": {
+        "objectType": "coil",
+        "address": 5,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do6",
+      "dis": "Relay output DO6",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00007",
+      "address": {
+        "objectType": "coil",
+        "address": 6,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do7",
+      "dis": "Relay output DO7",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00008",
+      "address": {
+        "objectType": "coil",
+        "address": 7,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do8",
+      "dis": "Relay output DO8",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00009",
+      "address": {
+        "objectType": "coil",
+        "address": 8,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do9",
+      "dis": "Relay output DO9",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00010",
+      "address": {
+        "objectType": "coil",
+        "address": 9,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do10",
+      "dis": "Relay output DO10",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00011",
+      "address": {
+        "objectType": "coil",
+        "address": 10,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do11",
+      "dis": "Relay output DO11",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00012",
+      "address": {
+        "objectType": "coil",
+        "address": 11,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do12",
+      "dis": "Relay output DO12",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00013",
+      "address": {
+        "objectType": "coil",
+        "address": 12,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do13",
+      "dis": "Relay output DO13",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00014",
+      "address": {
+        "objectType": "coil",
+        "address": 13,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do14",
+      "dis": "Relay output DO14",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00015",
+      "address": {
+        "objectType": "coil",
+        "address": 14,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do15",
+      "dis": "Relay output DO15",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00016",
+      "address": {
+        "objectType": "coil",
+        "address": 15,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do16",
+      "dis": "Relay output DO16",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00017",
+      "address": {
+        "objectType": "coil",
+        "address": 16,
+        "dataType": "bit"
+      }
+    },
+    {
+      "key": "do17",
+      "dis": "Relay output DO17",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "00018",
+      "address": {
+        "objectType": "coil",
+        "address": 17,
+        "dataType": "bit"
+      }
+    }
+  ]
+}

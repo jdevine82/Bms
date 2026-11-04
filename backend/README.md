@@ -59,6 +59,18 @@ After changing `config/model.py`, refresh the published schema:
 uv run python -m devine_bms.config.write_schema
 ```
 
+## RS485 lines, gateways and device templates (milestone 4a)
+
+Buses (`modbus_rtu`, `modbus_rtu_over_tcp`, `modbus_tcp_gateway`), the H1 template and the template
+command line are described in `../docs/specs/m4a-modbus-rtu.md`. `../config/site.example-rtu.json`
+puts a meter and an H1 module on one line; run it against the RTU simulator:
+
+```bash
+uv run python ../simulators/modbus_meter.py --port 5021 --framing rtu --units meter:1,io:2
+```
+
+Name USB RS485 adapters by serial number with `../deploy/udev/99-devine-bms-rs485.rules`.
+
 ## Simulated power meter
 
 ```bash

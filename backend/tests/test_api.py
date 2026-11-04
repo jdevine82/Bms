@@ -75,6 +75,7 @@ async def test_health_and_site(server):
     client = server["client"]
     health = (await client.get("/api/health")).json()
     assert health["status"] == "ok" and health["devices"][0]["name"] == "sim_meter"
+    assert health["connections"][0]["devices"] == ["sim_meter"] and health["connections"][0]["shared"] is False
     site = (await client.get("/api/site")).json()
     assert site["name"] == "dev_site" and site["tz"] == "Sydney" and site["ianaTz"] == "Australia/Sydney"
     assert [e["name"] for e in site["equips"]] == ["meter1"]

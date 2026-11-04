@@ -8,7 +8,7 @@ from pathlib import Path
 
 from devine_bms.config.model import PollClass
 from devine_bms.config.validate import parse_config
-from devine_bms.runtime_model import RuntimeConfig, RuntimeDevice, RuntimePoint, SiteEquip, SiteSpace
+from devine_bms.runtime_model import RuntimeBus, RuntimeConfig, RuntimeDevice, RuntimePoint, SiteEquip, SiteSpace
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "config" / "site.example.json"
 
@@ -31,8 +31,12 @@ def runtime_config_from(data: dict) -> RuntimeConfig:
         e.name: SiteEquip(uuid.uuid4(), e.name, e.dis, spaces[e.space].id if e.space else None, None, dict(e.tags))
         for e in config.equips
     }
+    buses = {b.name: RuntimeBus(uuid.uuid4(), b) for b in config.buses}
     devices = {
-        d.name: RuntimeDevice(uuid.uuid4(), d.name, d.protocol, d.connection, d.enabled)
+        d.name: RuntimeDevice(
+            uuid.uuid4(), d.name, d.protocol, d.connection, d.enabled,
+            bus_id=buses[d.connection.bus].id if d.protocol == "modbus" else None,
+        )
         for d in config.devices
     }
     points = tuple(
@@ -48,5 +52,5 @@ def runtime_config_from(data: dict) -> RuntimeConfig:
     return RuntimeConfig(
         uuid.uuid4(), config.site.tz, tuple(devices.values()), points,
         site_name=config.site.name, site_dis=config.site.dis,
-        spaces=tuple(spaces.values()), equips=tuple(equips.values()),
+        spaces=tuple(spaces.values()), equips=tuple(equips.values()), buses=tuple(buses.values()),
     )

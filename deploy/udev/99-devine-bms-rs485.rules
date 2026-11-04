@@ -1,0 +1,18 @@
+# Stable names for USB RS485 adapters (main spec 11 and 13; bench test 5).
+#
+# A USB adapter's /dev/ttyUSBn number can change after a reboot or replug. Name each
+# adapter by its serial number instead, and use the stable name as the bus `port` in
+# the site configuration, for example /dev/bms-rs485-1.
+#
+# 1. Plug in one adapter and find its IDs:
+#      udevadm info --query=property --name=/dev/ttyUSB0 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID|ID_SERIAL_SHORT'
+# 2. Copy a line below, fill in the three values, and give it a name.
+# 3. Install and reload:
+#      sudo cp 99-devine-bms-rs485.rules /etc/udev/rules.d/
+#      sudo udevadm control --reload && sudo udevadm trigger
+# 4. Check: ls -l /dev/bms-rs485-*
+#
+# Example (FTDI-based adapter; replace the serial number with your adapter's):
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="A10K1234", SYMLINK+="bms-rs485-1", MODE="0660", GROUP="dialout"
+#
+# /dev/serial/by-id/... names also stay the same and need no rule; this file just gives shorter names.

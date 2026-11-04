@@ -103,11 +103,34 @@ class EquipFeed(Base):
     medium: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
+class Bus(Base):
+    """An RS485 line or a serial-to-Ethernet gateway that several devices share (main spec 5.1)."""
+
+    __tablename__ = "bus"
+    __table_args__ = (
+        UniqueConstraint("site_id", "name"),
+        CheckConstraint(
+            "bus_type IN ('modbus_rtu', 'modbus_rtu_over_tcp', 'modbus_tcp_gateway')", name="bus_type"
+        ),
+    )
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    dis: Mapped[str] = mapped_column(Text, nullable=False)
+    bus_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Port settings or gateway address, timeout and retries, as in the config file.
+    settings: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    updated_at: Mapped[datetime] = _updated()
+
+
 class Device(Base):
     __tablename__ = "device"
     __table_args__ = (UniqueConstraint("site_id", "name"),)
     id: Mapped[uuid.UUID] = _id()
     site_id: Mapped[uuid.UUID] = _site_fk()
+    # Set for devices on a bus; their connection holds the unit ID and block size.
+    bus_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bus.id", ondelete="RESTRICT"), index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     dis: Mapped[str] = mapped_column(Text, nullable=False)
     protocol: Mapped[str] = mapped_column(String(32), nullable=False)

@@ -1,0 +1,185 @@
+{
+  "schema": "devine-bms-config/0",
+  "site": {
+    "name": "dev_rtu_site",
+    "dis": "Development site (RS485)",
+    "tz": "Sydney"
+  },
+  "spaces": [
+    {
+      "name": "plant",
+      "dis": "Plant room"
+    }
+  ],
+  "equips": [
+    {
+      "name": "meter1",
+      "dis": "Main power meter",
+      "space": "plant",
+      "tags": {
+        "ac": true,
+        "elec": true,
+        "meter": true,
+        "siteMeter": true
+      }
+    },
+    {
+      "name": "lights1",
+      "dis": "Plant room lights",
+      "space": "plant",
+      "tags": {
+        "lighting": true
+      }
+    }
+  ],
+  "buses": [
+    {
+      "name": "rs485_1",
+      "dis": "RS485 line 1 (simulated RTU over TCP)",
+      "type": "modbus_rtu_over_tcp",
+      "host": "127.0.0.1",
+      "port": 5021,
+      "timeoutS": 0.5,
+      "retries": 1
+    }
+  ],
+  "devices": [
+    {
+      "name": "meter",
+      "dis": "Simulated meter",
+      "protocol": "modbus",
+      "connection": {
+        "bus": "rs485_1",
+        "unitId": 1
+      }
+    },
+    {
+      "name": "io1",
+      "dis": "Simulated H1 I/O module",
+      "protocol": "modbus",
+      "connection": {
+        "bus": "rs485_1",
+        "unitId": 2
+      }
+    }
+  ],
+  "points": [
+    {
+      "name": "plant_meter1_power",
+      "dis": "Main meter power",
+      "equip": "meter1",
+      "device": "meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "kW",
+      "tags": {
+        "elec": true,
+        "power": true
+      },
+      "pollClass": "fast",
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 0,
+        "dataType": "float32"
+      }
+    },
+    {
+      "name": "plant_meter1_import_energy",
+      "dis": "Main meter import energy",
+      "equip": "meter1",
+      "device": "meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "kWh",
+      "tags": {
+        "elec": true,
+        "energy": true,
+        "import": true
+      },
+      "pollClass": "slow",
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 8,
+        "dataType": "uint32",
+        "wordOrder": "low_first",
+        "scale": 0.1
+      }
+    },
+    {
+      "name": "plant_lights1_di0",
+      "dis": "Digital input DI0",
+      "device": "io1",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {},
+      "pollClass": "fast",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 0,
+        "dataType": "bit",
+        "byteOrder": "big",
+        "wordOrder": "high_first",
+        "scale": 1.0,
+        "offset": 0.0
+      },
+      "equip": "lights1"
+    },
+    {
+      "name": "plant_lights1_di1",
+      "dis": "Digital input DI1",
+      "device": "io1",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {},
+      "pollClass": "fast",
+      "address": {
+        "objectType": "discreteInput",
+        "address": 1,
+        "dataType": "bit",
+        "byteOrder": "big",
+        "wordOrder": "high_first",
+        "scale": 1.0,
+        "offset": 0.0
+      },
+      "equip": "lights1"
+    },
+    {
+      "name": "plant_lights1_do0",
+      "dis": "Relay output DO0",
+      "device": "io1",
+      "type": "cmd",
+      "kind": "Bool",
+      "tags": {},
+      "pollClass": "normal",
+      "address": {
+        "objectType": "coil",
+        "address": 0,
+        "dataType": "bit",
+        "byteOrder": "big",
+        "wordOrder": "high_first",
+        "scale": 1.0,
+        "offset": 0.0
+      },
+      "equip": "lights1"
+    },
+    {
+      "name": "plant_lights1_do1",
+      "dis": "Relay output DO1",
+      "device": "io1",
+      "type": "cmd",
+      "kind": "Bool",
+      "tags": {},
+      "pollClass": "normal",
+      "address": {
+        "objectType": "coil",
+        "address": 1,
+        "dataType": "bit",
+        "byteOrder": "big",
+        "wordOrder": "high_first",
+        "scale": 1.0,
+        "offset": 0.0
+      },
+      "equip": "lights1"
+    }
+  ]
+}
