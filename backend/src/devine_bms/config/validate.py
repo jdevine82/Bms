@@ -14,7 +14,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from devine_bms.config.model import Kind, ObjectType, PointType, SiteConfig
+from devine_bms.config.model import BacnetAddress, Kind, ModbusAddress, ObjectType, PointType, SiteConfig
 from devine_bms.drivers.modbus.codec import DataType
 from devine_bms.haystack.library import TagLibrary, load_library
 
@@ -111,6 +111,21 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             error(where, f"unit ID {conn.unit_id} on bus '{conn.bus}' is already used by device '{used[key]}'")
         used[key] = device.name
 
+    device_by_name = {d.name: d for d in config.devices}
+
+    # BACnet: the BMS needs its own identity, and device instances are unique on a network.
+    bacnet_devices = [d for d in config.devices if d.protocol == "bacnet_ip"]
+    if bacnet_devices and config.bacnet is None:
+        error("bacnet", "BACnet/IP devices need the site's 'bacnet' settings (the BMS's own address and device instance)")
+    instances: dict[int, str] = {}
+    if config.bacnet is not None:
+        instances[config.bacnet.device_instance] = "the BMS itself"
+    for device in bacnet_devices:
+        number = device.connection.device_instance
+        if number in instances:
+            error(f"devices.{device.name}", f"device instance {number} is already used by {instances[number]}")
+        instances[number] = f"device '{device.name}'"
+
     spaces = {s.name for s in config.spaces}
     equips = {e.name: e for e in config.equips}
     devices = {d.name for d in config.devices}
@@ -171,25 +186,52 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
         if markers:
             error(where, f"do not tag {sorted(markers)}; the point type comes from 'type' ({point.type})")
 
-        is_bit_object = point.address.object_type in (ObjectType.COIL, ObjectType.DISCRETE_INPUT)
-        is_bit_type = point.address.data_type == DataType.BIT
-        if is_bit_object != is_bit_type:
-            error(where, "coils and discrete inputs use data type 'bit', and registers must not")
-        if point.kind == Kind.BOOL and not is_bit_type:
-            error(where, "Bool points must use a coil or discrete input in this milestone")
-        if point.kind == Kind.NUMBER and is_bit_type:
-            error(where, "Number points cannot use data type 'bit'")
+        device = device_by_name.get(point.device)
+        if device is not None:
+            is_bacnet_device = device.protocol == "bacnet_ip"
+            if is_bacnet_device and not isinstance(point.address, BacnetAddress):
+                error(where, f"device '{point.device}' is BACnet, so the point needs a BACnet address")
+            if not is_bacnet_device and not isinstance(point.address, ModbusAddress):
+                error(where, f"device '{point.device}' is Modbus, so the point needs a Modbus address")
+
         if point.kind == Kind.STR and not point.enum:
             error(where, "Str points need an 'enum' list")
-        if point.type != PointType.SENSOR and point.address.object_type in (
-                ObjectType.DISCRETE_INPUT, ObjectType.INPUT_REGISTER):
-            error(where, f"a {point.type} point must be writable, but {point.address.object_type} is read-only")
+        if isinstance(point.address, ModbusAddress):
+            _check_modbus_point(where, point, error)
+        else:
+            _check_bacnet_point(where, point, error)
 
         prefix = _name_prefix(point, equips)
         if prefix and not point.name.startswith(prefix):
             warning(where, f"name does not follow <room>_<equipment>_<function>; expected it to start '{prefix}'")
 
     return issues
+
+
+def _check_modbus_point(where, point, error) -> None:
+    is_bit_object = point.address.object_type in (ObjectType.COIL, ObjectType.DISCRETE_INPUT)
+    is_bit_type = point.address.data_type == DataType.BIT
+    if is_bit_object != is_bit_type:
+        error(where, "coils and discrete inputs use data type 'bit', and registers must not")
+    if point.kind == Kind.BOOL and not is_bit_type:
+        error(where, "Bool points must use a coil or discrete input in this milestone")
+    if point.kind == Kind.NUMBER and is_bit_type:
+        error(where, "Number points cannot use data type 'bit'")
+    if point.type != PointType.SENSOR and point.address.object_type in (
+            ObjectType.DISCRETE_INPUT, ObjectType.INPUT_REGISTER):
+        error(where, f"a {point.type} point must be writable, but {point.address.object_type} is read-only")
+
+
+def _check_bacnet_point(where, point, error) -> None:
+    family = point.address.object_type.value
+    if family.startswith("analog") and point.kind != Kind.NUMBER:
+        error(where, f"{family} objects are Number points")
+    if family.startswith("binary") and point.kind != Kind.BOOL:
+        error(where, f"{family} objects are Bool points")
+    if family.startswith("multiState") and point.kind == Kind.BOOL:
+        error(where, f"{family} objects are Str points (with an enum list) or Number points (the state number)")
+    if point.type != PointType.SENSOR and family.endswith("Input"):
+        error(where, f"a {point.type} point must be writable, but a BACnet {family} is read-only")
 
 
 def _check_tags(where, tags, library, error, warning) -> None:

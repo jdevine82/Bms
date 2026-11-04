@@ -55,6 +55,9 @@ class QualityTracker:
         self.intervals = intervals
         self.clock = clock
         self.started = clock()
+        # Stale times that differ from the point's class, for example points kept up to date by
+        # BACnet change-of-value, which only report on a change (main spec 5.1.4).
+        self.stale_overrides: dict[uuid.UUID, float] = {}
         for p in points:
             cache.set(LiveValue(p.id, None, Status.UNKNOWN, self.started, "not read yet"))
 
@@ -84,7 +87,7 @@ class QualityTracker:
             if current is None or current.status not in (Status.OK, Status.UNKNOWN):
                 continue
             since = current.last_good_ts or self.started
-            limit = point.stale_after(self.intervals)
+            limit = self.stale_overrides.get(point.id) or point.stale_after(self.intervals)
             if (now - since).total_seconds() > limit:
                 self.bad(point, Status.STALE, f"no new value for more than {limit:g} s")
 

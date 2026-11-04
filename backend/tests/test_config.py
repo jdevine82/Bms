@@ -145,3 +145,8 @@ def test_rs485_example_config_is_valid():
     config, issues = load_config(EXAMPLE.parent / "site.example-rtu.json")
     assert [b.type for b in config.buses] == ["modbus_rtu_over_tcp"]
     assert len(config.devices) == 2 and issues == []
+
+
+def test_bacnet_example_config_is_valid():
+    config, issues = load_config(EXAMPLE.parent / "site.example-bacnet.json")
+    assert config.devices[0].protocol == "bacnet_ip" and issues == []

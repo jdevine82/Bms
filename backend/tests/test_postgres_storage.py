@@ -98,3 +98,20 @@ async def test_runtime_stores_history_in_postgres(sessions):
     rows = await storage.read_history(power.id, now - timedelta(minutes=1), now + timedelta(seconds=1))
     assert len(rows) >= 5
     assert all(r.status == Status.OK for r in rows)
+
+
+async def test_bacnet_devices_round_trip(sessions):
+    """BACnet settings, connections and addresses survive the database (milestone 4b)."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    data = _json.loads((_Path(__file__).resolve().parents[2] / "config" / "site.example-bacnet.json").read_text())
+    config, _ = parse_config(data)
+    async with sessions() as session, session.begin():
+        await sync_config(session, config)
+    rc = await PostgresStorage(sessions).load_runtime_config(config.site.name)
+    assert rc.bacnet.device_instance == config.bacnet.device_instance
+    device = rc.devices[0]
+    assert device.protocol == "bacnet_ip" and device.connection.cov is True
+    mode = next(p for p in rc.points if p.name.endswith("_mode"))
+    assert mode.address.object_type == "multiStateValue" and mode.enum == ("Cool", "Heat", "Fan")

@@ -110,6 +110,15 @@ wheels = [
 ]
 
 [[package]]
+name = "bacpypes3"
+version = "0.0.110"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/13/b01d7c4a36e4bdc41167f249cb9f65d3049b332214b761d02d09522b037f/bacpypes3-0.0.110.tar.gz", hash = "sha256:fd130ae5844a370a28110011f14aae04654939d325e26ca71147b39bb4cbd942", size = 248204, upload-time = "2026-09-24T18:52:03.398Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/52/a3/c51884d0c841ffb9150acde9198615d09b89232455b9b62488f0ffa52318/bacpypes3-0.0.110-py3-none-any.whl", hash = "sha256:02abc0c9e7e92d7061727898ba00204ec072f1d451a63c4e7de76015b5b14911", size = 277907, upload-time = "2026-09-24T18:52:01.976Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.10.23"
 source = { registry = "https://pypi.org/simple" }
@@ -143,6 +152,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "bacpypes3" },
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -163,6 +173,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.1" },
     { name = "asyncpg", specifier = ">=0.32.0" },
+    { name = "bacpypes3", specifier = ">=0.0.110" },
     { name = "fastapi", specifier = ">=0.162.0" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },

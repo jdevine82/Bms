@@ -1,0 +1,139 @@
+{
+  "schema": "devine-bms-config/0",
+  "site": {
+    "name": "dev_bacnet_site",
+    "dis": "Development site (BACnet/IP)",
+    "tz": "Sydney"
+  },
+  "bacnet": {
+    "localAddress": "127.0.0.1/8",
+    "port": 47808,
+    "deviceInstance": 3999001,
+    "deviceName": "Devine BMS (development)"
+  },
+  "spaces": [
+    {
+      "name": "plant",
+      "dis": "Plant room"
+    }
+  ],
+  "equips": [
+    {
+      "name": "ahu1",
+      "dis": "AHU 1",
+      "space": "plant",
+      "tags": {
+        "ahu": true
+      }
+    }
+  ],
+  "devices": [
+    {
+      "name": "ctrl1",
+      "dis": "Simulated BACnet controller",
+      "protocol": "bacnet_ip",
+      "connection": {
+        "address": "127.0.0.1:47809",
+        "deviceInstance": 1001,
+        "timeoutS": 2,
+        "retries": 1,
+        "cov": true
+      }
+    }
+  ],
+  "points": [
+    {
+      "name": "plant_ahu1_room_temp",
+      "dis": "Room temperature",
+      "equip": "ahu1",
+      "device": "ctrl1",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "°C",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "pollClass": "fast",
+      "address": {
+        "objectType": "analogInput",
+        "instance": 1
+      }
+    },
+    {
+      "name": "plant_ahu1_sp",
+      "dis": "Setpoint",
+      "equip": "ahu1",
+      "device": "ctrl1",
+      "type": "sp",
+      "kind": "Number",
+      "unit": "°C",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "pollClass": "normal",
+      "address": {
+        "objectType": "analogValue",
+        "instance": 1
+      }
+    },
+    {
+      "name": "plant_ahu1_fan_status",
+      "dis": "Fan status",
+      "equip": "ahu1",
+      "device": "ctrl1",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "fan": true,
+        "run": true
+      },
+      "pollClass": "fast",
+      "address": {
+        "objectType": "binaryInput",
+        "instance": 1
+      }
+    },
+    {
+      "name": "plant_ahu1_fan_cmd",
+      "dis": "Fan command",
+      "equip": "ahu1",
+      "device": "ctrl1",
+      "type": "cmd",
+      "kind": "Bool",
+      "tags": {
+        "fan": true,
+        "run": true
+      },
+      "pollClass": "normal",
+      "address": {
+        "objectType": "binaryOutput",
+        "instance": 1
+      }
+    },
+    {
+      "name": "plant_ahu1_mode",
+      "dis": "Mode",
+      "equip": "ahu1",
+      "device": "ctrl1",
+      "type": "sp",
+      "kind": "Str",
+      "enum": [
+        "Cool",
+        "Heat",
+        "Fan"
+      ],
+      "tags": {
+        "hvacMode": true
+      },
+      "pollClass": "normal",
+      "address": {
+        "objectType": "multiStateValue",
+        "instance": 1
+      }
+    }
+  ]
+}

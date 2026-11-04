@@ -1,5 +1,138 @@
 {
   "$defs": {
+    "BacnetAddress": {
+      "additionalProperties": false,
+      "description": "A BACnet object and property. Multi-state values are 1-based: state 1 is enum[0].",
+      "properties": {
+        "objectType": {
+          "$ref": "#/$defs/BacnetObjectType"
+        },
+        "instance": {
+          "maximum": 4194302,
+          "minimum": 0,
+          "title": "Instance",
+          "type": "integer"
+        },
+        "property": {
+          "const": "presentValue",
+          "default": "presentValue",
+          "title": "Property",
+          "type": "string"
+        }
+      },
+      "required": [
+        "objectType",
+        "instance"
+      ],
+      "title": "BacnetAddress",
+      "type": "object"
+    },
+    "BacnetIpConnection": {
+      "additionalProperties": false,
+      "description": "A BACnet/IP device (main spec 5.1, milestone 4b).",
+      "properties": {
+        "address": {
+          "pattern": "^[0-9.]+(:[0-9]{1,5})?$",
+          "title": "Address",
+          "type": "string"
+        },
+        "deviceInstance": {
+          "maximum": 4194302,
+          "minimum": 0,
+          "title": "Deviceinstance",
+          "type": "integer"
+        },
+        "timeoutS": {
+          "default": 3.0,
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Timeouts",
+          "type": "number"
+        },
+        "retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "blockSize": {
+          "default": 20,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Blocksize",
+          "type": "integer"
+        },
+        "cov": {
+          "default": false,
+          "title": "Cov",
+          "type": "boolean"
+        },
+        "covLifetimeS": {
+          "default": 300,
+          "maximum": 86400,
+          "minimum": 60,
+          "title": "Covlifetimes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "address",
+        "deviceInstance"
+      ],
+      "title": "BacnetIpConnection",
+      "type": "object"
+    },
+    "BacnetObjectType": {
+      "enum": [
+        "analogInput",
+        "analogOutput",
+        "analogValue",
+        "binaryInput",
+        "binaryOutput",
+        "binaryValue",
+        "multiStateInput",
+        "multiStateOutput",
+        "multiStateValue"
+      ],
+      "title": "BacnetObjectType",
+      "type": "string"
+    },
+    "BacnetSettings": {
+      "additionalProperties": false,
+      "description": "The BMS's own BACnet/IP identity on the device network (main spec 5.1, 5.11).",
+      "properties": {
+        "localAddress": {
+          "pattern": "^[0-9.]+/[0-9]{1,2}$",
+          "title": "Localaddress",
+          "type": "string"
+        },
+        "port": {
+          "default": 47808,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "deviceInstance": {
+          "maximum": 4194302,
+          "minimum": 0,
+          "title": "Deviceinstance",
+          "type": "integer"
+        },
+        "deviceName": {
+          "default": "Devine BMS",
+          "title": "Devicename",
+          "type": "string"
+        }
+      },
+      "required": [
+        "localAddress",
+        "deviceInstance"
+      ],
+      "title": "BacnetSettings",
+      "type": "object"
+    },
     "ByteOrder": {
       "enum": [
         "big",
@@ -36,7 +169,8 @@
         "protocol": {
           "enum": [
             "modbus_tcp",
-            "modbus"
+            "modbus",
+            "bacnet_ip"
           ],
           "title": "Protocol",
           "type": "string"
@@ -48,6 +182,9 @@
             },
             {
               "$ref": "#/$defs/ModbusBusConnection"
+            },
+            {
+              "$ref": "#/$defs/BacnetIpConnection"
             }
           ],
           "title": "Connection"
@@ -653,7 +790,15 @@
           "type": "object"
         },
         "address": {
-          "$ref": "#/$defs/ModbusAddress"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModbusAddress"
+            },
+            {
+              "$ref": "#/$defs/BacnetAddress"
+            }
+          ],
+          "title": "Address"
         },
         "pollClass": {
           "$ref": "#/$defs/PollClass",
@@ -865,6 +1010,17 @@
       },
       "title": "Feeds",
       "type": "array"
+    },
+    "bacnet": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BacnetSettings"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "buses": {
       "default": [],

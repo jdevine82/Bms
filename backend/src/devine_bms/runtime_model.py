@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 
 from devine_bms.config.model import (
     POLL_INTERVAL_S,
+    BacnetAddress,
+    BacnetIpConnection,
+    BacnetSettings,
     Kind,
     ModbusAddress,
     ModbusBusConnection,
@@ -53,7 +56,7 @@ class RuntimeDevice:
     id: uuid.UUID
     name: str
     protocol: str
-    connection: ModbusTcpConnection | ModbusBusConnection
+    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection
     enabled: bool
     bus_id: uuid.UUID | None = None
 
@@ -74,7 +77,7 @@ class RuntimePoint:
     kind: Kind
     unit: str | None
     enum: tuple[str, ...] | None
-    address: ModbusAddress
+    address: ModbusAddress | BacnetAddress
     poll_class: PollClass
     stale_after_s: float | None
     his: bool
@@ -102,6 +105,7 @@ class RuntimeConfig:
     spaces: tuple[SiteSpace, ...] = ()
     equips: tuple[SiteEquip, ...] = ()
     buses: tuple[RuntimeBus, ...] = ()
+    bacnet: BacnetSettings | None = None
 
     def points_for(self, device_id: uuid.UUID) -> list[RuntimePoint]:
         return [p for p in self.points if p.device_id == device_id]

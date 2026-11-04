@@ -54,6 +54,8 @@ class Site(Base):
     geo_lng: Mapped[float | None] = mapped_column(Double)
     area_m2: Mapped[float | None] = mapped_column(Double)
     tags: Mapped[dict] = _tags()
+    # Site-wide settings from the config file, for example the BMS's own BACnet identity.
+    settings: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     updated_at: Mapped[datetime] = _updated()
 
 
