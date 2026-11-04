@@ -10,9 +10,27 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from devine_bms.config.model import Kind, ModbusAddress, ModbusTcpConnection, PollClass
+from pydantic import TypeAdapter
+
+from devine_bms.config.model import (
+    Bus,
+    Kind,
+    ModbusAddress,
+    ModbusBusConnection,
+    ModbusTcpConnection,
+    PollClass,
+)
 from devine_bms.db import models as db
-from devine_bms.runtime_model import RuntimeConfig, RuntimeDevice, RuntimePoint, SiteEquip, SiteSpace
+from devine_bms.runtime_model import (
+    RuntimeBus,
+    RuntimeConfig,
+    RuntimeDevice,
+    RuntimePoint,
+    SiteEquip,
+    SiteSpace,
+)
+
+_BUS = TypeAdapter(Bus)
 from devine_bms.values import HisRow, Status
 
 
@@ -25,9 +43,16 @@ class PostgresStorage:
             site = await session.scalar(select(db.Site).where(db.Site.name == site_name))
             if site is None:
                 raise LookupError(f"site '{site_name}' is not in the database; sync the config file first")
-            devices = (await session.scalars(
-                select(db.Device).where(db.Device.site_id == site.id, db.Device.enabled.is_(True))
+            buses = (await session.scalars(
+                select(db.Bus).where(db.Bus.site_id == site.id, db.Bus.enabled.is_(True))
             )).all()
+            bus_ids = {b.id for b in buses}
+            devices = [
+                d for d in (await session.scalars(
+                    select(db.Device).where(db.Device.site_id == site.id, db.Device.enabled.is_(True))
+                )).all()
+                if d.bus_id is None or d.bus_id in bus_ids  # devices on a disabled bus are not polled
+            ]
             device_ids = {d.id for d in devices}
             points = (await session.scalars(
                 select(db.Point).where(db.Point.site_id == site.id, db.Point.enabled.is_(True)).order_by(db.Point.name)
@@ -45,10 +70,21 @@ class PostgresStorage:
             site_dis=site.dis,
             spaces=tuple(SiteSpace(s.id, s.name, s.dis, dict(s.tags)) for s in spaces),
             equips=tuple(SiteEquip(e.id, e.name, e.dis, e.space_id, e.parent_equip_id, dict(e.tags)) for e in equips),
+            buses=tuple(
+                RuntimeBus(
+                    b.id,
+                    _BUS.validate_python(
+                        {**b.settings, "name": b.name, "dis": b.dis, "type": b.bus_type, "enabled": b.enabled}
+                    ),
+                )
+                for b in buses
+            ),
             devices=tuple(
                 RuntimeDevice(
                     id=d.id, name=d.name, protocol=d.protocol,
-                    connection=ModbusTcpConnection.model_validate(d.connection), enabled=d.enabled,
+                    connection=(ModbusTcpConnection if d.protocol == "modbus_tcp" else ModbusBusConnection)
+                    .model_validate(d.connection),
+                    enabled=d.enabled, bus_id=d.bus_id,
                 )
                 for d in devices
             ),

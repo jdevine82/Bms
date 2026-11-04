@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 from devine_bms.drivers.modbus.codec import ByteOrder, DataType, WordOrder
@@ -111,12 +111,69 @@ class ModbusTcpConnection(_Model):
     block_size: int = Field(default=32, ge=1, le=125)
 
 
+class _BusBase(_Model):
+    name: Name
+    dis: str
+    timeout_s: float = Field(default=1.0, gt=0, le=60)
+    retries: int = Field(default=1, ge=0, le=10)
+    enabled: bool = True
+
+
+class ModbusRtuBus(_BusBase):
+    """An RS485 line on a serial port (main spec 5.1). One adapter and port per bus, never shared."""
+
+    type: Literal["modbus_rtu"]
+    # A stable device name (udev rule by serial number, main spec 11), for example
+    # /dev/serial/by-id/usb-FTDI_..., or a pyserial URL such as socket://host:port for tests.
+    port: str = Field(min_length=1)
+    baudrate: int = Field(default=9600, ge=1200, le=115200)
+    parity: Literal["N", "E", "O"] = "N"
+    data_bits: Literal[7, 8] = 8
+    stop_bits: Literal[1, 2] = 1
+
+
+class ModbusRtuOverTcpBus(_BusBase):
+    """A serial-to-Ethernet gateway that passes raw RTU frames over TCP (main spec 5.1)."""
+
+    type: Literal["modbus_rtu_over_tcp"]
+    host: str
+    port: int = Field(default=502, ge=1, le=65535)
+
+
+class ModbusTcpGatewayBus(_BusBase):
+    """A serial-to-Ethernet gateway that converts Modbus TCP to RTU, addressing devices by unit ID."""
+
+    type: Literal["modbus_tcp_gateway"]
+    host: str
+    port: int = Field(default=502, ge=1, le=65535)
+
+
+Bus = Annotated[ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus, Field(discriminator="type")]
+
+
+class ModbusBusConnection(_Model):
+    """A device on a bus: its unit (slave) ID and how many registers it reads at once."""
+
+    bus: Name
+    unit_id: int = Field(ge=1, le=247)
+    block_size: int = Field(default=32, ge=1, le=125)
+
+
 class Device(_Model):
     name: Name
     dis: str
-    protocol: Literal["modbus_tcp"]
-    connection: ModbusTcpConnection
+    # modbus_tcp: a device with its own Modbus TCP connection.
+    # modbus: a device on a bus (RS485 line or serial gateway) from `buses`.
+    protocol: Literal["modbus_tcp", "modbus"]
+    connection: ModbusTcpConnection | ModbusBusConnection
     enabled: bool = True
+
+    @model_validator(mode="after")
+    def _connection_matches_protocol(self) -> Device:
+        wanted = ModbusTcpConnection if self.protocol == "modbus_tcp" else ModbusBusConnection
+        if not isinstance(self.connection, wanted):
+            raise ValueError(f"protocol '{self.protocol}' needs a {wanted.__name__} connection")
+        return self
 
 
 class ModbusAddress(_Model):
@@ -152,6 +209,7 @@ class SiteConfig(_Model):
     spaces: list[Space] = []
     equips: list[Equip] = []
     feeds: list[Feed] = []
+    buses: list[Bus] = []
     devices: list[Device] = []
     points: list[Point] = []
 

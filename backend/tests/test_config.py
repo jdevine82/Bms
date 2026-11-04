@@ -139,3 +139,9 @@ def test_published_schema_file_is_up_to_date():
     """
     published = EXAMPLE.parent / "schema" / "devine-bms-config-0.schema.json"
     assert json.loads(published.read_text()) == json_schema()
+
+
+def test_rs485_example_config_is_valid():
+    config, issues = load_config(EXAMPLE.parent / "site.example-rtu.json")
+    assert [b.type for b in config.buses] == ["modbus_rtu_over_tcp"]
+    assert len(config.devices) == 2 and issues == []

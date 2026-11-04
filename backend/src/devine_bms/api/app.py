@@ -142,6 +142,11 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 {"name": p.device.name, "online": p.online, "polls": p.polls, "failures": p.failures}
                 for p in rt.pollers
             ],
+            "connections": [
+                {"name": b.name, "where": b.client.where, "shared": b.client.shared, "online": b.online,
+                 "devices": [d.device.name for d in b.devices]}
+                for b in rt.buses
+            ],
             "history": {"written": rt.history.written, "pending": len(rt.history.pending)},
         }
 

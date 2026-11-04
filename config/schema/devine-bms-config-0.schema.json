@@ -34,12 +34,23 @@
           "type": "string"
         },
         "protocol": {
-          "const": "modbus_tcp",
+          "enum": [
+            "modbus_tcp",
+            "modbus"
+          ],
           "title": "Protocol",
           "type": "string"
         },
         "connection": {
-          "$ref": "#/$defs/ModbusTcpConnection"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModbusTcpConnection"
+            },
+            {
+              "$ref": "#/$defs/ModbusBusConnection"
+            }
+          ],
+          "title": "Connection"
         },
         "enabled": {
           "default": true,
@@ -242,6 +253,184 @@
       "title": "ModbusAddress",
       "type": "object"
     },
+    "ModbusBusConnection": {
+      "additionalProperties": false,
+      "description": "A device on a bus: its unit (slave) ID and how many registers it reads at once.",
+      "properties": {
+        "bus": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Bus",
+          "type": "string"
+        },
+        "unitId": {
+          "maximum": 247,
+          "minimum": 1,
+          "title": "Unitid",
+          "type": "integer"
+        },
+        "blockSize": {
+          "default": 32,
+          "maximum": 125,
+          "minimum": 1,
+          "title": "Blocksize",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bus",
+        "unitId"
+      ],
+      "title": "ModbusBusConnection",
+      "type": "object"
+    },
+    "ModbusRtuBus": {
+      "additionalProperties": false,
+      "description": "An RS485 line on a serial port (main spec 5.1). One adapter and port per bus, never shared.",
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "timeoutS": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Timeouts",
+          "type": "number"
+        },
+        "retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "modbus_rtu",
+          "title": "Type",
+          "type": "string"
+        },
+        "port": {
+          "minLength": 1,
+          "title": "Port",
+          "type": "string"
+        },
+        "baudrate": {
+          "default": 9600,
+          "maximum": 115200,
+          "minimum": 1200,
+          "title": "Baudrate",
+          "type": "integer"
+        },
+        "parity": {
+          "default": "N",
+          "enum": [
+            "N",
+            "E",
+            "O"
+          ],
+          "title": "Parity",
+          "type": "string"
+        },
+        "dataBits": {
+          "default": 8,
+          "enum": [
+            7,
+            8
+          ],
+          "title": "Databits",
+          "type": "integer"
+        },
+        "stopBits": {
+          "default": 1,
+          "enum": [
+            1,
+            2
+          ],
+          "title": "Stopbits",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "type",
+        "port"
+      ],
+      "title": "ModbusRtuBus",
+      "type": "object"
+    },
+    "ModbusRtuOverTcpBus": {
+      "additionalProperties": false,
+      "description": "A serial-to-Ethernet gateway that passes raw RTU frames over TCP (main spec 5.1).",
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "timeoutS": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Timeouts",
+          "type": "number"
+        },
+        "retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "modbus_rtu_over_tcp",
+          "title": "Type",
+          "type": "string"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 502,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "type",
+        "host"
+      ],
+      "title": "ModbusRtuOverTcpBus",
+      "type": "object"
+    },
     "ModbusTcpConnection": {
       "additionalProperties": false,
       "properties": {
@@ -289,6 +478,65 @@
         "host"
       ],
       "title": "ModbusTcpConnection",
+      "type": "object"
+    },
+    "ModbusTcpGatewayBus": {
+      "additionalProperties": false,
+      "description": "A serial-to-Ethernet gateway that converts Modbus TCP to RTU, addressing devices by unit ID.",
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "timeoutS": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Timeouts",
+          "type": "number"
+        },
+        "retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "modbus_tcp_gateway",
+          "title": "Type",
+          "type": "string"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 502,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "type",
+        "host"
+      ],
+      "title": "ModbusTcpGatewayBus",
       "type": "object"
     },
     "ObjectType": {
@@ -616,6 +864,32 @@
         "$ref": "#/$defs/Feed"
       },
       "title": "Feeds",
+      "type": "array"
+    },
+    "buses": {
+      "default": [],
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "modbus_rtu": "#/$defs/ModbusRtuBus",
+            "modbus_rtu_over_tcp": "#/$defs/ModbusRtuOverTcpBus",
+            "modbus_tcp_gateway": "#/$defs/ModbusTcpGatewayBus"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ModbusRtuBus"
+          },
+          {
+            "$ref": "#/$defs/ModbusRtuOverTcpBus"
+          },
+          {
+            "$ref": "#/$defs/ModbusTcpGatewayBus"
+          }
+        ]
+      },
+      "title": "Buses",
       "type": "array"
     },
     "devices": {

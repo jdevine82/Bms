@@ -78,13 +78,38 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
         issues.append(Issue(Severity.WARNING, where, message))
 
     # Unique names in each collection. Point names must be unique on the site (5.2).
-    for label, items in (("spaces", config.spaces), ("equips", config.equips),
+    for label, items in (("spaces", config.spaces), ("equips", config.equips), ("buses", config.buses),
                          ("devices", config.devices), ("points", config.points)):
         seen: set[str] = set()
         for item in items:
             if item.name in seen:
                 error(f"{label}.{item.name}", "duplicate name")
             seen.add(item.name)
+
+    # Buses: a serial port is never shared between buses (main spec 5.1).
+    ports: dict[str, str] = {}
+    for bus in config.buses:
+        if bus.type == "modbus_rtu":
+            if bus.port in ports:
+                error(f"buses.{bus.name}", f"serial port {bus.port} is already used by bus '{ports[bus.port]}'")
+            ports[bus.port] = bus.name
+    buses = {b.name: b for b in config.buses}
+
+    # Devices on a bus: the bus exists, and no two devices share a unit ID on it (main spec 5.1:
+    # many units ship with the same default ID, so a clash must be caught).
+    used: dict[tuple[str, int], str] = {}
+    for device in config.devices:
+        if device.protocol != "modbus":
+            continue
+        where = f"devices.{device.name}"
+        conn = device.connection
+        if conn.bus not in buses:
+            error(where, f"bus '{conn.bus}' does not exist")
+            continue
+        key = (conn.bus, conn.unit_id)
+        if key in used:
+            error(where, f"unit ID {conn.unit_id} on bus '{conn.bus}' is already used by device '{used[key]}'")
+        used[key] = device.name
 
     spaces = {s.name for s in config.spaces}
     equips = {e.name: e for e in config.equips}

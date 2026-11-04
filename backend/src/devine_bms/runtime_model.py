@@ -9,7 +9,11 @@ from devine_bms.config.model import (
     POLL_INTERVAL_S,
     Kind,
     ModbusAddress,
+    ModbusBusConnection,
+    ModbusRtuBus,
+    ModbusRtuOverTcpBus,
     ModbusTcpConnection,
+    ModbusTcpGatewayBus,
     PollClass,
 )
 
@@ -35,12 +39,31 @@ class SiteEquip:
 
 
 @dataclass(frozen=True)
+class RuntimeBus:
+    id: uuid.UUID
+    settings: ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus
+
+    @property
+    def name(self) -> str:
+        return self.settings.name
+
+
+@dataclass(frozen=True)
 class RuntimeDevice:
     id: uuid.UUID
     name: str
     protocol: str
-    connection: ModbusTcpConnection
+    connection: ModbusTcpConnection | ModbusBusConnection
     enabled: bool
+    bus_id: uuid.UUID | None = None
+
+    @property
+    def unit_id(self) -> int:
+        return self.connection.unit_id
+
+    @property
+    def block_size(self) -> int:
+        return self.connection.block_size
 
 
 @dataclass(frozen=True)
@@ -78,6 +101,7 @@ class RuntimeConfig:
     site_dis: str = ""
     spaces: tuple[SiteSpace, ...] = ()
     equips: tuple[SiteEquip, ...] = ()
+    buses: tuple[RuntimeBus, ...] = ()
 
     def points_for(self, device_id: uuid.UUID) -> list[RuntimePoint]:
         return [p for p in self.points if p.device_id == device_id]
