@@ -1,0 +1,108 @@
+<!doctype html>
+<!--
+  Devine BMS HMI waiting page (milestone 3 spec 5). Installed on the Pi and opened first by the kiosk.
+  Usage: file:///opt/devine-bms/hmi/waiting.html?server=http://<site server>:8000
+  It checks <server>/api/health every 3 seconds and opens <server>/hmi as soon as the server answers.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connecting to the site server</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #111418;
+        color: #e8ebef;
+        font: 18px/1.5 system-ui, sans-serif;
+        user-select: none;
+        cursor: none;
+      }
+      main {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        text-align: center;
+        padding: 0 24px;
+        box-sizing: border-box;
+      }
+      h1 {
+        font-size: 26px;
+        margin: 0;
+      }
+      .muted {
+        color: #9aa4b0;
+      }
+      .error {
+        color: #ff8a80;
+      }
+      .dot {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #f0b85a;
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.25;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="dot" aria-hidden="true"></span>
+      <h1>Connecting to the site server</h1>
+      <p id="server" class="muted"></p>
+      <p id="state" class="muted">Waiting for the server to answer…</p>
+      <p id="clock" class="muted"></p>
+    </main>
+    <script>
+      "use strict";
+      const server = (new URLSearchParams(location.search).get("server") || "").replace(/\/+$/, "");
+      const serverEl = document.getElementById("server");
+      const stateEl = document.getElementById("state");
+      const clockEl = document.getElementById("clock");
+      let attempts = 0;
+
+      function tick() {
+        clockEl.textContent = new Date().toLocaleString();
+      }
+
+      async function check() {
+        attempts += 1;
+        try {
+          // The page is a local file, so the answer is opaque; any answer means the server is up.
+          await fetch(server + "/api/health", { mode: "no-cors", cache: "no-store" });
+          stateEl.textContent = "Server found. Opening the HMI…";
+          location.replace(server + "/hmi");
+          return;
+        } catch (e) {
+          stateEl.textContent = "No answer yet (tried " + attempts + " times). Retrying every 3 seconds.";
+        }
+        setTimeout(check, 3000);
+      }
+
+      tick();
+      setInterval(tick, 1000);
+      if (!/^https?:\/\/[^\s]+$/.test(server)) {
+        serverEl.textContent = "No site server address is set.";
+        serverEl.className = "error";
+        stateEl.textContent = "Run provision.sh again with --server http://<address>:8000";
+      } else {
+        serverEl.textContent = server;
+        check();
+      }
+    </script>
+  </body>
+</html>

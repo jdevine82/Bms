@@ -1,0 +1,34 @@
+# Devine BMS HMI kiosk: cage + Chromium on tty1 (milestone 3 spec 5).
+# Installed to /etc/systemd/system/ by provision.sh.
+
+[Unit]
+Description=Devine BMS HMI kiosk
+After=systemd-user-sessions.service plymouth-quit-wait.service network-online.target
+Wants=network-online.target
+After=dbus.socket systemd-logind.service
+Wants=dbus.socket systemd-logind.service
+# Replaces the login prompt on the screen.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+ConditionPathExists=/dev/tty1
+
+[Service]
+Type=simple
+User=bms-kiosk
+PAMName=bms-kiosk
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+# -d: no client-side window decorations; -s: allow switching to a text console with Ctrl+Alt+F2.
+ExecStart=/usr/bin/cage -d -s -- /opt/devine-bms/hmi/kiosk-launch.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target

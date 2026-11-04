@@ -186,3 +186,19 @@ def test_time_zones():
     assert iana_zone("UTC").key == "UTC"
     with pytest.raises(LookupError):
         iana_zone("Atlantis")
+
+
+async def test_hmi_path_serves_the_web_app(tmp_path):
+    """The Pi kiosk opens /hmi; it must get the same index.html as / (milestone 3 spec 4)."""
+    (tmp_path / "index.html").write_text("<!doctype html><title>app</title>")
+
+    async def never_started():
+        raise AssertionError("the runtime is not needed for static files")
+
+    app = create_app(never_started, web_dist=tmp_path)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        for path in ("/", "/hmi", "/hmi/anything"):
+            response = await client.get(path)
+            assert response.status_code == 200, path
+            assert "<title>app</title>" in response.text

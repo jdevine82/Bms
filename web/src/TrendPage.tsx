@@ -16,7 +16,7 @@ const RANGES = [
 type RangeKey = (typeof RANGES)[number]["key"];
 
 /** [unix seconds, value or null]. null is a gap (Bad or Stale), never joined across. */
-type Sample = [number, number | null];
+export type Sample = [number, number | null];
 
 interface Props {
   site: Site;
@@ -25,7 +25,7 @@ interface Props {
   onSelect: (ids: string[]) => void;
 }
 
-function toSamples(rows: HisRow[]): Sample[] {
+export function toSamples(rows: HisRow[]): Sample[] {
   return rows.map((r) => [Date.parse(r.ts) / 1000, r.status === "ok" && typeof r.value === "number" ? r.value : null]);
 }
 
@@ -201,7 +201,17 @@ export function TrendPage({ site, points, selected, onSelect }: Props) {
   );
 }
 
-function Chart({ site, series, samples }: { site: Site; series: Point[]; samples: Record<string, Sample[]> }) {
+export function Chart({
+  site,
+  series,
+  samples,
+  height = 360,
+}: {
+  site: Site;
+  series: Point[];
+  samples: Record<string, Sample[]>;
+  height?: number;
+}) {
   const holder = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const shape = series.map((p) => `${p.id}:${p.unit}`).join("|");
@@ -229,7 +239,7 @@ function Chart({ site, series, samples }: { site: Site; series: Point[]; samples
     const gridColour = cssVar("--grid");
     const options: uPlot.Options = {
       width: el.clientWidth,
-      height: 360,
+      height,
       tzDate: (ts) => uPlot.tzDate(new Date(ts * 1e3), site.ianaTz),
       scales: Object.fromEntries(units.map((u) => [u || "none", { auto: true }])),
       axes: [
@@ -258,14 +268,14 @@ function Chart({ site, series, samples }: { site: Site; series: Point[]; samples
       cursor: { drag: { x: true, y: false } },
     };
     plot.current = new uPlot(options, data, el);
-    const resize = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height: 360 }));
+    const resize = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height }));
     resize.observe(el);
     return () => {
       resize.disconnect();
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [shape, site.ianaTz]); // rebuilt only when the series change; new data goes through setData below
+  }, [shape, site.ianaTz, height]); // rebuilt only when the series change; new data goes through setData below
 
   // New data without rebuilding.
   useEffect(() => {

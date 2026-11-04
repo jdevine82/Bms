@@ -37,3 +37,10 @@ BMS_URL=http://127.0.0.1:8000 npm run test:e2e
 ```
 
 It checks that live values appear, the trend chart draws, the CSV downloads, and values are visible at phone width.
+
+The HMI layout (`/hmi`, milestone 3) has its own test at 1024 x 600 and 1280 x 720, including the server-not-reachable
+banner and the Pi waiting page:
+
+```bash
+BMS_URL=http://127.0.0.1:8000 npm run test:hmi
+```
