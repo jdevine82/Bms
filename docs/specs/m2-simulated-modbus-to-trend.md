@@ -86,7 +86,7 @@ The site is defined by one file, `config/site.json`. **[Assumed]** It is the fir
 - `storage/`: a **storage interface** (load configuration, write history, read history) with a PostgreSQL + TimescaleDB implementation. Standalone mode adds a second implementation later (3.1).
 - `drivers/modbus/`: Modbus TCP client (pymodbus, async). Supports function codes 01, 02, 03 and 04, data types bit, int16, uint16, int32, uint32 and float32, byte and word order, scale and offset. Writes (05, 06, 15, 16) are not used yet.
 - `poller/`: polling by speed class (5.1.4): Fast every 5 s, Normal every 30 s, Slow every 5 min. **Block reads**: neighbouring registers on one device are read in one request, up to a block size set per device (default 32 registers). One connection per device, reconnecting with back-off after a failure.
-- `poller/quality.py`: value quality (5.2.1). **When a device stops answering, every point on it goes Bad (`down`)**, not only the speed class being polled, and the poller retries the connection with back-off (1 s doubling to 30 s). **Good** on a valid read. **Bad** with reason `down` on a timeout or connection failure, or `fault` on a Modbus exception or a value that cannot be decoded (for example a NaN float). **Stale** when there has been no new value for `stale_after_s` (default 3 times the class interval), checked by a timer.
+- `poller/quality.py`: value quality (5.2.1). **When a device stops answering, every point on it goes Bad (`down`)**, not only the speed class being polled, and the poller retries the connection with back-off (1 s doubling to 30 s). **When the device answers again, every speed class is read at once**, so Normal and Slow points do not keep showing `down` until their next scheduled poll. **Good** on a valid read. **Bad** with reason `down` on a timeout or connection failure, or `fault` on a Modbus exception or a value that cannot be decoded (for example a NaN float). **Stale** when there has been no new value for `stale_after_s` (default 3 times the class interval), checked by a timer.
 - `api/`: FastAPI routes (section 7).
 
 **Logging:** structured logs (JSON lines) with levels; one line per connection change, not one per poll.
@@ -115,7 +115,7 @@ In `web/`, React + TypeScript + Vite. Light and dark themes (6.1); branding and 
 
 - **Points page:** a table of all points with name, display name, equipment, value with unit, status, and last update time, updated live over the WebSocket. Bad and Stale values are greyed, show the reason, and are never shown as a live number (5.2.1). A tag filter box.
 - **Trend page:** pick one or more points (up to 4) and a range (last 1 hour, 24 hours, 7 days, 30 days, or custom). The chart shows the history, extends live while it is open, shows gaps as gaps, and uses a separate axis per unit. **Export CSV** downloads the plotted range. **Chart library (decided): uPlot**, chosen for speed with long time series and its small size, which also suits the Pi.
-- Usable on a phone, but laid out for desktop first (6.1: trends are desktop-first).
+- Usable on a phone, but laid out for desktop first (6.1: trends are desktop-first). On a phone the points page shows the point, value and status only, so values are never off-screen.
 
 ## 9. Tests
 

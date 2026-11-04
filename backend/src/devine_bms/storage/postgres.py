@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from devine_bms.config.model import Kind, ModbusAddress, ModbusTcpConnection, PollClass
 from devine_bms.db import models as db
-from devine_bms.runtime_model import RuntimeConfig, RuntimeDevice, RuntimePoint
+from devine_bms.runtime_model import RuntimeConfig, RuntimeDevice, RuntimePoint, SiteEquip, SiteSpace
 from devine_bms.values import HisRow, Status
 
 
@@ -32,9 +32,19 @@ class PostgresStorage:
             points = (await session.scalars(
                 select(db.Point).where(db.Point.site_id == site.id, db.Point.enabled.is_(True)).order_by(db.Point.name)
             )).all()
+            spaces = (await session.scalars(
+                select(db.Space).where(db.Space.site_id == site.id).order_by(db.Space.name)
+            )).all()
+            equips = (await session.scalars(
+                select(db.Equip).where(db.Equip.site_id == site.id).order_by(db.Equip.name)
+            )).all()
         return RuntimeConfig(
             site_id=site.id,
             site_tz=site.tz,
+            site_name=site.name,
+            site_dis=site.dis,
+            spaces=tuple(SiteSpace(s.id, s.name, s.dis, dict(s.tags)) for s in spaces),
+            equips=tuple(SiteEquip(e.id, e.name, e.dis, e.space_id, e.parent_equip_id, dict(e.tags)) for e in equips),
             devices=tuple(
                 RuntimeDevice(
                     id=d.id, name=d.name, protocol=d.protocol,
@@ -47,7 +57,8 @@ class PostgresStorage:
                     id=p.id, name=p.name, device_id=p.device_id, kind=Kind(p.kind), unit=p.unit,
                     enum=tuple(p.enum) if p.enum else None,
                     address=ModbusAddress.model_validate(p.address), poll_class=PollClass(p.poll_class),
-                    stale_after_s=p.stale_after_s, his=p.his,
+                    stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.point_type,
+                    equip_id=p.equip_id, space_id=p.space_id, tags=dict(p.tags),
                 )
                 for p in points
                 if p.device_id in device_ids

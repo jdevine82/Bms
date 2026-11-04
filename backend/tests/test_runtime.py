@@ -146,3 +146,25 @@ async def test_block_reads_keep_requests_low(sim):
     # One block per speed class (fast, normal, slow): about 10 + 5 + 2 reads in 1 s,
     # not one read per point.
     assert sim.requests_served < 30
+
+
+async def test_7_all_classes_read_again_as_soon_as_the_device_returns(sim):
+    # Slow points poll every 0.5 s in TEST_INTERVALS; make them much slower so only the
+    # recovery rule can bring them back within the wait below.
+    slow = dict(TEST_INTERVALS)
+    from devine_bms.config.model import PollClass
+
+    slow[PollClass.SLOW] = 60.0
+    data = example_data(sim.port)
+    storage = MemoryStorage(runtime_config_from(data))
+    runtime = Runtime(storage, "dev_site", intervals=slow, stale_check_s=0.05, flush_interval_s=0.1)
+    await runtime.start()
+    try:
+        await wait_for(lambda: set(statuses(runtime).values()) == {Status.OK})
+        sim.mode = "down"
+        await wait_for(lambda: set(statuses(runtime).values()) == {Status.DOWN})
+        sim.mode = "normal"
+        energy = by_name(runtime)["site_meter1_import_energy"]  # a Slow point
+        await wait_for(lambda: runtime.cache.get(energy.id).status == Status.OK, timeout=8)
+    finally:
+        await runtime.stop()

@@ -39,6 +39,7 @@ class DevicePoller:
         self.failures = 0
         self._backoff = BACKOFF_START_S
         self._retry_at = 0.0
+        self._recovered = False
 
     def classes(self) -> list[PollClass]:
         return sorted({b.poll_class for b in self.blocks})
@@ -62,6 +63,12 @@ class DevicePoller:
                         next_due[poll_class] += interval
                         if next_due[poll_class] < time.monotonic():  # fell behind; do not burst
                             next_due[poll_class] = time.monotonic() + interval
+                    if self._recovered:
+                        # The device has just come back: read every class now, so Normal and
+                        # Slow points do not show "down" until their next scheduled poll.
+                        self._recovered = False
+                        for other in classes:
+                            next_due[other] = min(next_due[other], time.monotonic())
         finally:
             self.client.close()
 
@@ -105,6 +112,8 @@ class DevicePoller:
         self._backoff = min(self._backoff * 2, BACKOFF_MAX_S)
 
     def _came_up(self) -> None:
+        if self.online is False:
+            self._recovered = True
         if self.online is not True:
             log.info("device %s is answering", self.device.name)
         self.online = True
