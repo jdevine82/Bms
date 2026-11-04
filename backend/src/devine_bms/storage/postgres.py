@@ -13,6 +13,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from pydantic import TypeAdapter
 
 from devine_bms.config.model import (
+    BacnetAddress,
+    BacnetIpConnection,
+    BacnetSettings,
     Bus,
     Kind,
     ModbusAddress,
@@ -31,6 +34,7 @@ from devine_bms.runtime_model import (
 )
 
 _BUS = TypeAdapter(Bus)
+_CONNECTIONS = {"modbus_tcp": ModbusTcpConnection, "modbus": ModbusBusConnection, "bacnet_ip": BacnetIpConnection}
 from devine_bms.values import HisRow, Status
 
 
@@ -67,6 +71,7 @@ class PostgresStorage:
             site_id=site.id,
             site_tz=site.tz,
             site_name=site.name,
+            bacnet=BacnetSettings.model_validate(site.settings["bacnet"]) if site.settings.get("bacnet") else None,
             site_dis=site.dis,
             spaces=tuple(SiteSpace(s.id, s.name, s.dis, dict(s.tags)) for s in spaces),
             equips=tuple(SiteEquip(e.id, e.name, e.dis, e.space_id, e.parent_equip_id, dict(e.tags)) for e in equips),
@@ -82,8 +87,7 @@ class PostgresStorage:
             devices=tuple(
                 RuntimeDevice(
                     id=d.id, name=d.name, protocol=d.protocol,
-                    connection=(ModbusTcpConnection if d.protocol == "modbus_tcp" else ModbusBusConnection)
-                    .model_validate(d.connection),
+                    connection=_CONNECTIONS[d.protocol].model_validate(d.connection),
                     enabled=d.enabled, bus_id=d.bus_id,
                 )
                 for d in devices
@@ -92,7 +96,8 @@ class PostgresStorage:
                 RuntimePoint(
                     id=p.id, name=p.name, device_id=p.device_id, kind=Kind(p.kind), unit=p.unit,
                     enum=tuple(p.enum) if p.enum else None,
-                    address=ModbusAddress.model_validate(p.address), poll_class=PollClass(p.poll_class),
+                    address=(BacnetAddress if "instance" in p.address else ModbusAddress).model_validate(p.address),
+                    poll_class=PollClass(p.poll_class),
                     stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.point_type,
                     equip_id=p.equip_id, space_id=p.space_id, tags=dict(p.tags),
                 )

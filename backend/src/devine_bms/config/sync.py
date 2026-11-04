@@ -42,6 +42,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
         geo_lng=config.site.geo_coord.lng if config.site.geo_coord else None,
         area_m2=config.site.area_m2,
         tags=dict(config.site.tags),
+        settings={"bacnet": config.bacnet.model_dump(mode="json", by_alias=True)} if config.bacnet else {},
     )
     site = _upsert(session, report, "site", site, db.Site, name=config.site.name, **site_values)
     await session.flush()

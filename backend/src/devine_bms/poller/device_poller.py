@@ -1,8 +1,10 @@
-"""Poll the devices on one connection by speed class (main spec 5.1.4, milestone 2 spec 6, 4a).
+"""Poll the devices on one connection by speed class (main spec 5.1.4, milestone 2 spec 6, 4a, 4b).
 
-A BusPoller owns one Modbus connection: a single Modbus TCP device's own connection,
-an RS485 line, or a serial gateway. Requests on one connection go one at a time,
-because a serial line (and the serial side of a gateway) carries one request at a time.
+A BusPoller owns one connection through a driver: a Modbus TCP device's own connection,
+an RS485 line, a serial gateway, or one BACnet/IP device. Requests on one connection go
+one at a time, because a serial line (and the serial side of a gateway) carries one
+request at a time. The driver reads a block of points; this module does the schedule,
+back-off and value quality for every protocol.
 
 Failures:
 - the connection is down (BusDown): every point on every device of the connection is
@@ -20,8 +22,13 @@ import asyncio
 import logging
 import time
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any, Protocol
+
 from devine_bms.config.model import POLL_INTERVAL_S, PollClass
-from devine_bms.drivers.modbus.client import BusDown, DeviceDown, DeviceFault, ModbusClient
+from devine_bms.drivers.errors import BusDown, DeviceDown, DeviceFault
+from devine_bms.drivers.modbus.client import ModbusClient
 from devine_bms.drivers.modbus.codec import DecodeError
 from devine_bms.poller.blocks import Block, make_blocks
 from devine_bms.poller.quality import QualityTracker, point_value
@@ -32,6 +39,52 @@ log = logging.getLogger(__name__)
 
 BACKOFF_START_S = 1.0
 BACKOFF_MAX_S = 30.0
+
+
+@dataclass(frozen=True)
+class PointError:
+    """One point in a block could not be read; the others may be fine."""
+
+    status: Status
+    reason: str
+
+
+class AnyBlock(Protocol):
+    poll_class: PollClass
+    points: tuple[RuntimePoint, ...]
+
+
+class Driver(Protocol):
+    name: str
+    where: str
+    shared: bool
+
+    async def read_block(self, state: DeviceState, block: Any) -> Sequence[tuple[RuntimePoint, Any]]:
+        """Values for the block's points: a value, or a PointError. Raises BusDown,
+        DeviceDown or DeviceFault for the whole block."""
+
+    def close(self) -> None: ...
+
+
+class ModbusDriver:
+    def __init__(self, client: ModbusClient) -> None:
+        self.client = client
+        self.name = client.name
+        self.where = client.where
+        self.shared = client.shared
+
+    async def read_block(self, state: DeviceState, block: Block) -> list[tuple[RuntimePoint, Any]]:
+        raw = await self.client.read(state.device.unit_id, block.object_type, block.start, block.count)
+        results: list[tuple[RuntimePoint, Any]] = []
+        for point in block.points:
+            try:
+                results.append((point, point_value(point, block, raw)))
+            except DecodeError as exc:
+                results.append((point, PointError(Status.FAULT, f"cannot decode: {exc}")))
+        return results
+
+    def close(self) -> None:
+        self.client.close()
 
 
 class Backoff:
@@ -54,10 +107,16 @@ class Backoff:
 class DeviceState:
     """One device's blocks, schedule and health. These are what the API reports as devices."""
 
-    def __init__(self, device: RuntimeDevice, points: list[RuntimePoint], tracker: QualityTracker) -> None:
+    def __init__(
+        self,
+        device: RuntimeDevice,
+        points: list[RuntimePoint],
+        tracker: QualityTracker,
+        blocks: Sequence[AnyBlock] | None = None,
+    ) -> None:
         self.device = device
         self.tracker = tracker
-        self.blocks = make_blocks(points, device.block_size)
+        self.blocks = list(blocks) if blocks is not None else make_blocks(points, device.block_size)
         self.online: bool | None = None  # None until the first attempt
         self.polls = 0
         self.failures = 0
@@ -71,7 +130,7 @@ class DeviceState:
         for block in self.blocks:
             self.mark(block, status, reason)
 
-    def mark(self, block: Block, status: Status, reason: str) -> None:
+    def mark(self, block: AnyBlock, status: Status, reason: str) -> None:
         for point in block.points:
             self.tracker.bad(point, status, reason)
 
@@ -95,12 +154,12 @@ class BusPoller:
     def __init__(
         self,
         name: str,
-        client: ModbusClient,
+        driver: Driver | ModbusClient,
         devices: list[DeviceState],
         intervals: dict[PollClass, float] = POLL_INTERVAL_S,
     ) -> None:
         self.name = name
-        self.client = client
+        self.driver = ModbusDriver(driver) if isinstance(driver, ModbusClient) else driver
         self.devices = devices
         self.intervals = intervals
         self.online: bool | None = None
@@ -129,14 +188,14 @@ class BusPoller:
                         for other in state.classes():
                             schedule[(state, other)] = min(schedule[(state, other)], time.monotonic())
         finally:
-            self.client.close()
+            self.driver.close()
 
     async def poll(self, state: DeviceState, poll_class: PollClass) -> None:
         if self.backoff.waiting() or state.backoff.waiting():
             return  # waiting before the next attempt; the points are already marked down
         for block in (b for b in state.blocks if b.poll_class == poll_class):
             try:
-                raw = await self.client.read(state.device.unit_id, block.object_type, block.start, block.count)
+                results = await self.driver.read_block(state, block)
             except BusDown as exc:
                 self._bus_down(str(exc))
                 return
@@ -155,14 +214,14 @@ class BusPoller:
             self._bus_up()
             state.came_up()
             state.polls += 1
-            for point in block.points:
-                try:
-                    state.tracker.good(point, point_value(point, block, raw))
-                except DecodeError as exc:
-                    state.tracker.bad(point, Status.FAULT, f"cannot decode: {exc}")
+            for point, outcome in results:
+                if isinstance(outcome, PointError):
+                    state.tracker.bad(point, outcome.status, outcome.reason)
+                else:
+                    state.tracker.good(point, outcome)
 
     def _bus_down(self, reason: str) -> None:
-        if self.online is not False and self.client.shared:
+        if self.online is not False and self.driver.shared:
             log.warning("bus %s is down: %s", self.name, reason)
         self.online = False
         self.backoff.failed()
@@ -171,7 +230,7 @@ class BusPoller:
             state.mark_all(Status.DOWN, reason)
 
     def _bus_up(self) -> None:
-        if self.online is False and self.client.shared:
+        if self.online is False and self.driver.shared:
             log.info("bus %s is back", self.name)
         self.online = True
         self.backoff.ok()

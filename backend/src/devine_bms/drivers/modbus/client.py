@@ -23,6 +23,7 @@ from pymodbus import FramerType
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusException, ModbusIOException
 
+from devine_bms.drivers.errors import BusDown, DeviceDown, DeviceFault
 from devine_bms.config.model import (
     ModbusRtuBus,
     ModbusRtuOverTcpBus,
@@ -30,6 +31,8 @@ from devine_bms.config.model import (
     ModbusTcpGatewayBus,
     ObjectType,
 )
+
+__all__ = ["BusDown", "DeviceDown", "DeviceFault", "ModbusClient"]
 
 log = logging.getLogger(__name__)
 
@@ -44,18 +47,6 @@ EXCEPTION_NAMES = {
     11: "gateway target device failed to respond",
 }
 GATEWAY_TARGET_DOWN = {10, 11}
-
-
-class DeviceDown(Exception):
-    pass
-
-
-class BusDown(DeviceDown):
-    pass
-
-
-class DeviceFault(Exception):
-    pass
 
 
 class ModbusClient:

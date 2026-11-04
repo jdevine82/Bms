@@ -53,4 +53,5 @@ def runtime_config_from(data: dict) -> RuntimeConfig:
         uuid.uuid4(), config.site.tz, tuple(devices.values()), points,
         site_name=config.site.name, site_dis=config.site.dis,
         spaces=tuple(spaces.values()), equips=tuple(equips.values()), buses=tuple(buses.values()),
+        bacnet=config.bacnet,
     )

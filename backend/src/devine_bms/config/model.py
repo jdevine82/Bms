@@ -151,6 +151,22 @@ class ModbusTcpGatewayBus(_BusBase):
 Bus = Annotated[ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus, Field(discriminator="type")]
 
 
+class BacnetIpConnection(_Model):
+    """A BACnet/IP device (main spec 5.1, milestone 4b)."""
+
+    # IP address, with the UDP port when it is not 47808, for example 192.168.10.20 or 192.168.10.20:47809.
+    address: str = Field(pattern=r"^[0-9.]+(:[0-9]{1,5})?$")
+    device_instance: int = Field(ge=0, le=4194302)
+    timeout_s: float = Field(default=3.0, gt=0, le=60)
+    retries: int = Field(default=1, ge=0, le=10)
+    # Properties per ReadPropertyMultiple request. Each point reads two (value and status flags).
+    block_size: int = Field(default=20, ge=1, le=100)
+    # Subscribe to change-of-value for Fast and Normal points; they are then polled at the
+    # Slow interval only, as a back-up in case a notification is missed (main spec 5.1.4).
+    cov: bool = False
+    cov_lifetime_s: int = Field(default=300, ge=60, le=86400)
+
+
 class ModbusBusConnection(_Model):
     """A device on a bus: its unit (slave) ID and how many registers it reads at once."""
 
@@ -164,13 +180,18 @@ class Device(_Model):
     dis: str
     # modbus_tcp: a device with its own Modbus TCP connection.
     # modbus: a device on a bus (RS485 line or serial gateway) from `buses`.
-    protocol: Literal["modbus_tcp", "modbus"]
-    connection: ModbusTcpConnection | ModbusBusConnection
+    # bacnet_ip: a BACnet/IP device.
+    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip"]
+    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection
     enabled: bool = True
 
     @model_validator(mode="after")
     def _connection_matches_protocol(self) -> Device:
-        wanted = ModbusTcpConnection if self.protocol == "modbus_tcp" else ModbusBusConnection
+        wanted = {
+            "modbus_tcp": ModbusTcpConnection,
+            "modbus": ModbusBusConnection,
+            "bacnet_ip": BacnetIpConnection,
+        }[self.protocol]
         if not isinstance(self.connection, wanted):
             raise ValueError(f"protocol '{self.protocol}' needs a {wanted.__name__} connection")
         return self
@@ -186,6 +207,38 @@ class ModbusAddress(_Model):
     offset: float = 0.0
 
 
+class BacnetObjectType(StrEnum):
+    ANALOG_INPUT = "analogInput"
+    ANALOG_OUTPUT = "analogOutput"
+    ANALOG_VALUE = "analogValue"
+    BINARY_INPUT = "binaryInput"
+    BINARY_OUTPUT = "binaryOutput"
+    BINARY_VALUE = "binaryValue"
+    MULTI_STATE_INPUT = "multiStateInput"
+    MULTI_STATE_OUTPUT = "multiStateOutput"
+    MULTI_STATE_VALUE = "multiStateValue"
+
+
+class BacnetAddress(_Model):
+    """A BACnet object and property. Multi-state values are 1-based: state 1 is enum[0]."""
+
+    object_type: BacnetObjectType
+    instance: int = Field(ge=0, le=4194302)
+    property: Literal["presentValue"] = "presentValue"
+
+
+class BacnetSettings(_Model):
+    """The BMS's own BACnet/IP identity on the device network (main spec 5.1, 5.11)."""
+
+    # The BMS's address with its network size, so broadcasts (Who-Is) reach the right subnet,
+    # for example 192.168.10.5/24. 0.0.0.0/0 binds every interface.
+    local_address: str = Field(pattern=r"^[0-9.]+/[0-9]{1,2}$")
+    port: int = Field(default=47808, ge=1, le=65535)
+    # Unique on the BACnet network. Every site must pick its own.
+    device_instance: int = Field(ge=0, le=4194302)
+    device_name: str = "Devine BMS"
+
+
 class Point(_Model):
     name: Name
     dis: str
@@ -197,7 +250,7 @@ class Point(_Model):
     unit: str | None = None
     enum: list[str] | None = None
     tags: Tags = {}
-    address: ModbusAddress
+    address: ModbusAddress | BacnetAddress
     poll_class: PollClass = PollClass.NORMAL
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True
@@ -209,6 +262,7 @@ class SiteConfig(_Model):
     spaces: list[Space] = []
     equips: list[Equip] = []
     feeds: list[Feed] = []
+    bacnet: BacnetSettings | None = None
     buses: list[Bus] = []
     devices: list[Device] = []
     points: list[Point] = []

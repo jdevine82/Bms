@@ -142,8 +142,13 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 {"name": p.device.name, "online": p.online, "polls": p.polls, "failures": p.failures}
                 for p in rt.pollers
             ],
+            "cov": [
+                {"device": c.device.name, "subscribed": sorted(c.state.subscribed),
+                 "failed": c.state.failed, "notifications": c.state.notifications}
+                for c in rt.cov
+            ],
             "connections": [
-                {"name": b.name, "where": b.client.where, "shared": b.client.shared, "online": b.online,
+                {"name": b.name, "where": b.driver.where, "shared": b.driver.shared, "online": b.online,
                  "devices": [d.device.name for d in b.devices]}
                 for b in rt.buses
             ],
