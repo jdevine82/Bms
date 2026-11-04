@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     listen_host: str = "127.0.0.1"
     listen_port: int = 8000
     log_level: str = "INFO"
+    # Built web app (web/dist) to serve at /. Leave empty when the Vite dev server is used.
+    web_dist: str = ""
     # Sites always need TimescaleDB. Only set this on a development or test machine
     # without TimescaleDB: history then goes to a plain PostgreSQL table with no retention.
     allow_plain_postgres: bool = False

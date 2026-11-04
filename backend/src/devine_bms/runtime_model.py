@@ -1,9 +1,9 @@
-"""The devices and points the runtime polls, loaded from storage (milestone 2 spec 6)."""
+"""The site model the runtime and API use, loaded from storage (milestone 2 spec 6 and 7)."""
 
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from devine_bms.config.model import (
     POLL_INTERVAL_S,
@@ -14,6 +14,24 @@ from devine_bms.config.model import (
 )
 
 STALE_FACTOR = 3  # Stale after 3 times the poll interval by default (main spec 5.2.1)
+
+
+@dataclass(frozen=True)
+class SiteSpace:
+    id: uuid.UUID
+    name: str
+    dis: str
+    tags: dict = field(default_factory=dict, hash=False)
+
+
+@dataclass(frozen=True)
+class SiteEquip:
+    id: uuid.UUID
+    name: str
+    dis: str
+    space_id: uuid.UUID | None = None
+    parent_id: uuid.UUID | None = None
+    tags: dict = field(default_factory=dict, hash=False)
 
 
 @dataclass(frozen=True)
@@ -37,6 +55,12 @@ class RuntimePoint:
     poll_class: PollClass
     stale_after_s: float | None
     his: bool
+    # Descriptive fields for the API; the poller does not use them.
+    dis: str = ""
+    point_type: str = "sensor"
+    equip_id: uuid.UUID | None = None
+    space_id: uuid.UUID | None = None
+    tags: dict = field(default_factory=dict, hash=False)
 
     def stale_after(self, intervals: dict[PollClass, float] = POLL_INTERVAL_S) -> float:
         if self.stale_after_s is not None:
@@ -50,6 +74,10 @@ class RuntimeConfig:
     site_tz: str
     devices: tuple[RuntimeDevice, ...]
     points: tuple[RuntimePoint, ...]
+    site_name: str = ""
+    site_dis: str = ""
+    spaces: tuple[SiteSpace, ...] = ()
+    equips: tuple[SiteEquip, ...] = ()
 
     def points_for(self, device_id: uuid.UUID) -> list[RuntimePoint]:
         return [p for p in self.points if p.device_id == device_id]

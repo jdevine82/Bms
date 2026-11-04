@@ -4,7 +4,7 @@ Python 3.12 site backend. Milestone 2 spec: `../docs/specs/m2-simulated-modbus-t
 
 Done so far: the site configuration format, the database schema and migrations, the Haystack tag
 libraries, the simulated power meter, Modbus TCP polling with block reads and speed classes, value
-quality (Good, Bad, Stale), the live value cache and history storage. The API and web app come next.
+quality (Good, Bad, Stale), the live value cache, history storage, and the REST and WebSocket API.
 
 ## Developer setup (native install, no Docker)
 
@@ -67,10 +67,35 @@ uv run python ../simulators/modbus_meter.py --port 5020
 
 `--mode down | exception | frozen` starts it in a fault mode (see the file for details).
 
-## Run the backend
+## Run the backend with the API and web app
+
+```bash
+cd ../web && npm install && npm run build && cd ../backend
+uv run python ../simulators/modbus_meter.py --port 5020
+```
+
+In a second terminal:
+
+```bash
+BMS_WEB_DIST=../web/dist uv run uvicorn devine_bms.api.app:app --host 127.0.0.1 --port 8000
+```
+
+Open http://127.0.0.1:8000. The API is described at http://127.0.0.1:8000/docs. There are no logins yet,
+so keep it on `127.0.0.1` (milestone 2 spec 2).
+
+| Path | What it gives |
+|---|---|
+| `GET /api/health` | Backend status, devices, history writer |
+| `GET /api/site` | The site, its rooms and equipment |
+| `GET /api/points` | Points with live values; filters `equip`, `space`, `tag` (repeatable) |
+| `GET /api/points/{id}` | One point |
+| `GET /api/points/{id}/history?start=&end=` | History (UTC times; thinned above 10,000 rows) |
+| `GET /api/points/{id}/history.csv?start=&end=` | The same as CSV in site local time |
+| `WS /api/live` | Send `{"subscribe": "all"}` or a list of ids; get a snapshot, then each change |
+
+## Run the backend without the API
 
 Starts polling the devices in `config/site.json`, applies value quality, and stores history.
-The web API comes in part 3.
 
 ```bash
 uv run python ../simulators/modbus_meter.py --port 5020
