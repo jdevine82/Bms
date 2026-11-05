@@ -127,7 +127,7 @@ class TemplateLibrary:
             if not 0 <= first <= last or last - first >= 256:
                 raise SetupError("repeat needs 0 <= from <= to, and at most 256 repeats")
             numbers = list(range(first, last + 1))
-        data = await self.setup.export()
+        data, draft = await self.setup.working_copy(body)
         equips = {e["name"] for e in data.get("equips", [])}
         new_points = []
         for n in numbers:
@@ -155,4 +155,4 @@ class TemplateLibrary:
         summary = f"added {len(new_points)} points to {device} from template {template.id} {template.version}"
         return await self.setup._apply(data, client, "apply-template", "device", device, summary, None,
                                        {"template": template.id, "version": template.version,
-                                        "points": [p["name"] for p in new_points]}, check_only)
+                                        "points": [p["name"] for p in new_points]}, check_only, draft)

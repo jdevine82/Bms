@@ -1,0 +1,221 @@
+{
+  "schema": "devine-bms-config/0",
+  "site": {
+    "name": "dev_site",
+    "dis": "Setup screens test site",
+    "tz": "Sydney",
+    "geoCoord": {
+      "lat": -33.87,
+      "lng": 151.21
+    },
+    "tags": {}
+  },
+  "spaces": [
+    {
+      "name": "plant",
+      "dis": "Plant room",
+      "tags": {}
+    },
+    {
+      "name": "office",
+      "dis": "Office",
+      "tags": {}
+    }
+  ],
+  "equips": [
+    {
+      "name": "meter1",
+      "dis": "Main power meter",
+      "tags": {
+        "ac": true,
+        "elec": true,
+        "meter": true,
+        "siteMeter": true
+      },
+      "space": "plant"
+    },
+    {
+      "name": "meter2",
+      "dis": "Sub meter",
+      "space": "plant",
+      "tags": {
+        "elec": true,
+        "meter": true
+      }
+    }
+  ],
+  "feeds": [],
+  "devices": [
+    {
+      "name": "sim_meter",
+      "dis": "Simulated power meter",
+      "protocol": "modbus_tcp",
+      "connection": {
+        "host": "127.0.0.1",
+        "port": 5020,
+        "unitId": 1,
+        "timeoutS": 2,
+        "retries": 1,
+        "blockSize": 32
+      }
+    },
+    {
+      "name": "rtu_meter",
+      "dis": "Simulated meter",
+      "protocol": "modbus",
+      "connection": {
+        "bus": "rs485_1",
+        "unitId": 1
+      }
+    }
+  ],
+  "points": [
+    {
+      "name": "site_meter1_power",
+      "dis": "Main meter power",
+      "equip": "meter1",
+      "device": "sim_meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "kW",
+      "tags": {},
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 0,
+        "dataType": "float32"
+      },
+      "pollClass": "fast"
+    },
+    {
+      "name": "site_meter1_voltage",
+      "dis": "Main meter voltage L1-N",
+      "equip": "meter1",
+      "device": "sim_meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "V",
+      "tags": {
+        "elec": true,
+        "volt": true
+      },
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 2,
+        "dataType": "float32"
+      },
+      "pollClass": "normal"
+    },
+    {
+      "name": "site_meter1_current",
+      "dis": "Main meter current L1",
+      "equip": "meter1",
+      "device": "sim_meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "A",
+      "tags": {
+        "elec": true,
+        "current": true
+      },
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 4,
+        "dataType": "float32"
+      },
+      "pollClass": "normal"
+    },
+    {
+      "name": "site_meter1_pf",
+      "dis": "Main meter power factor",
+      "equip": "meter1",
+      "device": "sim_meter",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "elec": true,
+        "pf": true
+      },
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 6,
+        "dataType": "int16",
+        "scale": 0.001
+      },
+      "pollClass": "normal"
+    },
+    {
+      "name": "site_meter1_import_energy",
+      "dis": "Main meter import energy",
+      "equip": "meter1",
+      "device": "sim_meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "kWh",
+      "tags": {
+        "elec": true,
+        "energy": true,
+        "import": true
+      },
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 8,
+        "dataType": "uint32",
+        "wordOrder": "low_first",
+        "scale": 0.1
+      },
+      "pollClass": "slow"
+    },
+    {
+      "name": "plant_meter2_power",
+      "dis": "Main meter power",
+      "equip": "meter2",
+      "device": "rtu_meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "kW",
+      "tags": {
+        "elec": true,
+        "power": true
+      },
+      "pollClass": "fast",
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 0,
+        "dataType": "float32"
+      }
+    },
+    {
+      "name": "plant_meter2_import_energy",
+      "dis": "Main meter import energy",
+      "equip": "meter2",
+      "device": "rtu_meter",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "kWh",
+      "tags": {
+        "elec": true,
+        "energy": true,
+        "import": true
+      },
+      "pollClass": "slow",
+      "address": {
+        "objectType": "holdingRegister",
+        "address": 8,
+        "dataType": "uint32",
+        "wordOrder": "low_first",
+        "scale": 0.1
+      }
+    }
+  ],
+  "buses": [
+    {
+      "name": "rs485_1",
+      "dis": "RS485 line 1 (simulated RTU over TCP)",
+      "type": "modbus_rtu_over_tcp",
+      "host": "127.0.0.1",
+      "port": 5021,
+      "timeoutS": 0.5,
+      "retries": 1
+    }
+  ]
+}

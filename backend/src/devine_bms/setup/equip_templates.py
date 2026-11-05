@@ -118,7 +118,7 @@ class EquipTemplateService:
         space and parent is replaced and device template addresses move by n * step (bulk create:
         one indoor unit per Mitsubishi group).
         """
-        data = await self.setup.export()
+        data, draft = await self.setup.working_copy(body)
         template = find(_site_templates(data), template_id, body.get("version"))
         if template is None:
             raise SetupError(f"no equipment template '{template_id}'", status=404)
@@ -140,7 +140,7 @@ class EquipTemplateService:
                    f"{template.id} {template.version}: {', '.join(made[:5])}{'...' if len(made) > 5 else ''}")
         return await self.setup._apply(data, client, "create-from-template", template.applies_to, made[0], summary,
                                        None, {"template": template.id, "version": template.version, "made": made},
-                                       check_only)
+                                       check_only, draft)
 
     def _make_one(self, data: dict, template: EquipTemplate, body: dict, n: int | None, step: int) -> str:
         fmt = (lambda s: s.format(n=n) if isinstance(s, str) and n is not None else s)
@@ -256,9 +256,10 @@ class EquipTemplateService:
         "space": "<room>", or "tag": "<tag>". A point field changes only where it still has the
         old version's value; an override always wins. A role new in this version is listed as
         needing a binding if it is required; a role the new version drops leaves its point as an
-        extra point of the equipment.
+        extra point of the equipment. With a draft (a whole setup holding a version not saved
+        yet), this previews the roll-out before the version is saved (the template editor).
         """
-        data = await self.setup.export()
+        data, draft = await self.setup.working_copy(body)
         site = _site_templates(data)
         new = find(site, template_id, body.get("version"))
         if new is None:
@@ -311,7 +312,7 @@ class EquipTemplateService:
                             "needsBinding": needs_binding, "unbound": unbound})
         result = await self.setup._apply(data, client, "rollout", "equip-template", template_id,
                                          f"rolled {len(targets)} instances of {template_id} to {new.version}",
-                                         None, {"instances": [p["name"] for p in preview]}, check_only)
+                                         None, {"instances": [p["name"] for p in preview]}, check_only, draft)
         return {**result, "instances": preview}
 
     async def unlink(self, kind: str, name: str, client: str) -> dict:

@@ -132,6 +132,13 @@ async def test_test_read_a_device_that_is_not_saved(stack):
     assert read["ok"] and read["results"][0]["status"] == "ok" and 5 < read["results"][0]["value"] < 19
     assert (await client.get("/api/setup/devices/spare_meter")).status_code == 404  # nothing was saved
 
+    # Points of equipment that is not saved yet (the wizard's draft) can be test read too.
+    drafted = (await client.post("/api/setup/test-read", json={"config": {
+        "device": {"name": "spare_meter", "dis": "Spare", "protocol": "modbus_tcp",
+                   "connection": {"host": "127.0.0.1", "port": sim.port, "timeoutS": 1, "retries": 0}},
+        "points": [{**new_point, "equip": "not_saved_yet", "space": "nor_this"}]}})).json()
+    assert drafted["ok"] and drafted["results"][0]["status"] == "ok"
+
     bad = await client.post("/api/setup/test-read", json={"config": {
         "device": {"name": "spare", "dis": "Spare", "protocol": "modbus_tcp", "connection": {"host": "127.0.0.1"}},
         "points": [{**new_point, "device": "nope"}]}})

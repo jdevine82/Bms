@@ -3,6 +3,8 @@ import type { LiveValue, Point, Site } from "./api";
 import { getPoints, getSite } from "./api";
 import { useLive } from "./live";
 import { PointsPage } from "./PointsPage";
+import { useHash } from "./setup/nav";
+import { SetupApp } from "./setup/SetupApp";
 import { TrendPage } from "./TrendPage";
 
 type Page = "points" | "trends";
@@ -23,6 +25,13 @@ export function App() {
   const [live, setLive] = useState<Record<string, LiveValue>>({});
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("points");
+  const hash = useHash();
+  const inSetup = hash.page === "setup";
+  const go = (p: Page) => {
+    if (inSetup) history.pushState(null, "", location.pathname + location.search);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    setPage(p);
+  };
   const [selected, setSelected] = useState<string[]>([]);
   const [theme, setTheme] = useState<Theme>(readTheme);
 
@@ -62,11 +71,20 @@ export function App() {
           <span className={`conn ${connected ? "on" : "off"}`}>{connected ? "Live" : "Connecting…"}</span>
         </div>
         <nav aria-label="Pages">
-          <button type="button" className={page === "points" ? "active" : ""} onClick={() => setPage("points")}>
+          <button type="button" className={!inSetup && page === "points" ? "active" : ""} onClick={() => go("points")}>
             Points
           </button>
-          <button type="button" className={page === "trends" ? "active" : ""} onClick={() => setPage("trends")}>
+          <button type="button" className={!inSetup && page === "trends" ? "active" : ""} onClick={() => go("trends")}>
             Trends
+          </button>
+          <button
+            type="button"
+            className={inSetup ? "active" : ""}
+            onClick={() => {
+              location.hash = "#/setup";
+            }}
+          >
+            Setup
           </button>
         </nav>
         <label className="theme">
@@ -78,10 +96,11 @@ export function App() {
           </select>
         </label>
       </header>
-      <main>
+      <main className={inSetup ? "wide" : ""}>
         {error && <p className="error">{error}</p>}
-        {site && page === "points" && <PointsPage site={site} points={points} live={live} onTrend={openTrend} />}
-        {site && page === "trends" && (
+        {inSetup && <SetupApp />}
+        {site && !inSetup && page === "points" && <PointsPage site={site} points={points} live={live} onTrend={openTrend} />}
+        {site && !inSetup && page === "trends" && (
           <TrendPage site={site} points={points} selected={selected} onSelect={setSelected} />
         )}
       </main>

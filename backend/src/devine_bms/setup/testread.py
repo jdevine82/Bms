@@ -225,7 +225,13 @@ async def _unsaved(setup, fragment: dict):
         data["buses"] = [b for b in data.get("buses", []) if b["name"] != fragment["bus"].get("name")]
         data["buses"].append(fragment["bus"])
     data.setdefault("devices", []).append(device_cfg)
-    data.setdefault("points", []).extend(fragment.get("points", []))
+    # A test read needs only the addresses. The points may belong to equipment or rooms that
+    # are not saved yet (the commissioning wizard's draft), so a stand-in equipment holds them.
+    owner = "test_read_points"
+    data.setdefault("equips", []).append({"name": owner, "dis": "Test read"})
+    points = [{k: v for k, v in p.items() if k not in ("equip", "space")} | {"equip": owner}
+              for p in fragment.get("points", []) if isinstance(p, dict)]
+    data.setdefault("points", []).extend(points)
     try:
         config, _ = parse_config(data)
     except ConfigError as exc:

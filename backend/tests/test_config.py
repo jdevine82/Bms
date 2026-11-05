@@ -160,3 +160,9 @@ def test_mstp_example_config_is_valid():
 def test_mqtt_example_config_is_valid():
     config, issues = load_config(EXAMPLE.parent / "site.example-mqtt.json")
     assert config.buses[0].type == "mqtt_broker" and issues == []
+
+
+def test_setup_screens_example_config_is_valid():
+    config, issues = load_config(EXAMPLE.parent / "site.example-setup.json")
+    assert [i for i in issues if i.severity.value == "error"] == []
+    assert {d.name for d in config.devices} == {"sim_meter", "rtu_meter"}
