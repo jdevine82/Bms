@@ -83,6 +83,146 @@
       "title": "BacnetIpConnection",
       "type": "object"
     },
+    "BacnetMstpConnection": {
+      "additionalProperties": false,
+      "description": "A BACnet MS/TP device on a trunk (milestone 4c).",
+      "properties": {
+        "trunk": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Trunk",
+          "type": "string"
+        },
+        "mac": {
+          "maximum": 127,
+          "minimum": 2,
+          "title": "Mac",
+          "type": "integer"
+        },
+        "deviceInstance": {
+          "maximum": 4194302,
+          "minimum": 0,
+          "title": "Deviceinstance",
+          "type": "integer"
+        },
+        "blockSize": {
+          "default": 10,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Blocksize",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "trunk",
+        "mac",
+        "deviceInstance"
+      ],
+      "title": "BacnetMstpConnection",
+      "type": "object"
+    },
+    "BacnetMstpTrunk": {
+      "additionalProperties": false,
+      "description": "A BACnet MS/TP trunk, run by the bms-mstp service on the host (main spec 5.1, 9, 11; milestone 4c).\n\nThe service owns the serial port and is the MS/TP master node; the backend reads devices\nthrough its local API. The port and MS/TP settings here must match the service's settings\n(`mstp/` in the repository); the commissioning check compares them.",
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "timeoutS": {
+          "default": 8.0,
+          "exclusiveMinimum": 0,
+          "maximum": 120,
+          "title": "Timeouts",
+          "type": "number"
+        },
+        "retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "bacnet_mstp",
+          "title": "Type",
+          "type": "string"
+        },
+        "service": {
+          "pattern": "^[0-9.]+:[0-9]{1,5}$",
+          "title": "Service",
+          "type": "string"
+        },
+        "port": {
+          "description": "Serial port the service uses",
+          "minLength": 1,
+          "title": "Port",
+          "type": "string"
+        },
+        "baudrate": {
+          "default": 38400,
+          "enum": [
+            9600,
+            19200,
+            38400,
+            57600,
+            76800,
+            115200
+          ],
+          "title": "Baudrate",
+          "type": "integer"
+        },
+        "mac": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Mac",
+          "type": "integer"
+        },
+        "maxMaster": {
+          "default": 127,
+          "maximum": 127,
+          "minimum": 1,
+          "title": "Maxmaster",
+          "type": "integer"
+        },
+        "maxInfoFrames": {
+          "default": 1,
+          "maximum": 255,
+          "minimum": 1,
+          "title": "Maxinfoframes",
+          "type": "integer"
+        },
+        "deviceInstance": {
+          "description": "The service node's own instance",
+          "maximum": 4194302,
+          "minimum": 0,
+          "title": "Deviceinstance",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "type",
+        "service",
+        "port",
+        "deviceInstance"
+      ],
+      "title": "BacnetMstpTrunk",
+      "type": "object"
+    },
     "BacnetObjectType": {
       "enum": [
         "analogInput",
@@ -170,7 +310,8 @@
           "enum": [
             "modbus_tcp",
             "modbus",
-            "bacnet_ip"
+            "bacnet_ip",
+            "bacnet_mstp"
           ],
           "title": "Protocol",
           "type": "string"
@@ -185,6 +326,9 @@
             },
             {
               "$ref": "#/$defs/BacnetIpConnection"
+            },
+            {
+              "$ref": "#/$defs/BacnetMstpConnection"
             }
           ],
           "title": "Connection"
@@ -1027,6 +1171,7 @@
       "items": {
         "discriminator": {
           "mapping": {
+            "bacnet_mstp": "#/$defs/BacnetMstpTrunk",
             "modbus_rtu": "#/$defs/ModbusRtuBus",
             "modbus_rtu_over_tcp": "#/$defs/ModbusRtuOverTcpBus",
             "modbus_tcp_gateway": "#/$defs/ModbusTcpGatewayBus"
@@ -1042,6 +1187,9 @@
           },
           {
             "$ref": "#/$defs/ModbusTcpGatewayBus"
+          },
+          {
+            "$ref": "#/$defs/BacnetMstpTrunk"
           }
         ]
       },

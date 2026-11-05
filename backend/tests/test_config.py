@@ -150,3 +150,8 @@ def test_rs485_example_config_is_valid():
 def test_bacnet_example_config_is_valid():
     config, issues = load_config(EXAMPLE.parent / "site.example-bacnet.json")
     assert config.devices[0].protocol == "bacnet_ip" and issues == []
+
+
+def test_mstp_example_config_is_valid():
+    config, issues = load_config(EXAMPLE.parent / "site.example-mstp.json")
+    assert config.buses[0].type == "bacnet_mstp" and issues == []

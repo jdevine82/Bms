@@ -24,3 +24,6 @@ dist/
 
 # Site configuration in use on a development machine (copy of config/site.example.json)
 config/site.json
+
+# bms-mstp build folder (mstp/build.sh)
+mstp/build/

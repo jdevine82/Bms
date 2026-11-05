@@ -9,6 +9,8 @@ from devine_bms.config.model import (
     POLL_INTERVAL_S,
     BacnetAddress,
     BacnetIpConnection,
+    BacnetMstpConnection,
+    BacnetMstpTrunk,
     BacnetSettings,
     Kind,
     ModbusAddress,
@@ -44,7 +46,7 @@ class SiteEquip:
 @dataclass(frozen=True)
 class RuntimeBus:
     id: uuid.UUID
-    settings: ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus
+    settings: ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus | BacnetMstpTrunk
 
     @property
     def name(self) -> str:
@@ -56,7 +58,7 @@ class RuntimeDevice:
     id: uuid.UUID
     name: str
     protocol: str
-    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection
+    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection
     enabled: bool
     bus_id: uuid.UUID | None = None
 
