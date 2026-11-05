@@ -36,7 +36,8 @@ def local_only(request: Request) -> str:
 
 
 def build_setup_router(get_service: Callable[[], SetupService | None],
-                       get_runtime: Callable[[], Any] = lambda: None) -> APIRouter:
+                       get_runtime: Callable[[], Any] = lambda: None,
+                       get_discover: Callable[[], Any] = lambda: None) -> APIRouter:
     router = APIRouter(prefix="/api/setup")
 
     def service() -> SetupService:
@@ -108,6 +109,44 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
                               svc: SetupService = Depends(service)) -> Any:
         from devine_bms.setup.testread import test_read
         return await run(test_read(get_runtime(), svc, body))
+
+    # ---------- Discover (main spec 5.1.3) ----------
+
+    def discover():
+        manager = get_discover()
+        if manager is None:
+            raise HTTPException(503, "Discover needs the database (it is not available in this mode)")
+        return manager
+
+    @router.post("/discover")
+    async def start_scan(body: dict = Body(...), client: str = Depends(local_only), manager=Depends(discover)) -> Any:
+        params = {k: v for k, v in body.items() if k != "kind"}
+
+        async def start():
+            return (await manager.start(body.get("kind", ""), params, client)).as_dict()
+        return await run(start())
+
+    @router.get("/discover")
+    async def list_scans(manager=Depends(discover)) -> Any:
+        return [{k: v for k, v in s.as_dict().items() if k != "results"} | {"found": len(s.results)}
+                for s in manager.scans.values()]
+
+    @router.get("/discover/{scan_id}")
+    async def get_scan(scan_id: str, manager=Depends(discover)) -> Any:
+        async def get():
+            return manager.get(scan_id).as_dict()
+        return await run(get())
+
+    @router.delete("/discover/{scan_id}")
+    async def stop_scan(scan_id: str, client: str = Depends(local_only), manager=Depends(discover)) -> Any:
+        async def stop():
+            return (await manager.stop(scan_id)).as_dict()
+        return await run(stop())
+
+    @router.post("/discover/{scan_id}/add")
+    async def add_found(scan_id: str, body: dict = Body(...), client: str = Depends(local_only),
+                        manager=Depends(discover)) -> Any:
+        return await run(manager.add(scan_id, body.get("picks", []), client))
 
     @router.get("/changes")
     async def changes(limit: int = Query(50, ge=1, le=1000), svc: SetupService = Depends(service)) -> Any:

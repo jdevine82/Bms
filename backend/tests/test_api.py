@@ -126,7 +126,7 @@ async def test_history_and_csv(server):
     client = server["client"]
     points = await wait_all_good(client)
     power = next(p for p in points if p["name"] == "site_meter1_power")
-    await asyncio.sleep(0.6)
+    await asyncio.sleep(1.5)  # enough readings before the window's end, even on a busy machine
     # The same fixed range for both requests, ending in the past: history is written in batches a
     # moment after each reading, so a range ending "now" can still gain rows between the requests.
     end = datetime.now(UTC) - timedelta(seconds=0.5)

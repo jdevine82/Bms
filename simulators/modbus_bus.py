@@ -49,6 +49,7 @@ FC_READ_COILS = 0x01
 FC_READ_DISCRETE = 0x02
 FC_READ_HOLDING = 0x03
 FC_READ_INPUT = 0x04
+FC_DEVICE_ID = 0x2B  # Read Device Identification (MEI type 0x0E)
 EXC_ILLEGAL_FUNCTION = 0x01
 EXC_ILLEGAL_ADDRESS = 0x02
 EXC_DEVICE_FAILURE = 0x04
@@ -88,6 +89,8 @@ class MeterModel:
 
     register_count = 16
     bit_counts: dict[int, int] = {}
+    # Answers Read Device Identification: vendor, product code, revision.
+    identity = ("Devine BMS simulator", "SIM-METER", "1.0")
 
     def __init__(self, seed: int | None = None, start_energy_kwh: float = 12345.6) -> None:
         self._rng = random.Random(seed)
@@ -231,16 +234,33 @@ class ModbusSimulator:
             writer.close()
 
     async def _handle_rtu(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        """RTU frames over a byte stream. Read requests are always 8 bytes:
-        unit, function, address (2), count (2), CRC (2)."""
+        """RTU frames over a byte stream. The frame length depends on the function, as a real
+        device works it out: functions 1 to 6 are 8 bytes, 43 (device identification) is 7,
+        15 and 16 carry a byte count."""
         self._writers.add(writer)
         try:
             while True:
-                frame = await reader.readexactly(8)
-                if crc16(frame[:6]) != struct.unpack("<H", frame[6:8])[0]:
+                head = await reader.readexactly(2)
+                function = head[1]
+                if function in (1, 2, 3, 4, 5, 6):
+                    rest = await reader.readexactly(6)
+                elif function == FC_DEVICE_ID:
+                    rest = await reader.readexactly(5)
+                elif function in (15, 16):
+                    fixed = await reader.readexactly(5)
+                    rest = fixed + await reader.readexactly(fixed[4] + 2)
+                else:
+                    # Unknown length: drop what has arrived, as a device would after a garbled frame.
+                    try:
+                        await asyncio.wait_for(reader.read(256), 0.05)
+                    except TimeoutError:
+                        pass
+                    continue
+                frame = head + rest
+                if crc16(frame[:-2]) != struct.unpack("<H", frame[-2:])[0]:
                     log.debug("bad CRC, frame ignored")
                     continue  # a real device stays silent on a bad CRC
-                unit_id, pdu = frame[0], frame[1:6]
+                unit_id, pdu = frame[0], frame[1:-2]
                 response = self.handle_pdu(unit_id, pdu)
                 if response is None or unit_id == 0:
                     continue  # no answer to broadcasts
@@ -262,6 +282,12 @@ class ModbusSimulator:
                 return bytes([pdu[0] | 0x80, EXC_GATEWAY_TARGET])
             return None  # no device at that address answers
         function = pdu[0]
+        if function == FC_DEVICE_ID:
+            identity = getattr(model, "identity", None)
+            if not identity or len(pdu) < 4 or pdu[1] != 0x0E:
+                return bytes([function | 0x80, EXC_ILLEGAL_FUNCTION])
+            objects = b"".join(bytes([i, len(v)]) + v.encode() for i, v in enumerate(identity))
+            return bytes([function, 0x0E, pdu[2], 0x01, 0x00, 0x00, len(identity)]) + objects
         if function not in (FC_READ_COILS, FC_READ_DISCRETE, FC_READ_HOLDING, FC_READ_INPUT):
             return bytes([function | 0x80, EXC_ILLEGAL_FUNCTION])
         if len(pdu) != 5:

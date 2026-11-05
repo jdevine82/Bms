@@ -27,6 +27,7 @@ from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.runtime import Runtime
 from devine_bms.runtime_model import RuntimeConfig, RuntimePoint
+from devine_bms.setup.discover import DiscoverManager
 from devine_bms.setup.service import SetupService
 from devine_bms.values import LiveValue, Status
 
@@ -80,14 +81,18 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         sessions = getattr(runtime.storage, "sessionmaker", None)
         if sessions is not None:  # setup needs the database
             state["setup"] = SetupService(sessions, runtime.site_name, runtime.reload)
+            state["discover"] = DiscoverManager(runtime, state["setup"])
         try:
             yield
         finally:
+            if state.get("discover") is not None:
+                await state["discover"].stop_all()
             await runtime.stop()
             await cleanup()
 
     app = FastAPI(title="Devine BMS", version=__version__, lifespan=lifespan)
-    app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime")))
+    app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
+                                          lambda: state.get("discover")))
 
     def runtime() -> Runtime:
         return state["runtime"]
