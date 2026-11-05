@@ -148,7 +148,31 @@ class ModbusTcpGatewayBus(_BusBase):
     port: int = Field(default=502, ge=1, le=65535)
 
 
-Bus = Annotated[ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus, Field(discriminator="type")]
+class BacnetMstpTrunk(_BusBase):
+    """A BACnet MS/TP trunk, run by the bms-mstp service on the host (main spec 5.1, 9, 11; milestone 4c).
+
+    The service owns the serial port and is the MS/TP master node; the backend reads devices
+    through its local API. The port and MS/TP settings here must match the service's settings
+    (`mstp/` in the repository); the commissioning check compares them.
+    """
+
+    type: Literal["bacnet_mstp"]
+    # bms-mstp API address, for example 127.0.0.1:47900 or the host's address on a
+    # host-only bridge when the backend runs in a container.
+    service: str = Field(pattern=r"^[0-9.]+:[0-9]{1,5}$")
+    port: str = Field(min_length=1, description="Serial port the service uses")
+    baudrate: Literal[9600, 19200, 38400, 57600, 76800, 115200] = 38400
+    # MAC 0 is the site server and MAC 1 the Pi HMI on every trunk (main spec 9).
+    mac: int = Field(default=0, ge=0, le=1)
+    max_master: int = Field(default=127, ge=1, le=127)
+    max_info_frames: int = Field(default=1, ge=1, le=255)
+    device_instance: int = Field(ge=0, le=4194302, description="The service node's own instance")
+    timeout_s: float = Field(default=8.0, gt=0, le=120)  # longer than the service's own timeout x tries
+
+
+Bus = Annotated[
+    ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus | BacnetMstpTrunk, Field(discriminator="type")
+]
 
 
 class BacnetIpConnection(_Model):
@@ -167,6 +191,18 @@ class BacnetIpConnection(_Model):
     cov_lifetime_s: int = Field(default=300, ge=60, le=86400)
 
 
+class BacnetMstpConnection(_Model):
+    """A BACnet MS/TP device on a trunk (milestone 4c)."""
+
+    trunk: Name
+    # MAC 0 and 1 are reserved for the site server and the Pi HMI (main spec 9).
+    mac: int = Field(ge=2, le=127)
+    device_instance: int = Field(ge=0, le=4194302)
+    # Properties per ReadPropertyMultiple request (each point reads two). MS/TP frames are
+    # at most 501 bytes, so keep requests small.
+    block_size: int = Field(default=10, ge=1, le=50)
+
+
 class ModbusBusConnection(_Model):
     """A device on a bus: its unit (slave) ID and how many registers it reads at once."""
 
@@ -181,8 +217,9 @@ class Device(_Model):
     # modbus_tcp: a device with its own Modbus TCP connection.
     # modbus: a device on a bus (RS485 line or serial gateway) from `buses`.
     # bacnet_ip: a BACnet/IP device.
-    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip"]
-    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection
+    # bacnet_mstp: a BACnet MS/TP device on a trunk from `buses`.
+    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip", "bacnet_mstp"]
+    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection
     enabled: bool = True
 
     @model_validator(mode="after")
@@ -191,6 +228,7 @@ class Device(_Model):
             "modbus_tcp": ModbusTcpConnection,
             "modbus": ModbusBusConnection,
             "bacnet_ip": BacnetIpConnection,
+            "bacnet_mstp": BacnetMstpConnection,
         }[self.protocol]
         if not isinstance(self.connection, wanted):
             raise ValueError(f"protocol '{self.protocol}' needs a {wanted.__name__} connection")

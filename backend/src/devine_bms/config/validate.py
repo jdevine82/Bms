@@ -89,7 +89,7 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
     # Buses: a serial port is never shared between buses (main spec 5.1).
     ports: dict[str, str] = {}
     for bus in config.buses:
-        if bus.type == "modbus_rtu":
+        if bus.type in ("modbus_rtu", "bacnet_mstp"):
             if bus.port in ports:
                 error(f"buses.{bus.name}", f"serial port {bus.port} is already used by bus '{ports[bus.port]}'")
             ports[bus.port] = bus.name
@@ -103,23 +103,50 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             continue
         where = f"devices.{device.name}"
         conn = device.connection
-        if conn.bus not in buses:
-            error(where, f"bus '{conn.bus}' does not exist")
+        if conn.bus not in buses or buses[conn.bus].type == "bacnet_mstp":
+            error(where, f"bus '{conn.bus}' does not exist" if conn.bus not in buses
+                  else f"bus '{conn.bus}' is a BACnet MS/TP trunk, not a Modbus bus")
             continue
         key = (conn.bus, conn.unit_id)
         if key in used:
             error(where, f"unit ID {conn.unit_id} on bus '{conn.bus}' is already used by device '{used[key]}'")
         used[key] = device.name
 
+    # MS/TP devices: the trunk exists, MACs are unique on it, and within the trunk's Max_Master
+    # (a master above Max_Master is never polled for the token).
+    macs: dict[tuple[str, int], str] = {}
+    for device in config.devices:
+        if device.protocol != "bacnet_mstp":
+            continue
+        where = f"devices.{device.name}"
+        conn = device.connection
+        trunk = buses.get(conn.trunk)
+        if trunk is None or trunk.type != "bacnet_mstp":
+            error(where, f"MS/TP trunk '{conn.trunk}' does not exist")
+            continue
+        key = (conn.trunk, conn.mac)
+        if key in macs:
+            error(where, f"MAC {conn.mac} on trunk '{conn.trunk}' is already used by device '{macs[key]}'")
+        macs[key] = device.name
+        if conn.mac > trunk.max_master:
+            warning(where, f"MAC {conn.mac} is above the trunk's Max_Master ({trunk.max_master}); "
+                           "if it is a master it will never get the token")
+
     device_by_name = {d.name: d for d in config.devices}
 
     # BACnet: the BMS needs its own identity, and device instances are unique on a network.
-    bacnet_devices = [d for d in config.devices if d.protocol == "bacnet_ip"]
-    if bacnet_devices and config.bacnet is None:
+    bacnet_devices = [d for d in config.devices if d.protocol in ("bacnet_ip", "bacnet_mstp")]
+    if any(d.protocol == "bacnet_ip" for d in bacnet_devices) and config.bacnet is None:
         error("bacnet", "BACnet/IP devices need the site's 'bacnet' settings (the BMS's own address and device instance)")
     instances: dict[int, str] = {}
     if config.bacnet is not None:
         instances[config.bacnet.device_instance] = "the BMS itself"
+    for bus in config.buses:
+        if bus.type == "bacnet_mstp":
+            if bus.device_instance in instances:
+                error(f"buses.{bus.name}", f"device instance {bus.device_instance} is already used by "
+                                           f"{instances[bus.device_instance]}")
+            instances[bus.device_instance] = f"MS/TP trunk '{bus.name}'"
     for device in bacnet_devices:
         number = device.connection.device_instance
         if number in instances:
@@ -188,7 +215,7 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
 
         device = device_by_name.get(point.device)
         if device is not None:
-            is_bacnet_device = device.protocol == "bacnet_ip"
+            is_bacnet_device = device.protocol in ("bacnet_ip", "bacnet_mstp")
             if is_bacnet_device and not isinstance(point.address, BacnetAddress):
                 error(where, f"device '{point.device}' is BACnet, so the point needs a BACnet address")
             if not is_bacnet_device and not isinstance(point.address, ModbusAddress):

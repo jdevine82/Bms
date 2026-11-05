@@ -127,11 +127,14 @@ async def test_history_and_csv(server):
     points = await wait_all_good(client)
     power = next(p for p in points if p["name"] == "site_meter1_power")
     await asyncio.sleep(0.6)
-    his = (await client.get(f"/api/points/{power['id']}/history")).json()
+    # The same fixed range for both requests, so rows written in between are not counted twice.
+    end = datetime.now(UTC)
+    window = {"start": (end - timedelta(hours=1)).isoformat(), "end": end.isoformat()}
+    his = (await client.get(f"/api/points/{power['id']}/history", params=window)).json()
     assert his["unit"] == "kW" and not his["thinned"]
     assert len(his["rows"]) >= 3 and all(r["status"] == "ok" for r in his["rows"])
 
-    response = await client.get(f"/api/points/{power['id']}/history.csv")
+    response = await client.get(f"/api/points/{power['id']}/history.csv", params=window)
     assert response.headers["content-type"].startswith("text/csv")
     assert "attachment" in response.headers["content-disposition"]
     rows = list(csv.reader(io.StringIO(response.text)))

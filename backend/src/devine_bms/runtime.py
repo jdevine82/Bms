@@ -46,12 +46,12 @@ class Runtime:
         groups: list[tuple[str, ModbusClient, list]] = []
         for bus in self.config.buses:
             members = [d for d in self.config.devices if d.bus_id == bus.id]
-            if members:
+            if members and bus.settings.type != "bacnet_mstp":
                 groups.append((bus.name, ModbusClient.for_bus(bus.settings), members))
         for device in self.config.devices:
             if device.protocol == "modbus_tcp":
                 groups.append((device.name, ModbusClient.for_tcp_device(device.name, device.connection), [device]))
-            elif device.protocol not in ("modbus", "bacnet_ip"):
+            elif device.protocol not in ("modbus", "bacnet_ip", "bacnet_mstp"):
                 log.warning("device %s: protocol %s is not supported yet", device.name, device.protocol)
         for name, client, members in groups:
             states = [DeviceState(d, self.config.points_for(d.id), self.tracker) for d in members]
@@ -60,6 +60,7 @@ class Runtime:
             self.buses.append(bus)
             self._tasks.append(asyncio.create_task(bus.run(), name=f"poll {name}"))
         await self._start_bacnet()
+        self._start_mstp()
         self._tasks.append(asyncio.create_task(self._stale_loop(), name="stale check"))
         self._tasks.append(asyncio.create_task(self.history.run(), name="history writer"))
         log.info("runtime started: %d connections, %d devices, %d points",
@@ -95,6 +96,30 @@ class Runtime:
                 cov.on_failed = self._cov_stopped(driver)
                 cov.start()
                 self.cov.append(cov)
+
+    def _start_mstp(self) -> None:
+        from devine_bms.drivers.bacnet.driver import make_bacnet_blocks
+        from devine_bms.drivers.bacnet_mstp.client import MstpServiceClient
+        from devine_bms.drivers.bacnet_mstp.driver import MstpDriver
+
+        for trunk in self.config.buses:
+            if trunk.settings.type != "bacnet_mstp":
+                continue
+            members = [d for d in self.config.devices if d.bus_id == trunk.id]
+            if not members:
+                continue
+            settings = trunk.settings
+            client = MstpServiceClient(settings.service, settings.timeout_s, trunk.name)
+            driver = MstpDriver(trunk.name, client, settings.port)
+            states = []
+            for device in members:
+                points = self.config.points_for(device.id)
+                states.append(DeviceState(device, points, self.tracker, make_bacnet_blocks(points, device.block_size)))
+            self.pollers.extend(states)
+            poller = BusPoller(trunk.name, driver, states, self.intervals)
+            self.buses.append(poller)
+            self._tasks.append(asyncio.create_task(poller.run(), name=f"poll {trunk.name}"))
+            self._tasks.append(asyncio.create_task(driver.watch_stats(), name=f"stats {trunk.name}"))
 
     def _cov_started(self, driver, slow: float):
         def started(point) -> None:

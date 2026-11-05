@@ -149,6 +149,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             ],
             "connections": [
                 {"name": b.name, "where": b.driver.where, "shared": b.driver.shared, "online": b.online,
+                 "trunkStats": getattr(b.driver, "stats", None),
                  "devices": [d.device.name for d in b.devices]}
                 for b in rt.buses
             ],

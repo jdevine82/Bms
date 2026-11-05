@@ -112,7 +112,8 @@ class Bus(Base):
     __table_args__ = (
         UniqueConstraint("site_id", "name"),
         CheckConstraint(
-            "bus_type IN ('modbus_rtu', 'modbus_rtu_over_tcp', 'modbus_tcp_gateway')", name="bus_type"
+            "bus_type IN ('modbus_rtu', 'modbus_rtu_over_tcp', 'modbus_tcp_gateway', 'bacnet_mstp')",
+            name="bus_type",
         ),
     )
     id: Mapped[uuid.UUID] = _id()

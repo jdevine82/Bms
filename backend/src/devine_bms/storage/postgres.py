@@ -15,6 +15,7 @@ from pydantic import TypeAdapter
 from devine_bms.config.model import (
     BacnetAddress,
     BacnetIpConnection,
+    BacnetMstpConnection,
     BacnetSettings,
     Bus,
     Kind,
@@ -34,7 +35,12 @@ from devine_bms.runtime_model import (
 )
 
 _BUS = TypeAdapter(Bus)
-_CONNECTIONS = {"modbus_tcp": ModbusTcpConnection, "modbus": ModbusBusConnection, "bacnet_ip": BacnetIpConnection}
+_CONNECTIONS = {
+    "modbus_tcp": ModbusTcpConnection,
+    "modbus": ModbusBusConnection,
+    "bacnet_ip": BacnetIpConnection,
+    "bacnet_mstp": BacnetMstpConnection,
+}
 from devine_bms.values import HisRow, Status
 
 

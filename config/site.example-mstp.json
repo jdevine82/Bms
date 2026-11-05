@@ -1,0 +1,109 @@
+{
+  "schema": "devine-bms-config/0",
+  "site": {
+    "name": "dev_mstp_site",
+    "dis": "Development site (MS/TP)",
+    "tz": "Sydney"
+  },
+  "spaces": [
+    {
+      "name": "plant",
+      "dis": "Plant room"
+    }
+  ],
+  "equips": [
+    {
+      "name": "ahu1",
+      "dis": "AHU 1",
+      "space": "plant",
+      "tags": {
+        "ahu": true
+      }
+    }
+  ],
+  "buses": [
+    {
+      "name": "mstp1",
+      "dis": "MS/TP trunk 1",
+      "type": "bacnet_mstp",
+      "service": "127.0.0.1:47900",
+      "port": "/dev/bms-rs485-2",
+      "baudrate": 38400,
+      "mac": 0,
+      "maxMaster": 10,
+      "maxInfoFrames": 1,
+      "deviceInstance": 3999101,
+      "timeoutS": 8
+    }
+  ],
+  "devices": [
+    {
+      "name": "ctrl5",
+      "dis": "MS/TP controller at MAC 5",
+      "protocol": "bacnet_mstp",
+      "connection": {
+        "trunk": "mstp1",
+        "mac": 5,
+        "deviceInstance": 1234,
+        "blockSize": 10
+      }
+    }
+  ],
+  "points": [
+    {
+      "name": "plant_ahu1_room_temp",
+      "dis": "Room temperature",
+      "equip": "ahu1",
+      "device": "ctrl5",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "°C",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "pollClass": "fast",
+      "address": {
+        "objectType": "analogInput",
+        "instance": 1
+      }
+    },
+    {
+      "name": "plant_ahu1_sp",
+      "dis": "Setpoint",
+      "equip": "ahu1",
+      "device": "ctrl5",
+      "type": "sp",
+      "kind": "Number",
+      "unit": "°C",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "pollClass": "normal",
+      "address": {
+        "objectType": "analogValue",
+        "instance": 1
+      }
+    },
+    {
+      "name": "plant_ahu1_fan_status",
+      "dis": "Fan status",
+      "equip": "ahu1",
+      "device": "ctrl5",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "fan": true,
+        "run": true
+      },
+      "pollClass": "fast",
+      "address": {
+        "objectType": "binaryInput",
+        "instance": 1
+      }
+    }
+  ]
+}

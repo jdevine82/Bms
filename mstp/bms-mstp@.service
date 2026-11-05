@@ -1,0 +1,36 @@
+# One bms-mstp service per MS/TP trunk (milestone 4c). Runs on the Proxmox host, which
+# owns the RS485 adapters (main spec 11). Settings: /etc/devine-bms/mstp-<trunk>.env
+#
+#   sudo cp bms-mstp@.service /etc/systemd/system/
+#   sudo systemctl enable --now bms-mstp@mstp1
+#
+[Unit]
+Description=Devine BMS MS/TP service for trunk %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/devine-bms/mstp-%i.env
+ExecStart=/usr/local/bin/bms-mstp --listen ${BMS_MSTP_LISTEN} --instance ${BMS_MSTP_INSTANCE} \
+    --apdu-timeout ${BMS_MSTP_APDU_TIMEOUT} --apdu-retries ${BMS_MSTP_APDU_RETRIES}
+Restart=always
+RestartSec=2
+User=bms-mstp
+Group=bms-mstp
+SupplementaryGroups=dialout
+# MS/TP has tight reply timing (Tusage_timeout, about 20 ms); a raised priority keeps the
+# token passing on time when the host is busy. [Assumed] Check on the bench (bench test 3).
+Nice=-10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/
+DevicePolicy=closed
+DeviceAllow=char-ttyUSB rw
+DeviceAllow=char-ttyACM rw
+DeviceAllow=char-ttyS rw
+
+[Install]
+WantedBy=multi-user.target
