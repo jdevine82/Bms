@@ -14,7 +14,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from devine_bms.config.model import BacnetAddress, Kind, ModbusAddress, ObjectType, PointType, SiteConfig
+from devine_bms.config.model import BacnetAddress, Kind, ModbusAddress, MqttAddress, ObjectType, PointType, SiteConfig
 from devine_bms.drivers.modbus.codec import DataType
 from devine_bms.haystack.library import TagLibrary, load_library
 
@@ -103,14 +103,22 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             continue
         where = f"devices.{device.name}"
         conn = device.connection
-        if conn.bus not in buses or buses[conn.bus].type == "bacnet_mstp":
+        if conn.bus not in buses or buses[conn.bus].type in ("bacnet_mstp", "mqtt_broker"):
+            kinds = {"bacnet_mstp": "a BACnet MS/TP trunk", "mqtt_broker": "an MQTT broker"}
             error(where, f"bus '{conn.bus}' does not exist" if conn.bus not in buses
-                  else f"bus '{conn.bus}' is a BACnet MS/TP trunk, not a Modbus bus")
+                  else f"bus '{conn.bus}' is {kinds[buses[conn.bus].type]}, not a Modbus bus")
             continue
         key = (conn.bus, conn.unit_id)
         if key in used:
             error(where, f"unit ID {conn.unit_id} on bus '{conn.bus}' is already used by device '{used[key]}'")
         used[key] = device.name
+
+    # MQTT devices: the broker exists.
+    for device in config.devices:
+        if device.protocol == "mqtt":
+            broker = buses.get(device.connection.broker)
+            if broker is None or broker.type != "mqtt_broker":
+                error(f"devices.{device.name}", f"MQTT broker '{device.connection.broker}' does not exist")
 
     # MS/TP devices: the trunk exists, MACs are unique on it, and within the trunk's Max_Master
     # (a master above Max_Master is never polled for the token).
@@ -215,18 +223,22 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
 
         device = device_by_name.get(point.device)
         if device is not None:
-            is_bacnet_device = device.protocol in ("bacnet_ip", "bacnet_mstp")
-            if is_bacnet_device and not isinstance(point.address, BacnetAddress):
-                error(where, f"device '{point.device}' is BACnet, so the point needs a BACnet address")
-            if not is_bacnet_device and not isinstance(point.address, ModbusAddress):
-                error(where, f"device '{point.device}' is Modbus, so the point needs a Modbus address")
+            wanted, label = {
+                "bacnet_ip": (BacnetAddress, "BACnet"),
+                "bacnet_mstp": (BacnetAddress, "BACnet"),
+                "mqtt": (MqttAddress, "MQTT"),
+            }.get(device.protocol, (ModbusAddress, "Modbus"))
+            if not isinstance(point.address, wanted):
+                error(where, f"device '{point.device}' is {label}, so the point needs a {label} address")
 
         if point.kind == Kind.STR and not point.enum:
             error(where, "Str points need an 'enum' list")
         if isinstance(point.address, ModbusAddress):
             _check_modbus_point(where, point, error)
-        else:
+        elif isinstance(point.address, BacnetAddress):
             _check_bacnet_point(where, point, error)
+        else:
+            _check_mqtt_point(where, point, error)
 
         prefix = _name_prefix(point, equips)
         if prefix and not point.name.startswith(prefix):
@@ -259,6 +271,17 @@ def _check_bacnet_point(where, point, error) -> None:
         error(where, f"{family} objects are Str points (with an enum list) or Number points (the state number)")
     if point.type != PointType.SENSOR and family.endswith("Input"):
         error(where, f"a {point.type} point must be writable, but a BACnet {family} is read-only")
+
+
+def _check_mqtt_point(where, point, error) -> None:
+    topic = point.address.topic
+    if "+" in topic or "#" in topic:
+        error(where, "an MQTT point needs one exact topic; wildcards (+ and #) are not allowed")
+    if topic.startswith("$"):
+        error(where, "topics starting with $ are broker topics, not device topics")
+    overlap = {v.lower() for v in point.address.true_values} & {v.lower() for v in point.address.false_values}
+    if overlap:
+        error(where, f"payload texts {sorted(overlap)} are in both true_values and false_values")
 
 
 def _check_tags(where, tags, library, error, warning) -> None:

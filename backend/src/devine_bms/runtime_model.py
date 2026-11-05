@@ -11,6 +11,9 @@ from devine_bms.config.model import (
     BacnetIpConnection,
     BacnetMstpConnection,
     BacnetMstpTrunk,
+    MqttAddress,
+    MqttBroker,
+    MqttConnection,
     BacnetSettings,
     Kind,
     ModbusAddress,
@@ -46,7 +49,7 @@ class SiteEquip:
 @dataclass(frozen=True)
 class RuntimeBus:
     id: uuid.UUID
-    settings: ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus | BacnetMstpTrunk
+    settings: ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus | BacnetMstpTrunk | MqttBroker
 
     @property
     def name(self) -> str:
@@ -58,7 +61,9 @@ class RuntimeDevice:
     id: uuid.UUID
     name: str
     protocol: str
-    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection
+    connection: (
+        ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection | MqttConnection
+    )
     enabled: bool
     bus_id: uuid.UUID | None = None
 
@@ -79,7 +84,7 @@ class RuntimePoint:
     kind: Kind
     unit: str | None
     enum: tuple[str, ...] | None
-    address: ModbusAddress | BacnetAddress
+    address: ModbusAddress | BacnetAddress | MqttAddress
     poll_class: PollClass
     stale_after_s: float | None
     his: bool

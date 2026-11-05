@@ -1,0 +1,135 @@
+{
+  "schema": "devine-bms-config/0",
+  "site": {
+    "name": "dev_mqtt_site",
+    "dis": "Development site (MQTT)",
+    "tz": "Sydney"
+  },
+  "spaces": [
+    {
+      "name": "room1",
+      "dis": "Room 1"
+    },
+    {
+      "name": "plant",
+      "dis": "Plant room"
+    }
+  ],
+  "equips": [
+    {
+      "name": "plug1",
+      "dis": "Smart plug 1",
+      "space": "plant",
+      "tags": {
+        "elec": true,
+        "meter": true
+      }
+    }
+  ],
+  "buses": [
+    {
+      "name": "mqtt1",
+      "dis": "Site broker",
+      "type": "mqtt_broker",
+      "host": "127.0.0.1",
+      "port": 1883,
+      "username": "bms",
+      "passwordEnv": "BMS_MQTT_PASSWORD"
+    }
+  ],
+  "devices": [
+    {
+      "name": "plug1",
+      "dis": "Tasmota smart plug",
+      "protocol": "mqtt",
+      "connection": {
+        "broker": "mqtt1",
+        "availabilityTopic": "tele/plug1/LWT",
+        "availabilityOnline": "Online",
+        "availabilityOffline": "Offline"
+      }
+    },
+    {
+      "name": "room1_sensor",
+      "dis": "Zigbee2MQTT room sensor",
+      "protocol": "mqtt",
+      "connection": {
+        "broker": "mqtt1"
+      }
+    }
+  ],
+  "points": [
+    {
+      "name": "plant_plug1_power",
+      "dis": "Plug 1 power",
+      "equip": "plug1",
+      "device": "plug1",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "W",
+      "tags": {
+        "elec": true,
+        "power": true
+      },
+      "pollClass": "normal",
+      "staleAfterS": 900,
+      "address": {
+        "topic": "tele/plug1/SENSOR",
+        "jsonPath": "ENERGY.Power"
+      }
+    },
+    {
+      "name": "plant_plug1_relay",
+      "dis": "Plug 1 relay",
+      "equip": "plug1",
+      "device": "plug1",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "run": true
+      },
+      "pollClass": "normal",
+      "staleAfterS": 900,
+      "address": {
+        "topic": "stat/plug1/POWER"
+      }
+    },
+    {
+      "name": "room1_temp",
+      "dis": "Room 1 temperature",
+      "space": "room1",
+      "device": "room1_sensor",
+      "type": "sensor",
+      "kind": "Number",
+      "unit": "°C",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "pollClass": "normal",
+      "staleAfterS": 3600,
+      "address": {
+        "topic": "zigbee2mqtt/room1_sensor",
+        "jsonPath": "temperature"
+      }
+    },
+    {
+      "name": "room1_occupied",
+      "dis": "Room 1 occupied",
+      "space": "room1",
+      "device": "room1_sensor",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "occupied": true
+      },
+      "pollClass": "normal",
+      "staleAfterS": 3600,
+      "address": {
+        "topic": "zigbee2mqtt/room1_sensor",
+        "jsonPath": "occupancy"
+      }
+    }
+  ]
+}

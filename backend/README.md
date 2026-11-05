@@ -71,6 +71,11 @@ uv run python ../simulators/modbus_meter.py --port 5021 --framing rtu --units me
 
 Name USB RS485 adapters by serial number with `../deploy/udev/99-devine-bms-rs485.rules`.
 
+## BACnet and MQTT (milestones 4b to 4d)
+
+BACnet/IP: `../docs/specs/m4b-bacnet-ip.md`. BACnet MS/TP through the `bms-mstp` service: `../mstp/README.md`.
+MQTT devices: `../docs/specs/m4d-mqtt.md`. Each has an example config in `../config/`.
+
 ## Simulated power meter
 
 ```bash

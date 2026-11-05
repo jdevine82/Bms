@@ -155,3 +155,8 @@ def test_bacnet_example_config_is_valid():
 def test_mstp_example_config_is_valid():
     config, issues = load_config(EXAMPLE.parent / "site.example-mstp.json")
     assert config.buses[0].type == "bacnet_mstp" and issues == []
+
+
+def test_mqtt_example_config_is_valid():
+    config, issues = load_config(EXAMPLE.parent / "site.example-mqtt.json")
+    assert config.buses[0].type == "mqtt_broker" and issues == []

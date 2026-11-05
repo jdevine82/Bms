@@ -36,7 +36,8 @@ def runtime_config_from(data: dict) -> RuntimeConfig:
         d.name: RuntimeDevice(
             uuid.uuid4(), d.name, d.protocol, d.connection, d.enabled,
             bus_id=(buses[d.connection.bus].id if d.protocol == "modbus"
-                    else buses[d.connection.trunk].id if d.protocol == "bacnet_mstp" else None),
+                    else buses[d.connection.trunk].id if d.protocol == "bacnet_mstp"
+                    else buses[d.connection.broker].id if d.protocol == "mqtt" else None),
         )
         for d in config.devices
     }
