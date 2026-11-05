@@ -59,6 +59,10 @@ class PostgresStorage:
     def __init__(self, sessionmaker: async_sessionmaker) -> None:
         self._sessionmaker = sessionmaker
 
+    @property
+    def sessionmaker(self) -> async_sessionmaker:
+        return self._sessionmaker
+
     async def load_runtime_config(self, site_name: str) -> RuntimeConfig:
         async with self._sessionmaker() as session:
             site = await session.scalar(select(db.Site).where(db.Site.name == site_name))
@@ -79,10 +83,10 @@ class PostgresStorage:
                 select(db.Point).where(db.Point.site_id == site.id, db.Point.enabled.is_(True)).order_by(db.Point.name)
             )).all()
             spaces = (await session.scalars(
-                select(db.Space).where(db.Space.site_id == site.id).order_by(db.Space.name)
+                select(db.Space).where(db.Space.site_id == site.id, db.Space.enabled.is_(True)).order_by(db.Space.name)
             )).all()
             equips = (await session.scalars(
-                select(db.Equip).where(db.Equip.site_id == site.id).order_by(db.Equip.name)
+                select(db.Equip).where(db.Equip.site_id == site.id, db.Equip.enabled.is_(True)).order_by(db.Equip.name)
             )).all()
         return RuntimeConfig(
             site_id=site.id,

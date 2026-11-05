@@ -12,7 +12,10 @@ class Settings(BaseSettings):
 
     # For example postgresql+asyncpg://bms:<password>@localhost:5432/bms
     database_url: str = "postgresql+asyncpg://bms@localhost:5432/bms"
+    # Imported only when the database has no site yet (milestone 5: the database is the master copy).
     config_path: str = "../config/site.json"
+    # Which site to run when the database holds more than one. Empty: the only site.
+    site_name: str = ""
     listen_host: str = "127.0.0.1"
     listen_port: int = 8000
     log_level: str = "INFO"

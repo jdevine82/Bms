@@ -69,6 +69,8 @@ class Space(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     dis: Mapped[str] = mapped_column(Text, nullable=False)
     tags: Mapped[dict] = _tags()
+    # False once removed from the setup; kept so old points keep their room (milestone 5A).
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     updated_at: Mapped[datetime] = _updated()
 
 
@@ -83,6 +85,8 @@ class Equip(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     dis: Mapped[str] = mapped_column(Text, nullable=False)
     tags: Mapped[dict] = _tags()
+    # False once removed from the setup; kept so old points keep their equipment (milestone 5A).
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     updated_at: Mapped[datetime] = _updated()
 
 
@@ -200,3 +204,20 @@ class PointHis(Base):
     str_: Mapped[str | None] = mapped_column("str", Text)
     status: Mapped[str] = mapped_column(String(8), nullable=False)
     reason: Mapped[str | None] = mapped_column(Text)
+
+
+class SetupChange(Base):
+    """One change to the site setup (milestone 5A). Becomes the audit log in milestone 6 (main spec 5.6)."""
+
+    __tablename__ = "setup_change"
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("site.id", ondelete="CASCADE"), index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(),
+                                         index=True)
+    client: Mapped[str] = mapped_column(String(64), nullable=False)  # who: the client address until logins exist
+    action: Mapped[str] = mapped_column(String(32), nullable=False)  # import, put, delete, rename, scan, ...
+    kind: Mapped[str | None] = mapped_column(String(32))
+    name: Mapped[str | None] = mapped_column(String(100))
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    before: Mapped[dict | list | None] = mapped_column(JSONB)
+    after: Mapped[dict | list | None] = mapped_column(JSONB)
