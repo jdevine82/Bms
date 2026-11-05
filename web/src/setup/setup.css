@@ -1,0 +1,879 @@
+/* Setup area (milestone 5B). Uses the theme tokens in styles.css; status is shown by text too. */
+main.wide {
+  max-width: none;
+  padding: 0;
+}
+
+.setup {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: calc(100vh - 66px);
+}
+
+.setup-nav {
+  display: block;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.setup-nav h3,
+.side-list h3,
+.eyebrow {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.setup-nav a {
+  display: block;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.setup-nav a:hover {
+  background: var(--muted-bg);
+}
+
+.setup-nav a.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  outline: 1px solid var(--accent);
+}
+
+.setup-body {
+  min-width: 0;
+}
+
+.setup h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.setup h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* Layouts: list + detail, and list + main + side (as the mockups). */
+.split,
+.three {
+  display: grid;
+  min-height: calc(100vh - 66px);
+}
+
+.split {
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+}
+
+.split.wide-right {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.three {
+  grid-template-columns: 220px minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.list-pane,
+.main-pane,
+.detail-pane,
+.side-pane,
+.side-list {
+  padding: 16px;
+  min-width: 0;
+}
+
+.list-pane,
+.side-list {
+  border-right: 1px solid var(--border);
+}
+
+.side-pane {
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.narrow-page {
+  max-width: 760px;
+}
+
+.pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Controls */
+.btn,
+.setup select,
+.setup input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.setup textarea {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 4px 10px;
+}
+
+.setup input.invalid {
+  border-color: var(--bad);
+}
+
+.btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.btn.danger {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 60%, var(--border));
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn[aria-busy="true"] {
+  cursor: progress;
+}
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link.danger {
+  color: var(--bad);
+}
+
+.file-pick input {
+  display: none;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.actions.column {
+  flex-direction: column;
+}
+
+.actions.secondary {
+  align-items: center;
+}
+
+/* Side lists (networks, templates) */
+.setup nav.side-list button,
+.pick-list button {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin: 2px 0;
+  padding: 6px 10px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.setup nav.side-list {
+  display: block;
+}
+
+.setup nav.side-list button:hover,
+.pick-list button:hover {
+  background: var(--muted-bg);
+}
+
+.setup nav.side-list button.active,
+.pick-list button.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.pick-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.pick-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pick-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.filter {
+  width: 100%;
+}
+
+.empty {
+  padding: 12px;
+}
+
+/* Status pills: colour plus a word */
+.pill {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pill.ok {
+  color: var(--ok);
+}
+
+.pill.warn {
+  color: var(--warn);
+}
+
+.pill.bad {
+  color: var(--bad);
+}
+
+.pill.info {
+  color: var(--accent);
+}
+
+.pill.muted {
+  color: var(--text-muted);
+}
+
+.ok-text {
+  color: var(--ok);
+}
+
+.warn-text {
+  color: var(--warn);
+}
+
+.bad-text {
+  color: var(--bad);
+}
+
+/* Notes and outcomes */
+.note,
+.outcome {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  background: var(--surface);
+}
+
+.note.warn,
+.outcome.info {
+  border-color: color-mix(in srgb, var(--warn) 70%, var(--border));
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+}
+
+.outcome.info {
+  border-color: var(--border);
+  background: var(--muted-bg);
+}
+
+.note.bad,
+.outcome.error {
+  border-color: color-mix(in srgb, var(--bad) 70%, var(--border));
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+}
+
+.outcome.ok {
+  border-color: color-mix(in srgb, var(--ok) 70%, var(--border));
+  background: color-mix(in srgb, var(--ok) 10%, var(--surface));
+}
+
+.note ul,
+.outcome ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.outcome p {
+  margin: 0;
+}
+
+.issues {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.issues .badge {
+  font-weight: 600;
+}
+
+.issues .error .badge {
+  color: var(--bad);
+}
+
+.issues .warning .badge {
+  color: var(--warn);
+}
+
+/* Tables */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.grid th,
+.grid td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--grid);
+  vertical-align: middle;
+}
+
+.grid th {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.grid.compact th,
+.grid.compact td {
+  padding: 5px 8px;
+}
+
+.grid.editable td {
+  padding: 3px 4px;
+}
+
+.grid.editable input:not([type="checkbox"]),
+.grid.editable select {
+  width: 100%;
+  min-width: 90px;
+  min-height: 32px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.grid.editable input:not([type="checkbox"]):focus,
+.grid.editable select:focus,
+.grid.editable input:not([type="checkbox"]):hover,
+.grid.editable select:hover {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.grid.editable input.narrow {
+  min-width: 60px;
+  width: 70px;
+}
+
+.grid tr.clickable {
+  cursor: pointer;
+}
+
+.grid tr.selected td,
+.grid tr.clickable:hover td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.grid tr.row-warn td {
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+
+.grid tr.row-bad td {
+  background: color-mix(in srgb, var(--bad) 9%, transparent);
+}
+
+.grid tr.row-ok td {
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
+}
+
+.checklist th {
+  width: 180px;
+}
+
+/* Point grid */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.chip {
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: none;
+  padding: 3px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.chip.info {
+  color: var(--accent);
+}
+
+.chip.warn {
+  color: var(--warn);
+}
+
+.chip.bad {
+  color: var(--bad);
+}
+
+.chip.on {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-weight: 600;
+}
+
+.bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Forms */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.form-row.check {
+  grid-template-columns: 1fr;
+}
+
+.form fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-form {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  max-width: none;
+  gap: 10px 14px;
+}
+
+label.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+label.stack input,
+label.stack select {
+  color: var(--text);
+  font-size: 15px;
+}
+
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+textarea.json {
+  width: 100%;
+  min-height: 360px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+textarea.json.short {
+  min-height: 140px;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.seg button,
+.tabs button {
+  background: none;
+  border: none;
+  padding: 6px 14px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.seg button[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
+  font-weight: 600;
+}
+
+.kv {
+  margin: 0;
+}
+
+.kv > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.kv dt {
+  color: var(--text);
+}
+
+.kv dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.block {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Test reads */
+.raw pre,
+.before-after pre {
+  margin: 2px 0;
+  padding: 4px 8px;
+  background: var(--muted-bg);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.before-after {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-width: 900px;
+}
+
+/* Discover */
+.scan-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.scan-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+}
+
+.scan-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.scan-progress {
+  margin-left: auto;
+}
+
+.scan-row progress {
+  width: 100%;
+  margin: 6px 0;
+}
+
+.scan-params {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.scan-params label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.scan-params input {
+  width: 130px;
+}
+
+/* Wizard */
+.wizard-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.step.done {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 60%, var(--border));
+}
+
+.step.on {
+  color: var(--text);
+  border: 2px solid var(--accent);
+  font-weight: 600;
+}
+
+.step:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.draft-list {
+  padding-left: 18px;
+}
+
+.role-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.role-list li {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.role-list li.overridden {
+  border-color: var(--warn);
+}
+
+.role-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.override {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.notes ul {
+  font-size: 13px;
+}
+
+.setup select[multiple] {
+  min-height: 100px;
+}
+
+/* Narrow screens: one column. Setup is meant for a laptop; this keeps it usable on a tablet. */
+@media (max-width: 1000px) {
+  .setup,
+  .split,
+  .split.wide-right,
+  .three {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .setup-nav,
+  .list-pane,
+  .side-list {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .setup-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .setup-nav > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .setup-nav h3 {
+    width: 100%;
+    margin: 4px 0 0;
+  }
+
+  .side-pane {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .before-after {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Editable tables grow to fit their cells and scroll sideways instead of squeezing them. */
+.grid.editable {
+  width: max-content;
+  min-width: 100%;
+}
+
+.grid.editable td input[aria-label^="Display name"] {
+  min-width: 190px;
+}
+
+.grid.editable td select {
+  min-width: 150px;
+}
+
+.grid.editable td input[aria-label^="Tags"] {
+  min-width: 170px;
+}
+
+.grid.editable td input.mono {
+  min-width: 220px;
+}

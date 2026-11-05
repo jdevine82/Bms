@@ -55,7 +55,21 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
 
     @router.get("/config")
     async def export(svc: SetupService = Depends(service)) -> Any:
-        return await run(svc.export())
+        try:
+            data = await svc.export()
+        except SetupError as exc:
+            return JSONResponse(exc.as_dict(), status_code=exc.status)
+        return JSONResponse(data, headers={"X-Setup-Revision": svc.revision(data)})
+
+    @router.post("/commit")
+    async def commit(body: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+                     svc: SetupService = Depends(service)) -> Any:
+        """Save a whole edited setup in one checked change: the wizard's go-live and the mapping
+        table. body: config, revision (from X-Setup-Revision when it was read), summary."""
+        if not isinstance(body.get("config"), dict) or not isinstance(body.get("revision"), str):
+            raise HTTPException(422, "give the edited setup as config and the revision it was read at")
+        summary = str(body.get("summary") or "saved an edited setup")
+        return await run(svc.import_config(body["config"], client, check, body["revision"], summary, "commit"))
 
     @router.put("/config")
     async def import_config(data: dict = Body(...), check: bool = False, client: str = Depends(local_only),

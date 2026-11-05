@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p .",
     "test:e2e": "node tests/smoke.mjs",
-    "test:hmi": "node tests/hmi.mjs"
+    "test:hmi": "node tests/hmi.mjs",
+    "test:setup": "node tests/setup.mjs"
   },
   "author": "Jason Devine",
   "license": "UNLICENSED",

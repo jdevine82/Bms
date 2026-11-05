@@ -9,6 +9,8 @@ with the list of errors; warnings are returned and allowed.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -58,18 +60,40 @@ class SetupService:
         async with self.sessions() as session:
             return await export_dict(session, self.site_name)
 
+    @staticmethod
+    def revision(data: dict) -> str:
+        """A short fingerprint of a whole setup, so an editor can tell whether it changed meanwhile."""
+        text = json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+    async def working_copy(self, body: dict) -> tuple[dict, bool]:
+        """The setup a change starts from: a draft sent with the request (commissioning wizard,
+        main spec 5.1.1: nothing goes live until its verify step), or the saved setup."""
+        draft = body.get("draft")
+        if draft is None:
+            return await self.export(), False
+        if not isinstance(draft, dict) or (draft.get("site") or {}).get("name") != self.site_name:
+            raise SetupError(f"the draft must be a whole setup for site '{self.site_name}'")
+        return copy.deepcopy(draft), True
+
     # ---------- whole setup ----------
 
-    async def import_config(self, data: dict, client: str, check_only: bool = False) -> dict:
+    async def import_config(self, data: dict, client: str, check_only: bool = False, revision: str | None = None,
+                            summary: str = "imported a whole site setup", action: str = "import") -> dict:
+        """Replace the whole setup. With `revision`, refuse when the saved setup has changed since
+        the editor read it (the mapping table and the wizard's go-live send the setup they edited)."""
         if isinstance(data.get("site"), dict) and data["site"].get("name") != self.site_name:
             raise SetupError(f"the file is for site '{data['site'].get('name')}', not '{self.site_name}'; "
                              "the site name cannot change")
         before = await self.export()
+        if revision is not None and revision != self.revision(before):
+            raise SetupError("the setup was changed by someone else since you started; reload and try again",
+                             status=409)
         current = {p["name"] for p in before.get("points", [])}
         for point in data.get("points", []) if isinstance(data.get("points"), list) else []:
             if isinstance(point, dict) and point.get("name") not in current:
                 await self._refuse_alias(point.get("name"), None)
-        return await self._apply(data, client, "import", None, None, "imported a whole site setup",
+        return await self._apply(data, client, action, None, None, summary[:200],
                                  before, data, check_only)
 
     async def put_site(self, site: dict, bacnet: dict | None, client: str, check_only: bool = False) -> dict:
@@ -207,11 +231,13 @@ class SetupService:
         return _issues(warnings)
 
     async def _apply(self, data: dict, client: str, action: str, kind: str | None, name: str | None,
-                     summary: str, before: Any, after: Any, check_only: bool) -> dict:
+                     summary: str, before: Any, after: Any, check_only: bool, draft: bool = False) -> dict:
         try:
             config, warnings = parse_config(data)
         except ConfigError as exc:
             raise SetupError("the change was refused: it fails the setup checks", issues=exc.issues) from exc
+        if draft:  # a change to a draft is never saved: the caller gets the changed draft back
+            return {"ok": True, "applied": False, "warnings": _issues(warnings), "config": data}
         if check_only:
             return {"ok": True, "applied": False, "warnings": _issues(warnings)}
         async with self.sessions() as session, session.begin():
