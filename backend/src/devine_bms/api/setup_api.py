@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
+from devine_bms.setup.equip_templates import EquipTemplateService
 from devine_bms.setup.service import KINDS, SetupError, SetupService
 from devine_bms.setup.templates import TemplateLibrary
 
@@ -101,6 +102,57 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
     async def apply_template(template_id: str, body: dict = Body(...), check: bool = False,
                              client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
         return await run(TemplateLibrary(svc).apply(template_id, body, client, check))
+
+    # ---------- equipment templates (main spec 5.1.2) ----------
+
+    @router.get("/equip-templates")
+    async def list_equip_templates(svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).list())
+
+    @router.get("/equip-templates/{template_id}")
+    async def get_equip_template(template_id: str, version: str | None = None,
+                                 svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).get(template_id, version))
+
+    @router.get("/equip-templates/{template_id}/diff")
+    async def diff_equip_template(template_id: str, old: str = Query(..., alias="from"), new: str = Query(..., alias="to"),
+                                  svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).diff(template_id, old, new))
+
+    @router.post("/equip-templates")
+    async def save_equip_template(body: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+                                  svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).save(body, client, check))
+
+    @router.delete("/equip-templates/{template_id}")
+    async def delete_equip_template(template_id: str, version: str | None = None, client: str = Depends(local_only),
+                                    svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).delete(template_id, version, client))
+
+    @router.post("/equip-templates/{template_id}/create")
+    async def create_from_template(template_id: str, body: dict = Body(...), check: bool = False,
+                                   client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).create(template_id, body, client, check))
+
+    @router.post("/equip-templates/{template_id}/rollout")
+    async def rollout(template_id: str, body: dict = Body(...), check: bool = False,
+                      client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).rollout(template_id, body, client, check))
+
+    @router.get("/instances/{kind}/{name}")
+    async def instance(kind: str, name: str, svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).instance(kind, name))
+
+    @router.post("/instances/{kind}/{name}/reset")
+    async def reset_override(kind: str, name: str, body: dict = Body(...), client: str = Depends(local_only),
+                             svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).reset_override(kind, name, body.get("role", ""),
+                                                                  body.get("field", ""), client))
+
+    @router.post("/instances/{kind}/{name}/unlink")
+    async def unlink(kind: str, name: str, client: str = Depends(local_only),
+                     svc: SetupService = Depends(service)) -> Any:
+        return await run(EquipTemplateService(svc).unlink(kind, name, client))
 
     # ---------- test reads (read-only, but they send traffic to devices) ----------
 

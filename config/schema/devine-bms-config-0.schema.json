@@ -415,6 +415,17 @@
           },
           "title": "Tags",
           "type": "object"
+        },
+        "template": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateLink"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -422,6 +433,125 @@
         "dis"
       ],
       "title": "Equip",
+      "type": "object"
+    },
+    "EquipTemplate": {
+      "additionalProperties": false,
+      "description": "An equipment or room template (main spec 5.1.2). Each version is a separate entry.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "appliesTo": {
+          "default": "equip",
+          "enum": [
+            "equip",
+            "space"
+          ],
+          "title": "Appliesto",
+          "type": "string"
+        },
+        "tags": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9_]*$": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Tags",
+          "type": "object"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/TemplateRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Parameters",
+          "type": "object"
+        },
+        "graphic": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graphic"
+        },
+        "logic": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logic"
+        },
+        "notes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "dis",
+        "roles"
+      ],
+      "title": "EquipTemplate",
       "type": "object"
     },
     "Feed": {
@@ -1321,6 +1451,17 @@
           },
           "title": "Tags",
           "type": "object"
+        },
+        "template": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateLink"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1328,6 +1469,170 @@
         "dis"
       ],
       "title": "Space",
+      "type": "object"
+    },
+    "TemplateLink": {
+      "additionalProperties": false,
+      "description": "Equipment (or a room) made from an equipment template (main spec 5.1.2, milestone 5A).\n\n`bindings` names the point that fills each role. Overrides are not stored: a point field\nthat differs from what the template's role gives it is an override, and a template update\nleaves it alone (an override always wins).",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "bindings": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 100
+          },
+          "title": "Bindings",
+          "type": "object"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "TemplateLink",
+      "type": "object"
+    },
+    "TemplateRole": {
+      "additionalProperties": false,
+      "description": "A named point an equipment template expects (main spec 5.1.2), with the point fields it gives.",
+      "properties": {
+        "role": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Role",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/PointType"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "tags": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9_]*$": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Tags",
+          "type": "object"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "pollClass": {
+          "$ref": "#/$defs/PollClass",
+          "default": "normal"
+        },
+        "staleAfterS": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Staleafters"
+        },
+        "his": {
+          "default": true,
+          "title": "His",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "role",
+        "dis",
+        "type",
+        "kind"
+      ],
+      "title": "TemplateRole",
       "type": "object"
     },
     "WordOrder": {
@@ -1348,6 +1653,14 @@
     },
     "site": {
       "$ref": "#/$defs/Site"
+    },
+    "equipTemplates": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EquipTemplate"
+      },
+      "title": "Equiptemplates",
+      "type": "array"
     },
     "spaces": {
       "default": [],

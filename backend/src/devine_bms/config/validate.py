@@ -204,6 +204,8 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
         if not any(library.source_of(t) != "custom" and t not in {"equip"} for t in equip.tags):
             warning(f"equips.{equip.name}", "has no Haystack equipment type tag (for example ahu, fcu, meter)")
 
+    _check_equip_templates(config, error, warning)
+
     # Points.
     for point in config.points:
         where = f"points.{point.name}"
@@ -245,6 +247,57 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             warning(where, f"name does not follow <room>_<equipment>_<function>; expected it to start '{prefix}'")
 
     return issues
+
+
+def _check_equip_templates(config, error, warning) -> None:
+    """Equipment templates and the equipment and rooms made from them (main spec 5.1.2)."""
+    from devine_bms.templates.equip import builtin_equip_templates, find
+
+    seen: set[tuple[str, str]] = set()
+    for t in config.equip_templates:
+        where = f"equipTemplates.{t.id}@{t.version}"
+        if (t.id, t.version) in seen:
+            error(where, "this template version is listed twice")
+        seen.add((t.id, t.version))
+        if t.id in builtin_equip_templates():
+            error(where, f"'{t.id}' is a built-in template; save a copy under a new ID")
+        roles = [r.role for r in t.roles]
+        if len(roles) != len(set(roles)):
+            error(where, "role names must be unique")
+
+    points = {p.name: p for p in config.points}
+    owners = [("equips", e, "equip") for e in config.equips] + [("spaces", s, "space") for s in config.spaces]
+    for label, item, kind in owners:
+        link = item.template
+        if link is None:
+            continue
+        where = f"{label}.{item.name}.template"
+        template = find(config.equip_templates, link.id, link.version)
+        if template is None:
+            error(where, f"no equipment template '{link.id}' version {link.version}")
+            continue
+        if template.applies_to != kind:
+            error(where, f"template '{link.id}' is for a {template.applies_to}, not a {kind}")
+            continue
+        roles = {r.role: r for r in template.roles}
+        bound: dict[str, str] = {}
+        for role, point_name in link.bindings.items():
+            if role not in roles:
+                error(where, f"template '{link.id}' {link.version} has no role '{role}'")
+                continue
+            point = points.get(point_name)
+            if point is None:
+                error(where, f"role '{role}' is bound to '{point_name}', which does not exist")
+                continue
+            owner = point.equip if kind == "equip" else (point.space if not point.equip else None)
+            if owner != item.name:
+                error(where, f"role '{role}' is bound to '{point_name}', which belongs to another {kind}")
+            if point_name in bound:
+                error(where, f"'{point_name}' fills both '{bound[point_name]}' and '{role}'")
+            bound[point_name] = role
+        missing = [r.role for r in template.roles if r.required and r.role not in link.bindings]
+        if missing:
+            warning(where, f"required roles not bound yet: {missing}")
 
 
 def _check_modbus_point(where, point, error) -> None:

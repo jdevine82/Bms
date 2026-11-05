@@ -71,6 +71,8 @@ class Space(Base):
     tags: Mapped[dict] = _tags()
     # False once removed from the setup; kept so old points keep their room (milestone 5A).
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # Made from a room template: {id, version, bindings, parameters} (main spec 5.1.2).
+    template: Mapped[dict | None] = mapped_column(JSONB)
     updated_at: Mapped[datetime] = _updated()
 
 
@@ -87,6 +89,8 @@ class Equip(Base):
     tags: Mapped[dict] = _tags()
     # False once removed from the setup; kept so old points keep their equipment (milestone 5A).
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # Made from an equipment template: {id, version, bindings, parameters} (main spec 5.1.2).
+    template: Mapped[dict | None] = mapped_column(JSONB)
     updated_at: Mapped[datetime] = _updated()
 
 

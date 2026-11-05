@@ -51,10 +51,12 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
             "geoCoord": {"lat": site.geo_lat, "lng": site.geo_lng} if site.geo_lat is not None else None,
             "areaM2": site.area_m2, "tags": dict(site.tags),
         }),
-        "spaces": [{"name": s.name, "dis": s.dis, "tags": dict(s.tags)} for s in spaces],
+        "spaces": [_drop_none({"name": s.name, "dis": s.dis, "tags": dict(s.tags), "template": s.template})
+                   for s in spaces],
         "equips": [
             _drop_none({"name": e.name, "dis": e.dis, "space": space_names.get(e.space_id),
-                        "parent": equip_names.get(e.parent_equip_id), "tags": dict(e.tags)})
+                        "parent": equip_names.get(e.parent_equip_id), "tags": dict(e.tags),
+                        "template": e.template})
             for e in equips
         ],
         "feeds": sorted(
@@ -84,6 +86,8 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
     }
     if site.settings.get("bacnet"):
         data["bacnet"] = dict(site.settings["bacnet"])
+    if site.settings.get("equipTemplates"):
+        data["equipTemplates"] = list(site.settings["equipTemplates"])
     return data
 
 

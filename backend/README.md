@@ -71,6 +71,22 @@ uv run python ../simulators/modbus_meter.py --port 5021 --framing rtu --units me
 
 Name USB RS485 adapters by serial number with `../deploy/udev/99-devine-bms-rs485.rules`.
 
+## Site setup (milestone 5A)
+
+The database is the master copy of the site setup. The config file is the export and import format,
+read at start-up only when the database has no site yet. See `../docs/specs/m5-setup.md`.
+
+```bash
+uv run python -m devine_bms.setup.cli export > site.json
+```
+
+```bash
+uv run python -m devine_bms.setup.cli import site.json --check
+```
+
+The setup API (`/api/setup/...`) changes the site live; until logins exist (milestone 6) it only
+accepts changes from the server itself (127.0.0.1).
+
 ## BACnet and MQTT (milestones 4b to 4d)
 
 BACnet/IP: `../docs/specs/m4b-bacnet-ip.md`. BACnet MS/TP through the `bms-mstp` service: `../mstp/README.md`.

@@ -1,0 +1,62 @@
+{
+  "id": "room",
+  "version": "1.0.0",
+  "dis": "Room",
+  "appliesTo": "space",
+  "tags": {},
+  "roles": [
+    {
+      "role": "room_temp",
+      "dis": "Room temperature",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "required": true,
+      "pollClass": "fast",
+      "unit": "°C"
+    },
+    {
+      "role": "humidity",
+      "dis": "Room humidity",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "humidity": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "%RH"
+    },
+    {
+      "role": "co2",
+      "dis": "Room CO2",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "co2": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "ppm"
+    },
+    {
+      "role": "occupied",
+      "dis": "Occupied",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "occupied": true
+      },
+      "required": false,
+      "pollClass": "fast"
+    }
+  ]
+}

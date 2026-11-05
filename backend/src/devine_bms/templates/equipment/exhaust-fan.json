@@ -1,0 +1,45 @@
+{
+  "id": "exhaust-fan",
+  "version": "1.0.0",
+  "dis": "Exhaust fan",
+  "tags": {
+    "fan": true,
+    "motor": true,
+    "exhaust": true
+  },
+  "roles": [
+    {
+      "role": "run_cmd",
+      "dis": "Run command",
+      "type": "cmd",
+      "kind": "Bool",
+      "tags": {
+        "run": true
+      },
+      "required": true,
+      "pollClass": "normal"
+    },
+    {
+      "role": "run_state",
+      "dis": "Run status",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "run": true
+      },
+      "required": true,
+      "pollClass": "fast"
+    },
+    {
+      "role": "alarm",
+      "dis": "Alarm",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "alarm": true
+      },
+      "required": false,
+      "pollClass": "fast"
+    }
+  ]
+}

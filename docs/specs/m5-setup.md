@@ -1,6 +1,6 @@
 # Milestone 5: auto-discovery and point setup
 
-Status: **in progress** (5 Nov 2026). Main spec: 5.1 (devices, templates, test tools), 5.1.1 (commissioning), 5.1.2 (equipment templates), 5.1.3 (Discover), 7 (admin role), 18 (milestone 5).
+Status: **5A built** (5 Nov 2026); 5B (screens) next. Main spec: 5.1 (devices, templates, test tools), 5.1.1 (commissioning), 5.1.2 (equipment templates), 5.1.3 (Discover), 7 (admin role), 18 (milestone 5).
 
 ## Decisions
 
@@ -57,9 +57,33 @@ Every change goes through the same path: the current setup is exported, the chan
 
 ### Equipment templates (main spec 5.1.2)
 
-- Point roles, an optional graphic reference and logic reference, parameters, versions, and instances that bind roles to device points.
-- An instance's overrides always win; a new template version rolls out to all, a group or one instance at a time, after a side-by-side difference.
+- **Nine built-in starter templates** (the decided list): indoor unit, AHU, room (a template for a room, not equipment), pump, fan, exhaust fan, ERV, light circuit, power meter. Roles and tags follow Appendix A. A site saves its own templates, with every version kept; built-in IDs cannot be reused.
+- A template holds **point roles** (the point fields each role gives: display name, type, kind, unit, tags, speed class, logging; required or optional), tags for the equipment, parameters, and references for a graphic and logic once those exist.
+- **Making equipment from a template:** each role is filled by a new point on a device (by address), by an existing point, or for every role at once **from a device template** (role names match device template keys, or a mapping is given). With a repeat, {n} in the names and the device template's address step make one instance per group: **three Mitsubishi indoor units from the BAC-HD150 template in one call.** New points are named `<room>_<equipment>_<role>`.
+- **Overrides are worked out, not stored:** a point field that differs from what its role gives is an override. The instance view lists each role's overrides, and one can be reset to the template value.
+- **Roll-out** of a new version to all instances, a list, a room or a tag, with a **preview** (`?check=true`): each field change, each override kept, required roles that now need a binding, and roles that were dropped. A field changes only where the point still has the old version's value: **an override always wins**.
+- A **side-by-side difference** between two versions; **unlink** turns an instance into plain equipment.
+- Templates and instances are part of the configuration format (`equipTemplates`, and `template` on equipment and rooms), so they are checked, exported and backed up with everything else (migration `0008`).
+
+### Checks added for templates
+
+- A template version is listed once; built-in IDs are not reused; role names are unique.
+- An instance names a template version that exists, and of the right kind (equipment or room).
+- Each binding names an existing point that belongs to that instance; one point fills one role.
+- A required role that is not bound is a warning.
+
+## Found and fixed while building 5A
+
+- **Renaming a point to another point's old name** was allowed, which would have made old CSV files and logic resolve to the wrong point. Now refused (a point may take back its own old names).
+- **The Modbus RTU simulator assumed every request is 8 bytes**, so a device identification request (7 bytes) made it lose its place; it now frames by function, as devices do, and answers device identification.
+- **A flaky history test** (history is written in batches a moment after each reading); fixed.
+
+## Notes
+
+- Scans of BACnet/IP use the site's BACnet link; on loopback in tests a Who-Is goes to one address (`target`). Broadcast Who-Is across a subnet is checked on the bench.
+- A test read of a point kept current by COV asks the device directly, so it always shows the device's own answer.
+- The change log records the client address as "who" until logins exist (milestone 6).
 
 ## 5B: screens
 
-Planned after 5A: the setup pages in the web app for everything above, including the 4-step commissioning wizard and the mapping table.
+Planned next: the setup pages in the web app for everything above, including the 4-step commissioning wizard and the mapping table.

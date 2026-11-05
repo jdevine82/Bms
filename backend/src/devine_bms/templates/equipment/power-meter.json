@@ -1,0 +1,103 @@
+{
+  "id": "power-meter",
+  "version": "1.0.0",
+  "dis": "Power meter",
+  "tags": {
+    "ac": true,
+    "elec": true,
+    "meter": true
+  },
+  "roles": [
+    {
+      "role": "power",
+      "dis": "Power",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "elec": true,
+        "power": true
+      },
+      "required": true,
+      "pollClass": "fast",
+      "unit": "kW"
+    },
+    {
+      "role": "energy",
+      "dis": "Energy",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "elec": true,
+        "energy": true
+      },
+      "required": true,
+      "pollClass": "slow",
+      "unit": "kWh"
+    },
+    {
+      "role": "import_energy",
+      "dis": "Import energy",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "elec": true,
+        "energy": true,
+        "import": true
+      },
+      "required": false,
+      "pollClass": "slow",
+      "unit": "kWh"
+    },
+    {
+      "role": "export_energy",
+      "dis": "Export energy",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "elec": true,
+        "energy": true,
+        "export": true
+      },
+      "required": false,
+      "pollClass": "slow",
+      "unit": "kWh"
+    },
+    {
+      "role": "voltage",
+      "dis": "Voltage",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "elec": true,
+        "volt": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "V"
+    },
+    {
+      "role": "current",
+      "dis": "Current",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "elec": true,
+        "current": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "A"
+    },
+    {
+      "role": "pf",
+      "dis": "Power factor",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "pf": true
+      },
+      "required": false,
+      "pollClass": "normal"
+    }
+  ]
+}

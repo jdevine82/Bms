@@ -41,7 +41,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
         geo_lng=config.site.geo_coord.lng if config.site.geo_coord else None,
         area_m2=config.site.area_m2,
         tags=dict(config.site.tags),
-        settings={"bacnet": config.bacnet.model_dump(mode="json", by_alias=True)} if config.bacnet else {},
+        settings=_site_settings(config),
     )
     site = _upsert(session, report, "site", site, db.Site, name=config.site.name, **site_values)
     await session.flush()
@@ -51,7 +51,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
     for item in config.spaces:
         spaces[item.name] = _upsert(session, report, "space", spaces.get(item.name), db.Space,
                                     site_id=site.id, name=item.name, dis=item.dis, tags=dict(item.tags),
-                                    enabled=True)
+                                    enabled=True, template=_link(item.template))
     await session.flush()
 
     equips = await _by_name(session, db.Equip, site.id)
@@ -60,6 +60,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
             session, report, "equip", equips.get(item.name), db.Equip,
             site_id=site.id, name=item.name, dis=item.dis, tags=dict(item.tags),
             space_id=spaces[item.space].id if item.space else None, enabled=True,
+            template=_link(item.template),
         )
     await session.flush()
     for item in config.equips:  # parents in a second pass, so order in the file does not matter
@@ -138,6 +139,19 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
 
     await session.flush()
     return report
+
+
+def _link(link) -> dict | None:
+    return link.model_dump(mode="json", by_alias=True) if link is not None else None
+
+
+def _site_settings(config: cfg.SiteConfig) -> dict:
+    settings: dict = {}
+    if config.bacnet:
+        settings["bacnet"] = config.bacnet.model_dump(mode="json", by_alias=True)
+    if config.equip_templates:
+        settings["equipTemplates"] = [t.model_dump(mode="json", by_alias=True) for t in config.equip_templates]
+    return settings
 
 
 async def _by_name(session: AsyncSession, table, site_id: uuid.UUID) -> dict:
