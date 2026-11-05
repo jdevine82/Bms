@@ -170,8 +170,26 @@ class BacnetMstpTrunk(_BusBase):
     timeout_s: float = Field(default=8.0, gt=0, le=120)  # longer than the service's own timeout x tries
 
 
+class MqttBroker(_BusBase):
+    """An MQTT broker that field devices publish to (main spec 5.1, milestone 4d).
+
+    Usually the site's own Mosquitto (the bms-mqtt container, main spec 11). The password is
+    never in the config file: `password_env` names an environment variable that holds it.
+    """
+
+    type: Literal["mqtt_broker"]
+    host: str
+    port: int = Field(default=1883, ge=1, le=65535)
+    username: str | None = None
+    password_env: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]*$")
+    tls: bool = False
+    client_id: str | None = Field(default=None, max_length=64)
+    keepalive_s: int = Field(default=30, ge=5, le=600)
+
+
 Bus = Annotated[
-    ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus | BacnetMstpTrunk, Field(discriminator="type")
+    ModbusRtuBus | ModbusRtuOverTcpBus | ModbusTcpGatewayBus | BacnetMstpTrunk | MqttBroker,
+    Field(discriminator="type"),
 ]
 
 
@@ -203,6 +221,19 @@ class BacnetMstpConnection(_Model):
     block_size: int = Field(default=10, ge=1, le=50)
 
 
+class MqttConnection(_Model):
+    """An MQTT device: the broker it publishes to, and its optional availability topic.
+
+    When the availability topic carries `availability_offline` (for example Tasmota's LWT
+    "Offline"), every point of the device is Bad (down) until a new value arrives.
+    """
+
+    broker: Name
+    availability_topic: str | None = Field(default=None, min_length=1)
+    availability_online: str = "online"
+    availability_offline: str = "offline"
+
+
 class ModbusBusConnection(_Model):
     """A device on a bus: its unit (slave) ID and how many registers it reads at once."""
 
@@ -218,8 +249,11 @@ class Device(_Model):
     # modbus: a device on a bus (RS485 line or serial gateway) from `buses`.
     # bacnet_ip: a BACnet/IP device.
     # bacnet_mstp: a BACnet MS/TP device on a trunk from `buses`.
-    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip", "bacnet_mstp"]
-    connection: ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection
+    # mqtt: a device that publishes to an MQTT broker from `buses`.
+    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip", "bacnet_mstp", "mqtt"]
+    connection: (
+        ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection | MqttConnection
+    )
     enabled: bool = True
 
     @model_validator(mode="after")
@@ -229,6 +263,7 @@ class Device(_Model):
             "modbus": ModbusBusConnection,
             "bacnet_ip": BacnetIpConnection,
             "bacnet_mstp": BacnetMstpConnection,
+            "mqtt": MqttConnection,
         }[self.protocol]
         if not isinstance(self.connection, wanted):
             raise ValueError(f"protocol '{self.protocol}' needs a {wanted.__name__} connection")
@@ -265,6 +300,22 @@ class BacnetAddress(_Model):
     property: Literal["presentValue"] = "presentValue"
 
 
+class MqttAddress(_Model):
+    """Where an MQTT point's value comes from (milestone 4d).
+
+    Plain: the whole payload is the value, for example `21.5`, `ON` or `true`.
+    JSON: `json_path` picks a field with dots between names, for example `ENERGY.Power`
+    (Tasmota), `temperature` (Zigbee2MQTT) or `apower` (Shelly Gen2). A number in the path
+    picks a list entry, for example `channels.0.value`.
+    """
+
+    topic: str = Field(min_length=1, max_length=512)
+    json_path: str | None = Field(default=None, pattern=r"^[^.\s]+(\.[^.\s]+)*$")
+    # Payload texts for true and false (Bool points), compared without case.
+    true_values: list[str] = ["on", "true", "1", "yes", "online", "open", "active"]
+    false_values: list[str] = ["off", "false", "0", "no", "offline", "closed", "inactive"]
+
+
 class BacnetSettings(_Model):
     """The BMS's own BACnet/IP identity on the device network (main spec 5.1, 5.11)."""
 
@@ -288,7 +339,7 @@ class Point(_Model):
     unit: str | None = None
     enum: list[str] | None = None
     tags: Tags = {}
-    address: ModbusAddress | BacnetAddress
+    address: ModbusAddress | BacnetAddress | MqttAddress
     poll_class: PollClass = PollClass.NORMAL
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True

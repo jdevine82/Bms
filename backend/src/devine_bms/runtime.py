@@ -46,12 +46,12 @@ class Runtime:
         groups: list[tuple[str, ModbusClient, list]] = []
         for bus in self.config.buses:
             members = [d for d in self.config.devices if d.bus_id == bus.id]
-            if members and bus.settings.type != "bacnet_mstp":
+            if members and bus.settings.type not in ("bacnet_mstp", "mqtt_broker"):
                 groups.append((bus.name, ModbusClient.for_bus(bus.settings), members))
         for device in self.config.devices:
             if device.protocol == "modbus_tcp":
                 groups.append((device.name, ModbusClient.for_tcp_device(device.name, device.connection), [device]))
-            elif device.protocol not in ("modbus", "bacnet_ip", "bacnet_mstp"):
+            elif device.protocol not in ("modbus", "bacnet_ip", "bacnet_mstp", "mqtt"):
                 log.warning("device %s: protocol %s is not supported yet", device.name, device.protocol)
         for name, client, members in groups:
             states = [DeviceState(d, self.config.points_for(d.id), self.tracker) for d in members]
@@ -61,6 +61,7 @@ class Runtime:
             self._tasks.append(asyncio.create_task(bus.run(), name=f"poll {name}"))
         await self._start_bacnet()
         self._start_mstp()
+        self._start_mqtt()
         self._tasks.append(asyncio.create_task(self._stale_loop(), name="stale check"))
         self._tasks.append(asyncio.create_task(self.history.run(), name="history writer"))
         log.info("runtime started: %d connections, %d devices, %d points",
@@ -120,6 +121,20 @@ class Runtime:
             self.buses.append(poller)
             self._tasks.append(asyncio.create_task(poller.run(), name=f"poll {trunk.name}"))
             self._tasks.append(asyncio.create_task(driver.watch_stats(), name=f"stats {trunk.name}"))
+
+    def _start_mqtt(self) -> None:
+        from devine_bms.drivers.mqtt.broker import BrokerLink
+
+        for broker in self.config.buses:
+            if broker.settings.type != "mqtt_broker":
+                continue
+            members = [d for d in self.config.devices if d.bus_id == broker.id]
+            if not members:
+                continue
+            link = BrokerLink(broker.settings, members, self.config.points_for, self.tracker, self.config.site_name)
+            self.pollers.extend(link.devices)
+            self.buses.append(link)
+            self._tasks.append(asyncio.create_task(link.run(), name=f"mqtt {broker.name}"))
 
     def _cov_started(self, driver, slow: float):
         def started(point) -> None:

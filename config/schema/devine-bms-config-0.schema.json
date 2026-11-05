@@ -311,7 +311,8 @@
             "modbus_tcp",
             "modbus",
             "bacnet_ip",
-            "bacnet_mstp"
+            "bacnet_mstp",
+            "mqtt"
           ],
           "title": "Protocol",
           "type": "string"
@@ -329,6 +330,9 @@
             },
             {
               "$ref": "#/$defs/BacnetMstpConnection"
+            },
+            {
+              "$ref": "#/$defs/MqttConnection"
             }
           ],
           "title": "Connection"
@@ -820,6 +824,217 @@
       "title": "ModbusTcpGatewayBus",
       "type": "object"
     },
+    "MqttAddress": {
+      "additionalProperties": false,
+      "description": "Where an MQTT point's value comes from (milestone 4d).\n\nPlain: the whole payload is the value, for example `21.5`, `ON` or `true`.\nJSON: `json_path` picks a field with dots between names, for example `ENERGY.Power`\n(Tasmota), `temperature` (Zigbee2MQTT) or `apower` (Shelly Gen2). A number in the path\npicks a list entry, for example `channels.0.value`.",
+      "properties": {
+        "topic": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Topic",
+          "type": "string"
+        },
+        "jsonPath": {
+          "anyOf": [
+            {
+              "pattern": "^[^.\\s]+(\\.[^.\\s]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jsonpath"
+        },
+        "trueValues": {
+          "default": [
+            "on",
+            "true",
+            "1",
+            "yes",
+            "online",
+            "open",
+            "active"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Truevalues",
+          "type": "array"
+        },
+        "falseValues": {
+          "default": [
+            "off",
+            "false",
+            "0",
+            "no",
+            "offline",
+            "closed",
+            "inactive"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Falsevalues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "topic"
+      ],
+      "title": "MqttAddress",
+      "type": "object"
+    },
+    "MqttBroker": {
+      "additionalProperties": false,
+      "description": "An MQTT broker that field devices publish to (main spec 5.1, milestone 4d).\n\nUsually the site's own Mosquitto (the bms-mqtt container, main spec 11). The password is\nnever in the config file: `password_env` names an environment variable that holds it.",
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "timeoutS": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Timeouts",
+          "type": "number"
+        },
+        "retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "mqtt_broker",
+          "title": "Type",
+          "type": "string"
+        },
+        "host": {
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 1883,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Username"
+        },
+        "passwordEnv": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passwordenv"
+        },
+        "tls": {
+          "default": false,
+          "title": "Tls",
+          "type": "boolean"
+        },
+        "clientId": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clientid"
+        },
+        "keepaliveS": {
+          "default": 30,
+          "maximum": 600,
+          "minimum": 5,
+          "title": "Keepalives",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "type",
+        "host"
+      ],
+      "title": "MqttBroker",
+      "type": "object"
+    },
+    "MqttConnection": {
+      "additionalProperties": false,
+      "description": "An MQTT device: the broker it publishes to, and its optional availability topic.\n\nWhen the availability topic carries `availability_offline` (for example Tasmota's LWT\n\"Offline\"), every point of the device is Bad (down) until a new value arrives.",
+      "properties": {
+        "broker": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Broker",
+          "type": "string"
+        },
+        "availabilityTopic": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Availabilitytopic"
+        },
+        "availabilityOnline": {
+          "default": "online",
+          "title": "Availabilityonline",
+          "type": "string"
+        },
+        "availabilityOffline": {
+          "default": "offline",
+          "title": "Availabilityoffline",
+          "type": "string"
+        }
+      },
+      "required": [
+        "broker"
+      ],
+      "title": "MqttConnection",
+      "type": "object"
+    },
     "ObjectType": {
       "enum": [
         "coil",
@@ -940,6 +1155,9 @@
             },
             {
               "$ref": "#/$defs/BacnetAddress"
+            },
+            {
+              "$ref": "#/$defs/MqttAddress"
             }
           ],
           "title": "Address"
@@ -1174,7 +1392,8 @@
             "bacnet_mstp": "#/$defs/BacnetMstpTrunk",
             "modbus_rtu": "#/$defs/ModbusRtuBus",
             "modbus_rtu_over_tcp": "#/$defs/ModbusRtuOverTcpBus",
-            "modbus_tcp_gateway": "#/$defs/ModbusTcpGatewayBus"
+            "modbus_tcp_gateway": "#/$defs/ModbusTcpGatewayBus",
+            "mqtt_broker": "#/$defs/MqttBroker"
           },
           "propertyName": "type"
         },
@@ -1190,6 +1409,9 @@
           },
           {
             "$ref": "#/$defs/BacnetMstpTrunk"
+          },
+          {
+            "$ref": "#/$defs/MqttBroker"
           }
         ]
       },

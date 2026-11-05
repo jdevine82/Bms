@@ -87,7 +87,9 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
 
     devices = await _by_name(session, db.Device, site.id)
     for item in config.devices:
-        bus_name = getattr(item.connection, "bus", None)
+        # The bus a device is on: a Modbus line, an MS/TP trunk or an MQTT broker.
+        bus_name = next((getattr(item.connection, f) for f in ("bus", "trunk", "broker")
+                         if getattr(item.connection, f, None)), None)
         devices[item.name] = _upsert(
             session, report, "device", devices.get(item.name), db.Device,
             site_id=site.id, name=item.name, dis=item.dis, protocol=item.protocol,

@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "aiomqtt>=2.5.1",
     "alembic>=1.20.1",
     "asyncpg>=0.32.0",
     "bacpypes3>=0.0.110",

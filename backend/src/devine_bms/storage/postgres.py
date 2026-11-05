@@ -17,6 +17,8 @@ from devine_bms.config.model import (
     BacnetIpConnection,
     BacnetMstpConnection,
     BacnetSettings,
+    MqttAddress,
+    MqttConnection,
     Bus,
     Kind,
     ModbusAddress,
@@ -35,11 +37,20 @@ from devine_bms.runtime_model import (
 )
 
 _BUS = TypeAdapter(Bus)
+def _address(data: dict) -> ModbusAddress | BacnetAddress | MqttAddress:
+    if "topic" in data:
+        return MqttAddress.model_validate(data)
+    if "instance" in data:
+        return BacnetAddress.model_validate(data)
+    return ModbusAddress.model_validate(data)
+
+
 _CONNECTIONS = {
     "modbus_tcp": ModbusTcpConnection,
     "modbus": ModbusBusConnection,
     "bacnet_ip": BacnetIpConnection,
     "bacnet_mstp": BacnetMstpConnection,
+    "mqtt": MqttConnection,
 }
 from devine_bms.values import HisRow, Status
 
@@ -102,7 +113,7 @@ class PostgresStorage:
                 RuntimePoint(
                     id=p.id, name=p.name, device_id=p.device_id, kind=Kind(p.kind), unit=p.unit,
                     enum=tuple(p.enum) if p.enum else None,
-                    address=(BacnetAddress if "instance" in p.address else ModbusAddress).model_validate(p.address),
+                    address=_address(p.address),
                     poll_class=PollClass(p.poll_class),
                     stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.point_type,
                     equip_id=p.equip_id, space_id=p.space_id, tags=dict(p.tags),

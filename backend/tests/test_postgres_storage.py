@@ -115,3 +115,35 @@ async def test_bacnet_devices_round_trip(sessions):
     assert device.protocol == "bacnet_ip" and device.connection.cov is True
     mode = next(p for p in rc.points if p.name.endswith("_mode"))
     assert mode.address.object_type == "multiStateValue" and mode.enum == ("Cool", "Heat", "Fan")
+
+
+async def test_mstp_devices_are_linked_to_their_trunk(sessions):
+    """An MS/TP device must reach the runtime with its trunk, or it is never polled (fix in 4d)."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    data = _json.loads((_Path(__file__).resolve().parents[2] / "config" / "site.example-mstp.json").read_text())
+    config, _ = parse_config(data)
+    async with sessions() as session, session.begin():
+        await sync_config(session, config)
+    rc = await PostgresStorage(sessions).load_runtime_config(config.site.name)
+    trunk = rc.buses[0]
+    assert trunk.settings.type == "bacnet_mstp"
+    assert rc.devices[0].bus_id == trunk.id
+    assert rc.devices[0].connection.mac == 5
+
+
+async def test_mqtt_devices_round_trip(sessions):
+    import json as _json
+    from pathlib import Path as _Path
+
+    data = _json.loads((_Path(__file__).resolve().parents[2] / "config" / "site.example-mqtt.json").read_text())
+    config, _ = parse_config(data)
+    async with sessions() as session, session.begin():
+        await sync_config(session, config)
+    rc = await PostgresStorage(sessions).load_runtime_config(config.site.name)
+    broker = rc.buses[0]
+    assert broker.settings.type == "mqtt_broker" and broker.settings.password_env == "BMS_MQTT_PASSWORD"
+    assert {d.bus_id for d in rc.devices} == {broker.id}
+    power = next(p for p in rc.points if p.name == "plant_plug1_power")
+    assert power.address.topic == "tele/plug1/SENSOR" and power.address.json_path == "ENERGY.Power"
