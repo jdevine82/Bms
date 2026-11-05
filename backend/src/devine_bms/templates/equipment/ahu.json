@@ -1,0 +1,142 @@
+{
+  "id": "ahu",
+  "version": "1.0.0",
+  "dis": "Air handling unit",
+  "tags": {
+    "ahu": true
+  },
+  "roles": [
+    {
+      "role": "supply_air_temp",
+      "dis": "Supply air temperature",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "discharge": true,
+        "air": true,
+        "temp": true
+      },
+      "required": true,
+      "pollClass": "fast",
+      "unit": "°C"
+    },
+    {
+      "role": "supply_air_sp",
+      "dis": "Supply air setpoint",
+      "type": "sp",
+      "kind": "Number",
+      "tags": {
+        "discharge": true,
+        "air": true,
+        "temp": true
+      },
+      "required": true,
+      "pollClass": "normal",
+      "unit": "°C"
+    },
+    {
+      "role": "return_air_temp",
+      "dis": "Return air temperature",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "return": true,
+        "air": true,
+        "temp": true
+      },
+      "required": true,
+      "pollClass": "fast",
+      "unit": "°C"
+    },
+    {
+      "role": "outside_air_temp",
+      "dis": "Outside air temperature",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "outside": true,
+        "air": true,
+        "temp": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "°C"
+    },
+    {
+      "role": "fan_run_cmd",
+      "dis": "Supply fan command",
+      "type": "cmd",
+      "kind": "Bool",
+      "tags": {
+        "fan": true,
+        "run": true
+      },
+      "required": true,
+      "pollClass": "normal"
+    },
+    {
+      "role": "fan_run_state",
+      "dis": "Supply fan status",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "fan": true,
+        "run": true
+      },
+      "required": true,
+      "pollClass": "fast"
+    },
+    {
+      "role": "cooling_valve",
+      "dis": "Cooling valve",
+      "type": "cmd",
+      "kind": "Number",
+      "tags": {
+        "cool": true,
+        "valve": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "%"
+    },
+    {
+      "role": "heating_valve",
+      "dis": "Heating valve",
+      "type": "cmd",
+      "kind": "Number",
+      "tags": {
+        "heat": true,
+        "valve": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "%"
+    },
+    {
+      "role": "oa_damper",
+      "dis": "Outside air damper",
+      "type": "cmd",
+      "kind": "Number",
+      "tags": {
+        "outside": true,
+        "air": true,
+        "damper": true
+      },
+      "required": false,
+      "pollClass": "normal",
+      "unit": "%"
+    },
+    {
+      "role": "filter_alarm",
+      "dis": "Filter alarm",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "filter": true,
+        "alarm": true
+      },
+      "required": false,
+      "pollClass": "slow"
+    }
+  ]
+}

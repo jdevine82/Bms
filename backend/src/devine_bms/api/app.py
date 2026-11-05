@@ -23,9 +23,12 @@ from fastapi.staticfiles import StaticFiles
 
 from devine_bms import __version__
 from devine_bms.api.history import history_csv, row_json, thin
+from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.runtime import Runtime
 from devine_bms.runtime_model import RuntimeConfig, RuntimePoint
+from devine_bms.setup.discover import DiscoverManager
+from devine_bms.setup.service import SetupService
 from devine_bms.values import LiveValue, Status
 
 log = logging.getLogger(__name__)
@@ -35,24 +38,19 @@ RuntimeFactory = Callable[[], Awaitable[tuple[Runtime, Callable[[], Awaitable[No
 
 
 async def default_runtime() -> tuple[Runtime, Callable[[], Awaitable[None]]]:
-    """Full mode: sync the config file into PostgreSQL, then start the runtime."""
-    from devine_bms.config.sync import sync_config
-    from devine_bms.config.validate import load_config
+    """Full mode: run the site in PostgreSQL, importing the config file only into an empty database."""
     from devine_bms.db.session import make_engine, make_sessionmaker
     from devine_bms.logging_setup import setup_logging
     from devine_bms.settings import get_settings
+    from devine_bms.setup.startup import prepare_site
     from devine_bms.storage.postgres import PostgresStorage
 
     settings = get_settings()
     setup_logging(settings.log_level)
-    config, warnings = load_config(settings.config_path)
-    for warning in warnings:
-        log.warning("config: %s", warning)
     engine = make_engine(settings.database_url)
     sessions = make_sessionmaker(engine)
-    async with sessions() as session, session.begin():
-        await sync_config(session, config)
-    runtime = Runtime(PostgresStorage(sessions), config.site.name)
+    site_name = await prepare_site(sessions, settings)
+    runtime = Runtime(PostgresStorage(sessions), site_name)
     return runtime, engine.dispose
 
 
@@ -80,13 +78,21 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         runtime, cleanup = await runtime_factory()
         await runtime.start()
         state["runtime"] = runtime
+        sessions = getattr(runtime.storage, "sessionmaker", None)
+        if sessions is not None:  # setup needs the database
+            state["setup"] = SetupService(sessions, runtime.site_name, runtime.reload)
+            state["discover"] = DiscoverManager(runtime, state["setup"])
         try:
             yield
         finally:
+            if state.get("discover") is not None:
+                await state["discover"].stop_all()
             await runtime.stop()
             await cleanup()
 
     app = FastAPI(title="Devine BMS", version=__version__, lifespan=lifespan)
+    app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
+                                          lambda: state.get("discover")))
 
     def runtime() -> Runtime:
         return state["runtime"]

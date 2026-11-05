@@ -23,8 +23,10 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from devine_bms.config.model import (
+    BacnetAddress,
     Kind,
     ModbusAddress,
+    MqttAddress,
     Name,
     ObjectType,
     PointType,
@@ -58,7 +60,7 @@ class TemplatePoint(_Model):
     tags: Tags = {}
     poll_class: PollClass = PollClass.NORMAL
     manual_address: str | None = Field(default=None, description="The address as the manual writes it")
-    address: ModbusAddress
+    address: ModbusAddress | BacnetAddress | MqttAddress
 
 
 class DeviceTemplate(_Model):
@@ -70,7 +72,7 @@ class DeviceTemplate(_Model):
     model: str
     dis: str
     status: Literal["datasheet only", "bench tested", "in service"]
-    protocols: list[Literal["modbus_rtu", "modbus_tcp"]]
+    protocols: list[Literal["modbus_rtu", "modbus_tcp", "bacnet_ip", "bacnet_mstp", "mqtt"]]
     defaults: TemplateDefaults = TemplateDefaults()
     notes: list[str] = []
     points: list[TemplatePoint]
@@ -81,15 +83,25 @@ class DeviceTemplate(_Model):
         duplicates = {k for k in keys if keys.count(k) > 1}
         if duplicates:
             raise ValueError(f"duplicate point keys: {sorted(duplicates)}")
+        families = {type(p.address) for p in self.points}
+        if len(families) > 1:
+            raise ValueError("a template's points must all be Modbus, all BACnet or all MQTT")
         seen: dict[tuple, str] = {}
         for p in self.points:
-            where = (p.address.object_type, p.address.address)
+            a = p.address
+            if isinstance(a, ModbusAddress):
+                where = ("modbus", a.object_type, a.address)
+                is_bit_object = a.object_type in (ObjectType.COIL, ObjectType.DISCRETE_INPUT)
+                if is_bit_object != (a.data_type == DataType.BIT):
+                    raise ValueError(
+                        f"point '{p.key}': coils and discrete inputs use data type 'bit', registers must not")
+            elif isinstance(a, BacnetAddress):
+                where = ("bacnet", a.object_type, a.instance)
+            else:
+                where = ("mqtt", a.topic, a.json_path)
             if where in seen:
                 raise ValueError(f"points '{seen[where]}' and '{p.key}' use the same address")
             seen[where] = p.key
-            is_bit_object = p.address.object_type in (ObjectType.COIL, ObjectType.DISCRETE_INPUT)
-            if is_bit_object != (p.address.data_type == DataType.BIT):
-                raise ValueError(f"point '{p.key}': coils and discrete inputs use data type 'bit', registers must not")
         return self
 
 
@@ -108,6 +120,19 @@ def builtin_templates() -> dict[str, DeviceTemplate]:
     return templates
 
 
+def _shift(address, n: int | None, step: int) -> dict:
+    data = address.model_dump(mode="json", by_alias=True)
+    if n is None:
+        return data
+    if isinstance(address, ModbusAddress):
+        data["address"] = address.address + n * step
+    elif isinstance(address, BacnetAddress):
+        data["instance"] = address.instance + n * step
+    else:
+        data["topic"] = address.topic.format(n=n)
+    return data
+
+
 def expand(
     template: DeviceTemplate,
     device: str,
@@ -115,14 +140,25 @@ def expand(
     equip: str | None = None,
     space: str | None = None,
     only: list[str] | None = None,
+    n: int | None = None,
+    step: int = 0,
 ) -> list[dict]:
     """Config points for one device made from `template`.
 
     Point names are `name_prefix` + the template key, for example site_lights1_ + do0.
     `only` picks some of the template's points (by key); the default is all of them.
+
+    Bulk create (main spec 5.1): with a repeat number `n`, `{n}` in the name prefix,
+    equipment and space is replaced (`{n:02}` pads it), and each address moves by
+    `n * step`: Modbus addresses and BACnet instances add it, MQTT topics replace `{n}`.
+    For a Mitsubishi BACnet gateway (H6, instance MM GG NN), step 100 moves to the next group.
     """
     if not equip and not space:
         raise ValueError("give an equip or a space for the points")
+    if n is not None:
+        name_prefix = name_prefix.format(n=n)
+        equip = equip.format(n=n) if equip else equip
+        space = space.format(n=n) if space else space
     wanted = set(only) if only else None
     if wanted:
         unknown = wanted - {p.key for p in template.points}
@@ -140,7 +176,7 @@ def expand(
             "kind": p.kind.value,
             "tags": dict(p.tags),
             "pollClass": p.poll_class.value,
-            "address": p.address.model_dump(mode="json", by_alias=True),
+            "address": _shift(p.address, n, step),
         }
         if equip:
             point["equip"] = equip

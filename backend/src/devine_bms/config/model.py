@@ -82,10 +82,25 @@ class Site(_Model):
     tags: Tags = {}
 
 
+class TemplateLink(_Model):
+    """Equipment (or a room) made from an equipment template (main spec 5.1.2, milestone 5A).
+
+    `bindings` names the point that fills each role. Overrides are not stored: a point field
+    that differs from what the template's role gives it is an override, and a template update
+    leaves it alone (an override always wins).
+    """
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
+    version: str
+    bindings: dict[Name, Name] = {}
+    parameters: dict[str, str | int | float | bool] = {}
+
+
 class Space(_Model):
     name: Name
     dis: str
     tags: Tags = {}
+    template: TemplateLink | None = None
 
 
 class Equip(_Model):
@@ -94,6 +109,7 @@ class Equip(_Model):
     space: Name | None = None
     parent: Name | None = None  # the "part of" link (main spec 5.2)
     tags: Tags = {}
+    template: TemplateLink | None = None
 
 
 class Feed(_Model):
@@ -345,9 +361,42 @@ class Point(_Model):
     his: bool = True
 
 
+class TemplateRole(_Model):
+    """A named point an equipment template expects (main spec 5.1.2), with the point fields it gives."""
+
+    role: Name
+    dis: str
+    type: PointType
+    kind: Kind
+    unit: str | None = None
+    enum: list[str] | None = None
+    tags: Tags = {}
+    required: bool = True
+    poll_class: PollClass = PollClass.NORMAL
+    stale_after_s: float | None = Field(default=None, gt=0)
+    his: bool = True
+
+
+class EquipTemplate(_Model):
+    """An equipment or room template (main spec 5.1.2). Each version is a separate entry."""
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
+    version: str
+    dis: str
+    applies_to: Literal["equip", "space"] = "equip"
+    tags: Tags = {}  # tags every instance gets, for example {"fcu": true}
+    roles: list[TemplateRole]
+    parameters: dict[str, str | int | float | bool] = {}  # defaults, for example a setpoint range
+    graphic: str | None = None  # a graphic reference, once graphics exist (milestone 9)
+    logic: str | None = None  # a logic reference, once logic exists (milestone 10)
+    notes: list[str] = []
+
+
 class SiteConfig(_Model):
     schema_: Literal["devine-bms-config/0"] = Field(alias="schema")
     site: Site
+    # The site's own equipment templates (every saved version). Built-in ones ship with the software.
+    equip_templates: list[EquipTemplate] = []
     spaces: list[Space] = []
     equips: list[Equip] = []
     feeds: list[Feed] = []

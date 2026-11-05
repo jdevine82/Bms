@@ -1,0 +1,32 @@
+{
+  "id": "light-circuit",
+  "version": "1.0.0",
+  "dis": "Light circuit",
+  "tags": {
+    "lighting": true
+  },
+  "roles": [
+    {
+      "role": "on_off_cmd",
+      "dis": "On/off command",
+      "type": "cmd",
+      "kind": "Bool",
+      "tags": {
+        "run": true
+      },
+      "required": true,
+      "pollClass": "normal"
+    },
+    {
+      "role": "on_off_state",
+      "dis": "On/off state",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "run": true
+      },
+      "required": false,
+      "pollClass": "fast"
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+{
+  "id": "indoor-unit",
+  "version": "1.0.0",
+  "dis": "Indoor unit (Mitsubishi H5, H6)",
+  "tags": {
+    "fcu": true
+  },
+  "roles": [
+    {
+      "role": "room_temp",
+      "dis": "Room temperature",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "required": true,
+      "pollClass": "fast",
+      "unit": "°C"
+    },
+    {
+      "role": "setpoint",
+      "dis": "Set temperature",
+      "type": "sp",
+      "kind": "Number",
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "required": true,
+      "pollClass": "normal",
+      "unit": "°C"
+    },
+    {
+      "role": "on_off_cmd",
+      "dis": "On/off command",
+      "type": "cmd",
+      "kind": "Bool",
+      "tags": {
+        "run": true
+      },
+      "required": true,
+      "pollClass": "normal"
+    },
+    {
+      "role": "on_off_state",
+      "dis": "On/off state",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "run": true
+      },
+      "required": true,
+      "pollClass": "fast"
+    },
+    {
+      "role": "alarm",
+      "dis": "Alarm",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "alarm": true
+      },
+      "required": true,
+      "pollClass": "fast"
+    },
+    {
+      "role": "error_code",
+      "dis": "Error code",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "devineErrorCode": true
+      },
+      "required": false,
+      "pollClass": "normal"
+    },
+    {
+      "role": "mode_cmd",
+      "dis": "Mode command",
+      "type": "cmd",
+      "kind": "Number",
+      "tags": {
+        "hvacMode": true
+      },
+      "required": false,
+      "pollClass": "normal"
+    },
+    {
+      "role": "mode_state",
+      "dis": "Mode",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "hvacMode": true
+      },
+      "required": false,
+      "pollClass": "normal"
+    },
+    {
+      "role": "fan_speed_cmd",
+      "dis": "Fan speed command",
+      "type": "cmd",
+      "kind": "Number",
+      "tags": {
+        "fan": true,
+        "speed": true
+      },
+      "required": false,
+      "pollClass": "normal"
+    },
+    {
+      "role": "fan_speed_state",
+      "dis": "Fan speed",
+      "type": "sensor",
+      "kind": "Number",
+      "tags": {
+        "fan": true,
+        "speed": true
+      },
+      "required": false,
+      "pollClass": "normal"
+    },
+    {
+      "role": "filter_sign",
+      "dis": "Filter sign",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "filter": true,
+        "alarm": true
+      },
+      "required": false,
+      "pollClass": "slow"
+    },
+    {
+      "role": "comms_state",
+      "dis": "Communication state",
+      "type": "sensor",
+      "kind": "Bool",
+      "tags": {
+        "devineComms": true
+      },
+      "required": false,
+      "pollClass": "normal"
+    }
+  ],
+  "parameters": {
+    "setpointMin": 19,
+    "setpointMax": 30
+  },
+  "notes": [
+    "Mode and fan speed are state numbers until the Mitsubishi state order is checked on the bench; then they become Str roles with an enum list."
+  ]
+}

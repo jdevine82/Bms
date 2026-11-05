@@ -53,6 +53,7 @@ class MstpServiceClient:
         self._writer: asyncio.StreamWriter | None = None
         self._ids = itertools.count(1)
         self._lock = asyncio.Lock()  # one request at a time per connection
+        self.last_exchange: tuple[str, str] | None = None  # (request line, answer line), for test reads
 
     @property
     def connected(self) -> bool:
@@ -86,6 +87,7 @@ class MstpServiceClient:
                         raise ConnectionResetError("the service closed the connection")
                     answer = json.loads(raw)
                     if answer.get("id") == request_id:
+                        self.last_exchange = (line.strip(), raw.decode().strip())
                         return answer
                     # an answer to an earlier request that timed out here; skip it
             except TimeoutError as exc:

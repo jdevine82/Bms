@@ -56,6 +56,22 @@ class ModbusClient:
         self.where = where
         self.shared = shared  # several devices on one connection (a bus or gateway)
         self._client = client
+        self._packets: list[tuple[str, bytes]] | None = None
+        # Raw frames for test reads (main spec 5.1, step 4): recorded only while capturing.
+        # pymodbus keeps the hook on the client's transaction manager.
+        client.ctx.trace_packet = self._trace  # type: ignore[attr-defined]
+
+    def _trace(self, sending: bool, data: bytes) -> bytes:
+        if self._packets is not None:
+            self._packets.append(("sent" if sending else "received", bytes(data)))
+        return data
+
+    def start_capture(self) -> None:
+        self._packets = []
+
+    def stop_capture(self) -> list[tuple[str, bytes]]:
+        packets, self._packets = self._packets or [], None
+        return packets
 
     @classmethod
     def for_tcp_device(cls, name: str, conn: ModbusTcpConnection) -> ModbusClient:
@@ -96,6 +112,24 @@ class ModbusClient:
 
     def close(self) -> None:
         self._client.close()
+
+    async def identify(self, unit_id: int) -> dict[str, str] | None:
+        """Vendor, product code and revision by Read Device Identification (function 43/14), or
+        None if the device does not support it (many do not; Discover then says Unknown device)."""
+        if not self._client.connected and not await self.connect():
+            raise BusDown(f"cannot connect to {self.where}")
+        try:
+            result = await self._client.read_device_information(read_code=1, object_id=0, device_id=unit_id)
+        except ModbusIOException:
+            return None
+        except (ConnectionException, OSError) as exc:
+            self.close()
+            raise BusDown(f"connection lost to {self.where}: {exc}") from exc
+        if result.isError() or not getattr(result, "information", None):
+            return None
+        info = result.information
+        text = lambda key: info[key].decode("utf-8", "replace").strip() if isinstance(info.get(key), bytes) else None  # noqa: E731
+        return {k: v for k, v in {"vendor": text(0), "productCode": text(1), "revision": text(2)}.items() if v}
 
     async def read(self, unit_id: int, object_type: ObjectType, address: int, count: int) -> list[int] | list[bool]:
         if not self._client.connected and not await self.connect():

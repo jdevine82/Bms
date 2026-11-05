@@ -91,5 +91,17 @@ class QualityTracker:
             if (now - since).total_seconds() > limit:
                 self.bad(point, Status.STALE, f"no new value for more than {limit:g} s")
 
+    def replace_points(self, points: list[RuntimePoint]) -> None:
+        """Use a new set of points after a setup change (milestone 5A). Values of points that
+        stay are kept; new points start as not read yet; removed points leave the cache."""
+        new = {p.id: p for p in points}
+        now = self.clock()
+        for point_id in set(self.points) - set(new):
+            self.cache.values.pop(point_id, None)
+            self.stale_overrides.pop(point_id, None)
+        for point_id in set(new) - set(self.points):
+            self.cache.set(LiveValue(point_id, None, Status.UNKNOWN, now, "not read yet"))
+        self.points = new
+
     def point_id_set(self) -> set[uuid.UUID]:
         return set(self.points)

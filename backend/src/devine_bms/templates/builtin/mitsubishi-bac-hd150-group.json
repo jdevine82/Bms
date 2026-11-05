@@ -1,0 +1,212 @@
+{
+  "schema": "devine-bms-device-template/0",
+  "id": "mitsubishi-bac-hd150-group",
+  "version": "1.0.0",
+  "hardwareId": "H6",
+  "vendor": "Mitsubishi Electric",
+  "model": "BAC-HD150 (one group)",
+  "dis": "One indoor-unit group on a Mitsubishi BAC-HD150 BACnet gateway (M-NET 1). Repeat per group with step 100.",
+  "status": "datasheet only",
+  "protocols": [
+    "bacnet_ip"
+  ],
+  "notes": [
+    "Object instances are MM GG NN: M-NET number, group number, member number. This template is M-NET 1 with group 00; bulk create with repeat from the first group to the last and step 100 (group 5 member 09 is 010509).",
+    "Mode and fan speed are read as state numbers. The order of the states (Cool, Heat, Fan, Auto, Dry; Low, High, Mid) is not given in the pages read; check each object's state-text on the bench, then change these points to Str with an enum list.",
+    "Error codes are coarse categories (1 normal to 9 system error); the detailed fault code is only on the Mitsubishi side.",
+    "Set temperature ranges depend on the model and mode (standard indoor unit: cooling 19 to 30, heating 17 to 28 °C); set write limits to match when commands arrive (milestone 7).",
+    "After a power cut the gateway takes up to 10 minutes before BACnet is ready; expect these points to be down for that long.",
+    "COV is switched on per object in the Mitsubishi Setting Tool; leave the device's cov off unless that is done."
+  ],
+  "points": [
+    {
+      "key": "on_off_cmd",
+      "dis": "On/off setup",
+      "type": "cmd",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "BO 01GG01",
+      "address": {
+        "objectType": "binaryOutput",
+        "instance": 10001
+      },
+      "tags": {
+        "run": true
+      }
+    },
+    {
+      "key": "on_off_state",
+      "dis": "On/off state",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "BI 01GG02",
+      "address": {
+        "objectType": "binaryInput",
+        "instance": 10002
+      },
+      "tags": {
+        "run": true
+      }
+    },
+    {
+      "key": "alarm",
+      "dis": "Alarm signal",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "fast",
+      "manualAddress": "BI 01GG03",
+      "address": {
+        "objectType": "binaryInput",
+        "instance": 10003
+      },
+      "tags": {
+        "alarm": true
+      }
+    },
+    {
+      "key": "error_code",
+      "dis": "Error code (category)",
+      "type": "sensor",
+      "kind": "Number",
+      "pollClass": "normal",
+      "manualAddress": "MI 01GG04",
+      "address": {
+        "objectType": "multiStateInput",
+        "instance": 10004
+      },
+      "tags": {
+        "devineErrorCode": true
+      }
+    },
+    {
+      "key": "mode_cmd",
+      "dis": "Operating mode setup (state number)",
+      "type": "cmd",
+      "kind": "Number",
+      "pollClass": "normal",
+      "manualAddress": "MO 01GG05",
+      "address": {
+        "objectType": "multiStateOutput",
+        "instance": 10005
+      },
+      "tags": {
+        "hvacMode": true
+      }
+    },
+    {
+      "key": "mode_state",
+      "dis": "Operating mode (state number)",
+      "type": "sensor",
+      "kind": "Number",
+      "pollClass": "normal",
+      "manualAddress": "MI 01GG06",
+      "address": {
+        "objectType": "multiStateInput",
+        "instance": 10006
+      },
+      "tags": {
+        "hvacMode": true
+      }
+    },
+    {
+      "key": "fan_speed_cmd",
+      "dis": "Fan speed setup (state number)",
+      "type": "cmd",
+      "kind": "Number",
+      "pollClass": "normal",
+      "manualAddress": "MO 01GG07",
+      "address": {
+        "objectType": "multiStateOutput",
+        "instance": 10007
+      },
+      "tags": {
+        "fan": true,
+        "speed": true
+      }
+    },
+    {
+      "key": "fan_speed_state",
+      "dis": "Fan speed (state number)",
+      "type": "sensor",
+      "kind": "Number",
+      "pollClass": "normal",
+      "manualAddress": "MI 01GG08",
+      "address": {
+        "objectType": "multiStateInput",
+        "instance": 10008
+      },
+      "tags": {
+        "fan": true,
+        "speed": true
+      }
+    },
+    {
+      "key": "room_temp",
+      "dis": "Room temperature",
+      "type": "sensor",
+      "kind": "Number",
+      "pollClass": "fast",
+      "manualAddress": "AI 01GG09",
+      "address": {
+        "objectType": "analogInput",
+        "instance": 10009
+      },
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "unit": "°C"
+    },
+    {
+      "key": "setpoint",
+      "dis": "Set temperature",
+      "type": "sp",
+      "kind": "Number",
+      "pollClass": "normal",
+      "manualAddress": "AV 01GG10",
+      "address": {
+        "objectType": "analogValue",
+        "instance": 10010
+      },
+      "tags": {
+        "zone": true,
+        "air": true,
+        "temp": true
+      },
+      "unit": "°C"
+    },
+    {
+      "key": "filter_sign",
+      "dis": "Filter sign",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "slow",
+      "manualAddress": "BI 01GG11",
+      "address": {
+        "objectType": "binaryInput",
+        "instance": 10011
+      },
+      "tags": {
+        "filter": true,
+        "alarm": true
+      }
+    },
+    {
+      "key": "comms_state",
+      "dis": "M-NET communication state",
+      "type": "sensor",
+      "kind": "Bool",
+      "pollClass": "normal",
+      "manualAddress": "BI 01GG20",
+      "address": {
+        "objectType": "binaryInput",
+        "instance": 10020
+      },
+      "tags": {
+        "devineComms": true
+      }
+    }
+  ]
+}

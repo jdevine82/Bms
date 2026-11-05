@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import uuid
 from pathlib import Path
 
 from devine_bms.config.model import PollClass
 from devine_bms.config.validate import parse_config
-from devine_bms.runtime_model import RuntimeBus, RuntimeConfig, RuntimeDevice, RuntimePoint, SiteEquip, SiteSpace
+from devine_bms.runtime_model import RuntimeConfig, from_site_config
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "config" / "site.example.json"
 
@@ -26,34 +25,4 @@ def example_data(port: int, timeout_s: float = 0.3, retries: int = 0) -> dict:
 def runtime_config_from(data: dict) -> RuntimeConfig:
     """What PostgresStorage.load_runtime_config would return, built in memory."""
     config, _ = parse_config(data)
-    spaces = {s.name: SiteSpace(uuid.uuid4(), s.name, s.dis, dict(s.tags)) for s in config.spaces}
-    equips = {
-        e.name: SiteEquip(uuid.uuid4(), e.name, e.dis, spaces[e.space].id if e.space else None, None, dict(e.tags))
-        for e in config.equips
-    }
-    buses = {b.name: RuntimeBus(uuid.uuid4(), b) for b in config.buses}
-    devices = {
-        d.name: RuntimeDevice(
-            uuid.uuid4(), d.name, d.protocol, d.connection, d.enabled,
-            bus_id=(buses[d.connection.bus].id if d.protocol == "modbus"
-                    else buses[d.connection.trunk].id if d.protocol == "bacnet_mstp"
-                    else buses[d.connection.broker].id if d.protocol == "mqtt" else None),
-        )
-        for d in config.devices
-    }
-    points = tuple(
-        RuntimePoint(
-            id=uuid.uuid4(), name=p.name, device_id=devices[p.device].id, kind=p.kind, unit=p.unit,
-            enum=tuple(p.enum) if p.enum else None, address=p.address, poll_class=p.poll_class,
-            stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.type.value,
-            equip_id=equips[p.equip].id if p.equip else None,
-            space_id=spaces[p.space].id if p.space else None, tags=dict(p.tags),
-        )
-        for p in config.points
-    )
-    return RuntimeConfig(
-        uuid.uuid4(), config.site.tz, tuple(devices.values()), points,
-        site_name=config.site.name, site_dis=config.site.dis,
-        spaces=tuple(spaces.values()), equips=tuple(equips.values()), buses=tuple(buses.values()),
-        bacnet=config.bacnet,
-    )
+    return from_site_config(config)

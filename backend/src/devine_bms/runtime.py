@@ -38,11 +38,38 @@ class Runtime:
         self.buses: list[BusPoller] = []
         self.bacnet = None  # BacnetLink when the site has BACnet/IP devices
         self.cov: list = []  # CovSubscriber per BACnet device with COV
-        self._tasks: list[asyncio.Task] = []
+        self._poll_tasks: list[asyncio.Task] = []  # restarted by reload()
+        self._core_tasks: list[asyncio.Task] = []  # stale check and history writer, kept running
+        self._reload_lock = asyncio.Lock()
 
     async def start(self) -> None:
         self.config = await self.storage.load_runtime_config(self.site_name)
         self.tracker = QualityTracker(list(self.config.points), self.cache, self.history.add, self.intervals)
+        await self._start_pollers()
+        self._core_tasks.append(asyncio.create_task(self._stale_loop(), name="stale check"))
+        self._core_tasks.append(asyncio.create_task(self.history.run(), name="history writer"))
+        log.info("runtime started: %d connections, %d devices, %d points",
+                 len(self.buses), len(self.pollers), len(self.config.points))
+
+    async def reload(self) -> None:
+        """Pick up a changed setup without a restart (milestone 5A).
+
+        The pollers stop and start again with the new setup. Current values, the history
+        writer and live subscribers carry on, so screens do not go blank; new points start
+        as "not read yet", and removed points leave the live values.
+        """
+        async with self._reload_lock:
+            await self._stop_pollers()
+            self.config = await self.storage.load_runtime_config(self.site_name)
+            self.tracker.replace_points(list(self.config.points))
+            await self._start_pollers()
+            log.info("runtime reloaded: %d connections, %d devices, %d points",
+                     len(self.buses), len(self.pollers), len(self.config.points))
+
+    async def _start_pollers(self) -> None:
+        self.pollers = []
+        self.buses = []
+        self.cov = []
         groups: list[tuple[str, ModbusClient, list]] = []
         for bus in self.config.buses:
             members = [d for d in self.config.devices if d.bus_id == bus.id]
@@ -58,14 +85,21 @@ class Runtime:
             self.pollers.extend(states)
             bus = BusPoller(name, client, states, self.intervals)
             self.buses.append(bus)
-            self._tasks.append(asyncio.create_task(bus.run(), name=f"poll {name}"))
+            self._poll_tasks.append(asyncio.create_task(bus.run(), name=f"poll {name}"))
         await self._start_bacnet()
         self._start_mstp()
         self._start_mqtt()
-        self._tasks.append(asyncio.create_task(self._stale_loop(), name="stale check"))
-        self._tasks.append(asyncio.create_task(self.history.run(), name="history writer"))
-        log.info("runtime started: %d connections, %d devices, %d points",
-                 len(self.buses), len(self.pollers), len(self.config.points))
+
+    async def _stop_pollers(self) -> None:
+        for cov in self.cov:
+            await cov.stop()
+        for task in self._poll_tasks:
+            task.cancel()
+        await asyncio.gather(*self._poll_tasks, return_exceptions=True)
+        self._poll_tasks.clear()
+        if self.bacnet is not None:
+            self.bacnet.close()
+            self.bacnet = None
 
     async def _start_bacnet(self) -> None:
         devices = [d for d in self.config.devices if d.protocol == "bacnet_ip"]
@@ -90,7 +124,7 @@ class Runtime:
             self.pollers.append(state)
             poller = BusPoller(device.name, driver, [state], self.intervals)
             self.buses.append(poller)
-            self._tasks.append(asyncio.create_task(poller.run(), name=f"poll {device.name}"))
+            self._poll_tasks.append(asyncio.create_task(poller.run(), name=f"poll {device.name}"))
             if device.connection.cov:
                 cov = CovSubscriber(self.bacnet, device, points, self.tracker)
                 cov.on_subscribed = self._cov_started(driver, slow)
@@ -119,8 +153,8 @@ class Runtime:
             self.pollers.extend(states)
             poller = BusPoller(trunk.name, driver, states, self.intervals)
             self.buses.append(poller)
-            self._tasks.append(asyncio.create_task(poller.run(), name=f"poll {trunk.name}"))
-            self._tasks.append(asyncio.create_task(driver.watch_stats(), name=f"stats {trunk.name}"))
+            self._poll_tasks.append(asyncio.create_task(poller.run(), name=f"poll {trunk.name}"))
+            self._poll_tasks.append(asyncio.create_task(driver.watch_stats(), name=f"stats {trunk.name}"))
 
     def _start_mqtt(self) -> None:
         from devine_bms.drivers.mqtt.broker import BrokerLink
@@ -134,7 +168,7 @@ class Runtime:
             link = BrokerLink(broker.settings, members, self.config.points_for, self.tracker, self.config.site_name)
             self.pollers.extend(link.devices)
             self.buses.append(link)
-            self._tasks.append(asyncio.create_task(link.run(), name=f"mqtt {broker.name}"))
+            self._poll_tasks.append(asyncio.create_task(link.run(), name=f"mqtt {broker.name}"))
 
     def _cov_started(self, driver, slow: float):
         def started(point) -> None:
@@ -149,14 +183,11 @@ class Runtime:
         return stopped
 
     async def stop(self) -> None:
-        for cov in self.cov:
-            await cov.stop()
-        for task in self._tasks:
+        await self._stop_pollers()
+        for task in self._core_tasks:
             task.cancel()
-        await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks.clear()
-        if self.bacnet is not None:
-            self.bacnet.close()
+        await asyncio.gather(*self._core_tasks, return_exceptions=True)
+        self._core_tasks.clear()
         await self.history.flush()
         log.info("runtime stopped")
 
