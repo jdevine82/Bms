@@ -56,6 +56,22 @@ class ModbusClient:
         self.where = where
         self.shared = shared  # several devices on one connection (a bus or gateway)
         self._client = client
+        self._packets: list[tuple[str, bytes]] | None = None
+        # Raw frames for test reads (main spec 5.1, step 4): recorded only while capturing.
+        # pymodbus keeps the hook on the client's transaction manager.
+        client.ctx.trace_packet = self._trace  # type: ignore[attr-defined]
+
+    def _trace(self, sending: bool, data: bytes) -> bytes:
+        if self._packets is not None:
+            self._packets.append(("sent" if sending else "received", bytes(data)))
+        return data
+
+    def start_capture(self) -> None:
+        self._packets = []
+
+    def stop_capture(self) -> list[tuple[str, bytes]]:
+        packets, self._packets = self._packets or [], None
+        return packets
 
     @classmethod
     def for_tcp_device(cls, name: str, conn: ModbusTcpConnection) -> ModbusClient:

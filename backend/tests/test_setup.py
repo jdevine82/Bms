@@ -26,56 +26,13 @@ from devine_bms.settings import Settings
 from devine_bms.setup.startup import StartupError, prepare_site
 from devine_bms.storage.postgres import PostgresStorage
 from devine_bms.values import Status
-from helpers import TEST_INTERVALS, example_data
-from simulators.modbus_meter import MeterSimulator
+from helpers import example_data
+from setup_helpers import BACKEND, fresh_database, stack  # noqa: F401 (stack is a fixture)
 
 URL = os.environ.get("BMS_TEST_DATABASE_URL")
-BACKEND = Path(__file__).resolve().parents[1]
 if not URL:
     pytest.skip("BMS_TEST_DATABASE_URL is not set", allow_module_level=True)
 pytestmark = pytest.mark.db
-
-
-async def fresh_database():
-    engine = create_async_engine(URL)
-    async with engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA public CASCADE"))
-        await conn.execute(text("CREATE SCHEMA public"))
-    cfg = Config(str(BACKEND / "alembic.ini"))
-    cfg.set_main_option("script_location", str(BACKEND / "alembic"))
-    cfg.set_main_option("sqlalchemy.url", URL)
-    cfg.attributes["configure_logger"] = False
-    await asyncio.to_thread(command.upgrade, cfg, "head")
-    return engine
-
-
-@pytest.fixture
-async def stack():
-    """A simulated meter, the example site in the database, a running backend and an API client."""
-    sim = MeterSimulator(port=0, update_interval_s=0.05)
-    await sim.start()
-    engine = await fresh_database()
-    sessions = make_sessionmaker(engine)
-    config, _ = parse_config(example_data(sim.port))
-    async with sessions() as session, session.begin():
-        await sync_config(session, config)
-
-    async def factory():
-        runtime = Runtime(PostgresStorage(sessions), "dev_site", intervals=TEST_INTERVALS, stale_check_s=0.05,
-                          flush_interval_s=0.1)
-
-        async def cleanup():
-            pass
-
-        return runtime, cleanup
-
-    app = create_app(factory)
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50000))
-        async with httpx.AsyncClient(transport=transport, base_url="http://bms") as client:
-            yield {"client": client, "app": app, "sessions": sessions, "sim": sim}
-    await engine.dispose()
-    await sim.stop()
 
 
 async def wait_for(condition, timeout=6.0):

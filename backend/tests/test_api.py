@@ -127,8 +127,9 @@ async def test_history_and_csv(server):
     points = await wait_all_good(client)
     power = next(p for p in points if p["name"] == "site_meter1_power")
     await asyncio.sleep(0.6)
-    # The same fixed range for both requests, so rows written in between are not counted twice.
-    end = datetime.now(UTC)
+    # The same fixed range for both requests, ending in the past: history is written in batches a
+    # moment after each reading, so a range ending "now" can still gain rows between the requests.
+    end = datetime.now(UTC) - timedelta(seconds=0.5)
     window = {"start": (end - timedelta(hours=1)).isoformat(), "end": end.isoformat()}
     his = (await client.get(f"/api/points/{power['id']}/history", params=window)).json()
     assert his["unit"] == "kW" and not his["thinned"]

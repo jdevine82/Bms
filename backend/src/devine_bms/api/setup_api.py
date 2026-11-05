@@ -14,6 +14,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from devine_bms.setup.service import KINDS, SetupError, SetupService
+from devine_bms.setup.templates import TemplateLibrary
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
@@ -34,7 +35,8 @@ def local_only(request: Request) -> str:
     return client_label(request)
 
 
-def build_setup_router(get_service: Callable[[], SetupService | None]) -> APIRouter:
+def build_setup_router(get_service: Callable[[], SetupService | None],
+                       get_runtime: Callable[[], Any] = lambda: None) -> APIRouter:
     router = APIRouter(prefix="/api/setup")
 
     def service() -> SetupService:
@@ -67,6 +69,45 @@ def build_setup_router(get_service: Callable[[], SetupService | None]) -> APIRou
     async def put_feeds(feeds: list[dict] = Body(...), check: bool = False, client: str = Depends(local_only),
                         svc: SetupService = Depends(service)) -> Any:
         return await run(svc.put_feeds(feeds, client, check))
+
+    # ---------- device templates (before the /{kind} routes, which would match "templates") ----------
+
+    @router.get("/templates")
+    async def list_templates(svc: SetupService = Depends(service)) -> Any:
+        return await run(TemplateLibrary(svc).list())
+
+    @router.get("/templates/{template_id}")
+    async def get_template(template_id: str, version: str | None = None,
+                           svc: SetupService = Depends(service)) -> Any:
+        async def get():
+            library = TemplateLibrary(svc)
+            template, source = await library.get(template_id, version)
+            return {"source": source, "versions": await library.versions(template_id),
+                    "template": template.model_dump(mode="json", by_alias=True)}
+        return await run(get())
+
+    @router.post("/templates")
+    async def save_template(data: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+                            svc: SetupService = Depends(service)) -> Any:
+        return await run(TemplateLibrary(svc).save(data, client, check))
+
+    @router.delete("/templates/{template_id}")
+    async def delete_template(template_id: str, version: str | None = None, client: str = Depends(local_only),
+                              svc: SetupService = Depends(service)) -> Any:
+        return await run(TemplateLibrary(svc).delete(template_id, version, client))
+
+    @router.post("/templates/{template_id}/apply")
+    async def apply_template(template_id: str, body: dict = Body(...), check: bool = False,
+                             client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+        return await run(TemplateLibrary(svc).apply(template_id, body, client, check))
+
+    # ---------- test reads (read-only, but they send traffic to devices) ----------
+
+    @router.post("/test-read")
+    async def test_read_route(body: dict = Body(...), client: str = Depends(local_only),
+                              svc: SetupService = Depends(service)) -> Any:
+        from devine_bms.setup.testread import test_read
+        return await run(test_read(get_runtime(), svc, body))
 
     @router.get("/changes")
     async def changes(limit: int = Query(50, ge=1, le=1000), svc: SetupService = Depends(service)) -> Any:

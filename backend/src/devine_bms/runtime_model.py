@@ -116,3 +116,42 @@ class RuntimeConfig:
 
     def points_for(self, device_id: uuid.UUID) -> list[RuntimePoint]:
         return [p for p in self.points if p.device_id == device_id]
+
+
+def from_site_config(config) -> RuntimeConfig:
+    """Runtime objects straight from a checked SiteConfig, with new IDs.
+
+    Used by tests (in-memory storage) and by test reads of devices that are not saved yet.
+    """
+    import uuid as _uuid
+
+    spaces = {s.name: SiteSpace(_uuid.uuid4(), s.name, s.dis, dict(s.tags)) for s in config.spaces}
+    equips = {
+        e.name: SiteEquip(_uuid.uuid4(), e.name, e.dis, spaces[e.space].id if e.space else None, None, dict(e.tags))
+        for e in config.equips
+    }
+    buses = {b.name: RuntimeBus(_uuid.uuid4(), b) for b in config.buses}
+
+    def bus_of(d):
+        name = getattr(d.connection, "bus", None) or getattr(d.connection, "trunk", None) \
+            or getattr(d.connection, "broker", None)
+        return buses[name].id if name else None
+
+    devices = {d.name: RuntimeDevice(_uuid.uuid4(), d.name, d.protocol, d.connection, d.enabled, bus_id=bus_of(d))
+               for d in config.devices}
+    points = tuple(
+        RuntimePoint(
+            id=_uuid.uuid4(), name=p.name, device_id=devices[p.device].id, kind=p.kind, unit=p.unit,
+            enum=tuple(p.enum) if p.enum else None, address=p.address, poll_class=p.poll_class,
+            stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.type.value,
+            equip_id=equips[p.equip].id if p.equip else None,
+            space_id=spaces[p.space].id if p.space else None, tags=dict(p.tags),
+        )
+        for p in config.points
+    )
+    return RuntimeConfig(
+        _uuid.uuid4(), config.site.tz, tuple(devices.values()), points,
+        site_name=config.site.name, site_dis=config.site.dis,
+        spaces=tuple(spaces.values()), equips=tuple(equips.values()), buses=tuple(buses.values()),
+        bacnet=config.bacnet,
+    )

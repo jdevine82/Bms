@@ -164,16 +164,54 @@ class BusPoller:
         self.intervals = intervals
         self.online: bool | None = None
         self.backoff = Backoff()
+        # Jobs that need this connection between polls: test reads now, commands later (milestone 7).
+        self._jobs: asyncio.Queue = asyncio.Queue()
+
+    async def submit(self, job, timeout_s: float = 60.0):
+        """Run `job(driver)` on this connection between polls and return its result.
+
+        A serial port is never opened twice: test reads and (later) commands queue here and
+        run before the next poll, so they go ahead of polling (main spec 5.1.4).
+        """
+        future = asyncio.get_running_loop().create_future()
+        await self._jobs.put((job, future))
+        return await asyncio.wait_for(future, timeout_s)
+
+    async def _run_jobs(self) -> None:
+        while not self._jobs.empty():
+            job, future = self._jobs.get_nowait()
+            if future.done():
+                continue  # the caller gave up waiting
+            try:
+                future.set_result(await job(self.driver))
+            except Exception as exc:  # the caller gets the error; the poller carries on
+                if not future.done():
+                    future.set_exception(exc)
+
+    async def _wait(self, seconds: float) -> None:
+        """Sleep until the next poll is due, but run queued jobs at once when they arrive."""
+        if seconds <= 0:
+            return
+        try:
+            job = await asyncio.wait_for(self._jobs.get(), seconds)
+        except TimeoutError:
+            return
+        await self._jobs.put(job)
+        await self._run_jobs()
 
     async def run(self) -> None:
         schedule = {(d, c): time.monotonic() for d in self.devices for c in d.classes()}
-        if not schedule:
-            return
         try:
             while True:
+                await self._run_jobs()
+                if not schedule:
+                    await self._wait(3600)  # nothing to poll yet; still serve jobs
+                    continue
                 wait = min(schedule.values()) - time.monotonic()
                 if wait > 0:
-                    await asyncio.sleep(wait)
+                    await self._wait(wait)
+                    if min(schedule.values()) > time.monotonic():
+                        continue
                 now = time.monotonic()
                 for (state, poll_class), due in sorted(schedule.items(), key=lambda item: item[1]):
                     if due > now:

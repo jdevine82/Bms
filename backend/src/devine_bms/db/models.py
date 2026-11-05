@@ -221,3 +221,19 @@ class SetupChange(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     before: Mapped[dict | list | None] = mapped_column(JSONB)
     after: Mapped[dict | list | None] = mapped_column(JSONB)
+
+
+class DeviceTemplateRow(Base):
+    """A site's own device template, one row per version (main spec 5.1, milestone 5A).
+
+    Built-in templates ship as files with the software and are not stored here.
+    """
+
+    __tablename__ = "device_template"
+    __table_args__ = (UniqueConstraint("site_id", "template_id", "version"),)
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    template_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

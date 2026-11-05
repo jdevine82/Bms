@@ -87,7 +87,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             await cleanup()
 
     app = FastAPI(title="Devine BMS", version=__version__, lifespan=lifespan)
-    app.include_router(build_setup_router(lambda: state.get("setup")))
+    app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime")))
 
     def runtime() -> Runtime:
         return state["runtime"]
