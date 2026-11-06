@@ -50,6 +50,7 @@ export interface Site {
   dis: string;
   tz: string;
   ianaTz: string;
+  equips?: { id: string; name: string; dis: string; tags: Record<string, unknown> }[];
 }
 
 export interface HisRow {

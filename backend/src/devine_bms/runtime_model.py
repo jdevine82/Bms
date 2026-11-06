@@ -102,6 +102,7 @@ class RuntimePoint:
     alarms: tuple[PointAlarm, ...] = ()  # milestone 6B
     write_limits: WriteLimits | None = None  # milestone 7A
     writable: bool = False  # a setpoint or command whose address can be written
+    occupancy: dict | None = None  # milestone 7B: {"occupied": value, "unoccupied": value}
 
     def stale_after(self, intervals: dict[PollClass, float] = POLL_INTERVAL_S) -> float:
         if self.stale_after_s is not None:
@@ -171,6 +172,7 @@ def from_site_config(config) -> RuntimeConfig:
             equip_id=equips[p.equip].id if p.equip else None,
             space_id=spaces[p.space].id if p.space else None, tags=dict(p.tags), alarms=tuple(p.alarms),
             write_limits=p.write_limits, writable=_writable(p),
+            occupancy=p.occupancy.model_dump(mode="json") if p.occupancy else None,
         )
         for p in config.points
     )

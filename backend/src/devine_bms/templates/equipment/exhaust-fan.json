@@ -17,7 +17,11 @@
         "run": true
       },
       "required": true,
-      "pollClass": "normal"
+      "pollClass": "normal",
+      "occupancy": {
+        "occupied": true,
+        "unoccupied": false
+      }
     },
     {
       "role": "run_state",

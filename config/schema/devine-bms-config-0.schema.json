@@ -1232,6 +1232,46 @@
       "title": "ObjectType",
       "type": "string"
     },
+    "OccupancyMap": {
+      "additionalProperties": false,
+      "description": "What a writable point is set to when its equipment's schedule is Occupied or Unoccupied\n(milestone 7B), for example On and Off, or 22 and 26 \u00b0C.",
+      "properties": {
+        "occupied": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Occupied"
+        },
+        "unoccupied": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Unoccupied"
+        }
+      },
+      "required": [
+        "occupied",
+        "unoccupied"
+      ],
+      "title": "OccupancyMap",
+      "type": "object"
+    },
     "OfflineAlarm": {
       "additionalProperties": false,
       "description": "An alarm when a device stops answering (main spec 5.5). Only on devices where it is set.",
@@ -1415,6 +1455,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/WriteLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "occupancy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OccupancyMap"
             },
             {
               "type": "null"
@@ -1823,6 +1874,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/WriteLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "occupancy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OccupancyMap"
             },
             {
               "type": "null"

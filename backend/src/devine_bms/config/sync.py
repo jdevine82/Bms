@@ -113,6 +113,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
             poll_class=item.poll_class.value, stale_after_s=item.stale_after_s, his=item.his, enabled=True,
             alarms=[a.model_dump(mode="json", by_alias=True) for a in item.alarms],
             write_limits=item.write_limits.model_dump(mode="json") if item.write_limits else None,
+            occupancy=item.occupancy.model_dump(mode="json") if item.occupancy else None,
         )
 
     in_file = {

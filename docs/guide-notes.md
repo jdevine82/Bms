@@ -39,6 +39,7 @@ milestone adds to it.
 
 - Points and trends, CSV export of history (milestone 2), the HMI (milestone 3).
 - Commands: the Command button, set and hand mode, override times, release to auto, the hand-mode badge, write limits, confirm prompts; on the HMI, the PIN pad and Lock now (`docs/specs/m7-commands-schedules.md`).
+- Schedules: occupancy, the weekly pattern, holiday calendars, one-off exceptions and which wins, what a schedule applies to, occupancy values per point, hand mode during a schedule, the controller copy (write, check, keep the controller's times).
 - Alarms: the header count, acknowledging with comments, history, the notifications log; what Info, Warning and Critical mean and who is told; why a Bad value does not raise a limit alarm.
 
 ## Bench and troubleshooting

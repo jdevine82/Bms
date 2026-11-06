@@ -593,7 +593,7 @@ Graphics are **drawn in the web app only**. The Pi HMI shows them live and canno
 | View graphics, values, trends, alarms, schedules | Yes | Yes | Yes |
 | Acknowledge and comment on alarms | No | Yes | Yes |
 | Commands, setpoint changes, hand modes, variables published as points (5.6) | No | Yes, within write limits | Yes, within write limits |
-| Edit schedules | No | Exceptions only (**[Assumed]**) | Yes |
+| Edit schedules | No | Yes (decided, milestone 7B) | Yes |
 | Add and edit devices, templates, points, rooms, tags, Discover | No | No | Yes |
 | Edit graphics, symbols and logic, import logic (5.3.2), publish logic | No | No | Yes |
 | Users, PINs, site settings, backup and restore, updates | No | No | Yes |

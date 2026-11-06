@@ -129,6 +129,7 @@ class PostgresStorage:
                     alarms=tuple(PointAlarm.model_validate(a) for a in p.alarms or []),
                     write_limits=WriteLimits.model_validate(p.write_limits) if p.write_limits else None,
                     writable=point_writable(p.point_type, _address(p.address)),
+                    occupancy=dict(p.occupancy) if p.occupancy else None,
                 )
                 for p in points
                 if p.device_id in device_ids

@@ -271,6 +271,14 @@ class WriteLimits(_Model):
         return self
 
 
+class OccupancyMap(_Model):
+    """What a writable point is set to when its equipment's schedule is Occupied or Unoccupied
+    (milestone 7B), for example On and Off, or 22 and 26 °C."""
+
+    occupied: float | bool | str
+    unoccupied: float | bool | str
+
+
 class AlarmLevel(StrEnum):
     INFO = "info"
     WARNING = "warning"
@@ -432,6 +440,7 @@ class Point(_Model):
     his: bool = True
     alarms: list[PointAlarm] = []
     write_limits: WriteLimits | None = None  # milestone 7A
+    occupancy: OccupancyMap | None = None  # milestone 7B
 
 
 class TemplateRole(_Model):
@@ -450,6 +459,7 @@ class TemplateRole(_Model):
     his: bool = True
     alarms: list[PointAlarm] = []  # default alarms for the points made for this role
     write_limits: WriteLimits | None = None
+    occupancy: OccupancyMap | None = None
 
 
 class EquipTemplate(_Model):

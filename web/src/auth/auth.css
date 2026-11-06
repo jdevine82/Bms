@@ -118,3 +118,19 @@
 .user-menu a.who:hover {
   text-decoration: underline;
 }
+
+/* Phones (main spec 6.1): the header buttons wrap rather than push the page sideways. */
+nav[aria-label="Pages"] {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .user-menu .who {
+    display: none;
+  }
+
+  nav[aria-label="Pages"] button {
+    min-height: 40px;
+    padding: 0 10px;
+  }
+}

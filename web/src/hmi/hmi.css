@@ -380,3 +380,12 @@
 .hmi-pin-error {
   color: #ff8a80;
 }
+
+.hmi-sched-why {
+  color: #9aa4b0;
+  font-size: 14px;
+}
+
+.hmi-sp-value.occupied {
+  color: #5fd08a;
+}
