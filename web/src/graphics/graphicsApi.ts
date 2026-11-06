@@ -20,6 +20,8 @@ export type GraphicItem =
       rule?: Extract<ColourRule, { type: "bands" }> }
   | { type: "text"; id: string; x: number; y: number; text: string; size?: number };
 
+export interface GraphicBackground { svg: string; x?: number; y?: number; w: number; h: number; opacity?: number }
+
 export interface Graphic {
   name: string;
   dis: string;
@@ -28,6 +30,7 @@ export interface Graphic {
   width?: number;
   height?: number;
   tab?: { order: number };
+  background?: GraphicBackground;
   items: GraphicItem[];
 }
 
@@ -35,11 +38,29 @@ export interface LibrarySymbol {
   id: string;
   dis: string;
   category: string;
-  source: string;
+  source: string; // "equinor:CODE", "devine" or "site"
   kind: "state" | "position" | "level" | "value";
+  animation?: "none" | "spin" | "flash"; // site symbols: for the On group
+  svg?: string; // site symbols: the cleaned SVG
+  shapes?: SymbolShape[]; // site symbols drawn in the editor
   spin?: { cx: number; cy: number; r: number };
   spinWhole?: boolean;
   text?: string;
+}
+
+export interface SymbolShape {
+  type: "line" | "polyline" | "rect" | "circle" | "text";
+  layer: "off" | "on" | "both";
+  points?: XY[];
+  x?: number; y?: number; w?: number; h?: number; r?: number;
+  text?: string; size?: number; fill?: boolean;
+}
+
+/** The inside and viewBox of a cleaned SVG. */
+export function svgParts(svg: string): { inner: string; viewBox: string } {
+  const open = /<svg[^>]*>/.exec(svg);
+  const viewBox = open ? /viewBox="([^"]+)"/.exec(open[0])?.[1] ?? "0 0 64 64" : "0 0 64 64";
+  return { inner: /<svg[^>]*>([\s\S]*)<\/svg>/.exec(svg)?.[1] ?? "", viewBox };
 }
 
 async function getJson<T>(url: string): Promise<T> {

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LiveValue, Point } from "../api";
 import { formatValue } from "../format";
 import type { Colour, ColourRule, Graphic, GraphicItem, LibrarySymbol, ValueBand } from "./graphicsApi";
-import { symbolSvg } from "./graphicsApi";
+import { svgParts, symbolSvg } from "./graphicsApi";
 import "./graphics.css";
 
 export type SymbolState = "offline" | "fault" | "manual" | "on" | "off";
@@ -107,14 +107,15 @@ export function GraphicView({ graphic, library, points, live, alarmed, onCommand
   return (
     <svg className="graphic" viewBox={`0 0 ${w} ${h}`} role="group" aria-label={graphic.dis}
          style={{ aspectRatio: `${w} / ${h}` }}>
+      {graphic.background && <Background bg={graphic.background} />}
       {graphic.items.map((item) => {
         switch (item.type) {
           case "text":
-            return <text key={item.id} className="g-text" x={item.x} y={item.y} fontSize={item.size ?? 16}>{item.text}</text>;
+            return <text key={item.id} data-id={item.id} className="g-text" x={item.x} y={item.y} fontSize={item.size ?? 16}>{item.text}</text>;
           case "value": {
             const p = pt(item.point);
             return (
-              <text key={item.id} className="g-value" x={item.x} y={item.y} textAnchor="middle"
+              <text key={item.id} data-id={item.id} className="g-value" x={item.x} y={item.y} textAnchor="middle"
                     data-status={p ? lv(p)?.status : "missing"}>
                 {item.label && <tspan className="g-muted">{item.label} </tspan>}
                 <tspan>{valueText(item.point)}</tspan>
@@ -172,6 +173,15 @@ export function GraphicView({ graphic, library, points, live, alarmed, onCommand
   );
 }
 
+function Background({ bg }: { bg: NonNullable<Graphic["background"]> }) {
+  const { inner, viewBox } = svgParts(bg.svg); // cleaned on the server (milestone 9B)
+  return (
+    <svg className="g-background" x={bg.x ?? 0} y={bg.y ?? 0} width={bg.w} height={bg.h} viewBox={viewBox}
+         opacity={bg.opacity ?? 1} preserveAspectRatio="xMidYMid meet" aria-hidden="true"
+         dangerouslySetInnerHTML={{ __html: inner }} />
+  );
+}
+
 function SymbolView({ item, lib, state, running, valueText, level, command, onCommand }: {
   item: Extract<GraphicItem, { type: "symbol" }>;
   lib: LibrarySymbol | undefined;
@@ -182,14 +192,17 @@ function SymbolView({ item, lib, state, running, valueText, level, command, onCo
   command: Point | undefined;
   onCommand?: (p: Point) => void;
 }) {
-  const [art, setArt] = useState("");
+  const [fileArt, setFileArt] = useState("");
+  const site = lib?.svg ? svgParts(lib.svg) : null; // a site symbol carries its own (cleaned) SVG
   useEffect(() => {
+    if (lib?.svg) return;
     let live = true;
-    void symbolSvg(item.symbol).then((s) => live && setArt(s));
+    void symbolSvg(item.symbol).then((s) => live && setFileArt(s));
     return () => {
       live = false;
     };
-  }, [item.symbol]);
+  }, [item.symbol, lib?.svg]);
+  const art = site ? site.inner : fileArt;
 
   const size = item.size ?? 64;
   const k = size / 64;
@@ -202,15 +215,16 @@ function SymbolView({ item, lib, state, running, valueText, level, command, onCo
   const label = item.label ?? lib?.dis ?? item.symbol;
 
   return (
-    <g className={`g-symbol s-${state}${spinning ? " spinning" : ""}${tap ? " tappable" : ""}`}
+    <g className={`g-symbol s-${state}${spinning ? " spinning running" : ""}${tap ? " tappable" : ""}${
+         lib?.animation === "flash" ? " flash-on" : ""}`}
        transform={`translate(${item.x} ${item.y})`} data-id={item.id} data-state={state}
        role={tap ? "button" : "img"} tabIndex={tap ? 0 : undefined}
        aria-label={`${label}${words ? `: ${words}` : ""}${tap ? ". Tap to command" : ""}`}
        onClick={tap} onKeyDown={tap ? (e) => (e.key === "Enter" || e.key === " ") && tap() : undefined}>
       <rect className="g-hit" x={-6} y={-6} width={size + 12} height={size + 12} rx={8} />
       <g transform={item.rotate ? `rotate(${item.rotate} ${size / 2} ${size / 2})` : undefined}>
-        <g className={`g-art${lib?.spinWhole ? " g-spin-whole" : ""}`}>
-          <svg width={size} height={size} viewBox="0 0 64 64" dangerouslySetInnerHTML={{ __html: art }} />
+        <g className={`g-art${lib?.spinWhole || lib?.animation === "spin" ? " g-spin-whole" : ""}`}>
+          <svg width={size} height={size} viewBox={site?.viewBox ?? "0 0 64 64"} dangerouslySetInnerHTML={{ __html: art }} />
         </g>
         {lib?.spin && (
           <g transform={`scale(${k})`}>

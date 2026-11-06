@@ -34,7 +34,9 @@ milestone adds to it.
 
 - Discover, the 4-step wizard, the mapping table and CSV, device and equipment templates, test reads (`docs/specs/m5-setup.md`).
 - Export and import of a whole setup (web app and `setup.cli`).
-- Graphics: starting graphics from rooms and equipment (tags decide the symbols), Setup → Graphics (edit as JSON, check, save, make again), and that saving stops them following setup changes (`docs/specs/m9-graphics.md`, "How to set up graphics on a site"). The Equinor symbol licence and credit.
+- Graphics: starting graphics from rooms and equipment (tags decide the symbols), and that saving stops them following setup changes (`docs/specs/m9-graphics.md`, "How to set up graphics on a site"). The Equinor symbol licence and credit.
+- The graphics editor: palette and tools, grid, moving and resizing, pipes and ducts by corners, binding points, colour rules (follows, bands with hysteresis, fill), backgrounds, Check and Save, keyboard shortcuts, tab order (`docs/specs/m9-graphics.md`, "How to make a site's graphics").
+- Site symbols: drawing (Off, On and both layers, animation), importing from Inkscape (layers named Off and On, `currentColor`), what the cleaning removes and why, limits (64 KB symbol, 1 MB background).
 
 ## Operating
 

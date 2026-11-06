@@ -13,7 +13,9 @@
     "test:auth": "node tests/auth.mjs",
     "test:alarms": "node tests/alarms.mjs",
     "test:commands": "node tests/commands.mjs",
-    "test:schedules": "node tests/schedules.mjs"
+    "test:schedules": "node tests/schedules.mjs",
+    "test:graphics": "node tests/graphics.mjs",
+    "test:graphics-editor": "node tests/graphics-editor.mjs"
   },
   "author": "Jason Devine",
   "license": "UNLICENSED",

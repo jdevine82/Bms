@@ -1,6 +1,6 @@
 # Milestone 9: graphics
 
-Status: **9A built**, **9B in progress** (6 Nov 2026). Main spec: 6.4 (symbols and graphics), 6.5 (tabs), 6.2 (HMI), 5.6 (commands), 18 (milestone 9).
+Status: **built** (9A and 9B, 6 Nov 2026). Main spec: 6.4 (symbols and graphics), 6.5 (tabs), 6.2 (HMI), 5.6 (commands), 18 (milestone 9).
 
 ## Decisions
 
@@ -104,3 +104,26 @@ A graphic can have one background (decision 5): the cleaned SVG, its place and s
 - `PUT /api/setup/graphics/symbols/{id}`, `DELETE /api/setup/graphics/symbols/{id}` (refused while a graphic uses it).
 - `PUT /api/setup/graphics-tabs` with the tab graphics in order (the others become non-tabs).
 - `GET /api/graphics/library` also returns the site's symbols, with their SVG.
+
+### What 9B built
+
+- **Sanitiser** (`graphics/sanitize.py`): the allow-list above, Off and On groups marked `state-off` and `state-on`, IDs prefixed (the symbol's ID, or `bg-<graphic>` for a background), the viewBox taken from width and height when missing, and a stable result. Saving a symbol or a graphic cleans its SVG on the server whatever the client sent; the setup checks refuse a stored SVG that is not clean, a site symbol with a library ID, and a graphic using an unknown symbol.
+- **Editor** (Setup → Graphics → Open in editor, or New graphic; `#/setup/graphics/<name>`): as described above. Placed symbols are named after the symbol (`pump-1`), other items after their type (`duct-1`). It takes the whole width; below 900 px it only says it needs a wider screen.
+- **Site symbols** (Setup → Graphics → Site symbols): draw (decision 4) or import, with Off and On previews and the list of what cleaning removed; edit a drawn one again; replace an imported one; remove one that no graphic uses.
+- **Tab order** (Setup → Graphics → Tab order): move up and down, make or stop a tab, saved in one step.
+- **Rendering:** site symbols show their Off group while not running and their On group while running, spinning or flashing as set; backgrounds are drawn under everything.
+
+### How to make a site's graphics
+
+1. Start from the starting graphics (9A), or **New graphic**.
+2. In the editor, pick a symbol or tool on the left and click the drawing; drag to move, drag the square to resize, click a pipe's or duct's corners and press Enter.
+3. With an item selected, bind its points on the right (type part of a point name to pick from the list; the display name shows under it), and set its colour rule.
+4. With nothing selected, set the graphic's name (new graphics only), display name, kind, room, size and tab, and import a background if it has one (an SVG floor plan; up to 1 MB).
+5. **Check**, then **Save**. Values show live while editing, so a wrong binding shows as `--` straight away.
+6. Put the tabs in order on the Graphics list.
+7. For a symbol the library does not have, **Draw a symbol** (simple shapes in the Off layer, the On layer or both) or **Import an SVG** drawn elsewhere: in Inkscape, put the Off drawing in a layer named Off and the On drawing in a layer named On; set lines and fills that should take the state colour to `currentColor`; any other colour stays as drawn.
+
+### 9B tests
+
+- Backend (`tests/test_graphics.py`, 17 in all): the sanitiser on a hostile file (scripts, handlers, external links and images, style sheets, foreignObject, editor data) keeping gradients, `use`, SMIL animation and text; stable on a second pass; refusals (DOCTYPE and entities, not SVG, unreadable, no On group, no size, zero size); size limits; the setup checks for site symbols and backgrounds; the API for sanitising, saving a symbol from a raw file, the library with site symbols, a library-ID clash, a graphic with a background cleaned on save, removing a symbol in use (refused) and unused, and the tab order in one step.
+- Browser (`web/tests/graphics-editor.mjs`): drawing a symbol in three shapes across the layers; importing one (the removed handler listed, previews); refusing one with no On group; a new graphic: placing symbols on the grid, dragging (snapped), resizing from the handle, a duct by its corners following a symbol, a room with a band rule, a live value showing its reading while editing, undo and redo, duplicate and delete, a background cleaned on import, Check and Save, a refused binding; a symbol in use cannot be removed; the tab order; the Graphics page drawing the site symbol; a phone told the editor needs a wider screen.
