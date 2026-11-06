@@ -406,3 +406,58 @@ class Schedule(Base):
     controller: Mapped[dict | None] = mapped_column(JSONB)  # the BACnet Schedule object it is copied to
     controller_state: Mapped[dict | None] = mapped_column(JSONB)  # last push and read-back
     updated_at: Mapped[datetime] = _updated()
+
+
+class LogicDiagram(Base):
+    """A control logic diagram (main spec 5.3.1, milestone 10A): its draft (saved on every
+    change, may be incomplete) and which published version runs."""
+
+    __tablename__ = "logic_diagram"
+    __table_args__ = (UniqueConstraint("site_id", "name"),)
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    dis: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    draft: Mapped[dict] = mapped_column(JSONB, nullable=False)  # devine-bms-logic/1
+    draft_by: Mapped[str | None] = mapped_column(String(100))
+    draft_at: Mapped[datetime] = _updated()
+    published_version: Mapped[int | None] = mapped_column()
+
+
+class LogicVersion(Base):
+    """A published version of a diagram; earlier ones can be restored into the draft."""
+
+    __tablename__ = "logic_version"
+    __table_args__ = (UniqueConstraint("diagram_id", "version"),)
+    id: Mapped[uuid.UUID] = _id()
+    diagram_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("logic_diagram.id", ondelete="CASCADE"),
+                                                  nullable=False, index=True)
+    version: Mapped[int] = mapped_column(nullable=False)
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    published_by: Mapped[str | None] = mapped_column(String(100))
+    published_at: Mapped[datetime] = _updated()
+
+
+class LogicVariable(Base):
+    """A logic variable's value, kept through a restart (main spec 5.3.1 Variables). Scope `site`
+    (owner empty; its definition is here too) or `diagram` (owner = diagram name; defined in the
+    diagram)."""
+
+    __tablename__ = "logic_variable"
+    __table_args__ = (UniqueConstraint("site_id", "scope", "owner", "name"),)
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    scope: Mapped[str] = mapped_column(String(16), nullable=False)
+    owner: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
+    name: Mapped[str] = mapped_column(String(60), nullable=False)
+    dis: Mapped[str | None] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(String(8), nullable=False)
+    unit: Mapped[str | None] = mapped_column(String(32))
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    value: Mapped[dict | None] = mapped_column(JSONB)  # {"v": value}
+    min: Mapped[float | None] = mapped_column(Double)
+    max: Mapped[float | None] = mapped_column(Double)
+    updated_by: Mapped[str | None] = mapped_column(String(100))
+    updated_at: Mapped[datetime] = _updated()

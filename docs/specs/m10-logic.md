@@ -1,6 +1,6 @@
 # Milestone 10: control logic
 
-Status: **10A in progress** (6 Nov 2026). Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
+Status: **10A built** (6 Nov 2026); 10B and 10C planned. Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
 
 ## Decisions
 
@@ -89,4 +89,27 @@ Status: **10A in progress** (6 Nov 2026). Main spec: 5.3 (control logic), 5.3.1 
 - `GET /api/logic/{name}/live`: every block's inputs and outputs with quality, timers' time left, clamping, each output's state (written, hand mode, fail-safe).
 - `POST /api/logic/{name}/test`: run the **draft** against simulated input values for a number of steps with a chosen step length, writing nothing; returns each step's outputs.
 - `POST /api/logic/import`: validate pasted JSON and create or replace a draft (errors block it; warnings are returned).
-- `GET /api/logic-variables`, `PUT /api/logic-variables/{name}` (set a constant, within its limits; audit-logged).
+- `GET /api/logic-variables`, `PUT /api/logic-variables/{name}` (create or change a site variable, or set its value within its limits; audit-logged), `PUT /api/logic/{name}/variables/{variable}` (a diagram's own variable).
+- `GET /api/logic-blocks`: the block types with their settings schemas (for the editor's palette).
+
+### What 10A built
+
+- `backend/src/devine_bms/logic/`: `model.py` (the format and the block registry), `check.py` (the checks and the evaluation order), `evaluate.py` (one cycle, shared by the runtime and test runs), `astro.py` (sunrise and sunset), `engine.py` (the runtime), `service.py` (drafts, publishing, versions, import, variables); `api/logic_api.py`.
+- The published JSON Schema: `config/schema/devine-bms-logic-1.schema.json` (with each block's settings; `python -m devine_bms.logic.write_schema` rewrites it).
+- Database (migration 0013): `logic_diagram` (draft, enabled, published version), `logic_version` (each published body with its note, who and when), `logic_variable` (values kept through a restart; site variables' definitions).
+- **Import** (main spec 5.3.2): errors in the diagram itself (unreadable JSON, unknown block types, bad settings, wires to missing ports or between types, an input wired twice, duplicate IDs, a loop without a timing block) stop it. What does not fit this site (unknown points, variables or schedules, a point another diagram writes) comes back as **warnings**, and the draft is created; the publish checks then insist on them. The mapping table arrives with the editor (10B).
+- **Hand mode** ends at logic's value when logic writes the point, else the schedule's, else the value before (decision 027).
+- A setup change reloads logic too, so a diagram whose point was removed or changed stops (its state shows the reason) instead of running on a stale view.
+
+### How to try 10A (before the editor)
+
+1. Set a site variable: `PUT /api/logic-variables/lights_on` with `{"type": "bool", "kind": "constant", "value": true}`.
+2. Save a draft: `PUT /api/logic/<name>/draft` with the diagram JSON (the format above). The answer lists what the publish checks would say.
+3. Try it: `POST /api/logic/<name>/test` with `{"inputs": {"<point>": value}, "steps": 10, "dt": 1}`; nothing is written.
+4. Publish: `POST /api/logic/<name>/publish` with `{"confirmFailsafe": true, "note": "..."}`. Watch it: `GET /api/logic/<name>/live`.
+5. Disable with `POST /api/logic/<name>/enable` `{"enabled": false}`: the fail-safes apply.
+
+### Tests
+
+- Backend (`tests/test_logic.py`): the block set; a good diagram and its order; every check (unknown type, bad settings, duplicate IDs, wired twice, types, unwired inputs, unwritable points, schedule and diagram writers, missing points, schedules and variables, constants written by logic, a missing fallback, astro without a location, loops with and without a timing block); compare with deadband and delay on with a clock; fallback and fail-safe on a bad input; limit with rate, scale with clamp and inversion; delay off and minimum on/off; AND, NOT, manual/auto and schedules; PID (direction, anti-windup, bumpless tracking); astro in Sydney; variable writes and a failing block. With the database and the simulated RS485 line: drafts and publish checks, the fail-safe confirmation, the outputs written (the limit clamped to its write limits), a variable change followed, hand mode winning and ending at logic's value, one writer per point, disable and enable with the fail-safes, a memory variable saved, versions and restore, test runs that write nothing, import (errors, warnings, name clash), removal and the audit log.
+- Astro times checked against published times for Sydney (summer and winter) and London; polar day and night handled.
