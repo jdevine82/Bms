@@ -821,6 +821,7 @@ All figures are proposals and should be adjusted.
 12. Remote access over Tailscale with per-site accounts, ACLs and remote updates.
 12a. Haystack API (read-only) and Haystack model export (5.12). The Haystack data model itself is built from milestone 2 onwards.
 13. Pilot site.
+13b. **Documentation (decided: written at the end):** an installation guide (development machine, site server, Pi HMI, MS/TP service), a settings reference (environment variables, config file, site and security settings), a users and logins guide (first admin, roles, 2FA, lockout, kiosks, allowed networks, password reset, audit log), and commissioning and operating guides. Until then each milestone spec keeps a complete "how to set up and run" section, and `docs/guide-notes.md` lists what the guide must cover.
 14. **Later (not scheduled):** in-house ESP32 I/O module (section 20, F1). No BMS code is planned for it; it is added as a standard device through a template.
 
 ## 19. Decisions register
