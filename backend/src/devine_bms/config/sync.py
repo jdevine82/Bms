@@ -155,6 +155,8 @@ def _site_settings(config: cfg.SiteConfig) -> dict:
         settings["bacnet"] = config.bacnet.model_dump(mode="json", by_alias=True)
     if config.equip_templates:
         settings["equipTemplates"] = [t.model_dump(mode="json", by_alias=True) for t in config.equip_templates]
+    if config.graphics:
+        settings["graphics"] = [g.model_dump(mode="json", by_alias=True, exclude_none=True) for g in config.graphics]
     return settings
 
 

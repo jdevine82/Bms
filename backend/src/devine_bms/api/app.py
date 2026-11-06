@@ -31,6 +31,7 @@ from devine_bms.api.schedules_api import build_schedules_router
 from devine_bms.schedules.service import ScheduleService
 from devine_bms.commands.service import CommandService
 from devine_bms.api.history import history_csv, row_json, thin
+from devine_bms.api.graphics_api import build_graphics_router
 from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.auth.service import AuthService
@@ -128,6 +129,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     app.include_router(build_schedules_router(lambda: state.get("schedules")))
     app.include_router(build_alarms_router(lambda: state.get("alarms"), lambda: state.get("delivery"),
                                            lambda: state.get("auth")))
+    app.include_router(build_graphics_router(lambda: state.get("setup")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 

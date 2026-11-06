@@ -82,7 +82,8 @@ try {
     check(mainBox && mainBox.width >= width - 2, `${size}: content uses the full width (${mainBox?.width} px)`);
 
     await page.getByRole("button", { name: "Graphics" }).tap();
-    check(await page.getByText("arrives in a later milestone").isVisible(), `${size}: Graphics shows a later-milestone note`);
+    await page.getByRole("tab", { name: "Site" }).waitFor({ timeout: 10000 });
+    check(await page.locator("svg.graphic").isVisible(), `${size}: Graphics shows the Site graphic`);
 
     await page.getByRole("button", { name: "Trends" }).tap();
     await page.locator(".hmi-trend-chart canvas").waitFor({ timeout: 10000 });

@@ -10,7 +10,7 @@ import { pinLogin, pinUsers } from "../commands/commandsApi";
 import { formatValue } from "../format";
 import { SetupError } from "../setup/api";
 
-function PinPad({ onDone }: { onDone: () => void }) {
+export function PinPad({ onDone }: { onDone: () => void }) {
   const [people, setPeople] = useState<{ username: string; dis: string }[] | null>(null);
   const [who, setWho] = useState<string | null>(null);
   const [pin, setPin] = useState("");

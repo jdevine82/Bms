@@ -34,12 +34,14 @@ milestone adds to it.
 
 - Discover, the 4-step wizard, the mapping table and CSV, device and equipment templates, test reads (`docs/specs/m5-setup.md`).
 - Export and import of a whole setup (web app and `setup.cli`).
+- Graphics: starting graphics from rooms and equipment (tags decide the symbols), Setup → Graphics (edit as JSON, check, save, make again), and that saving stops them following setup changes (`docs/specs/m9-graphics.md`, "How to set up graphics on a site"). The Equinor symbol licence and credit.
 
 ## Operating
 
 - Points and trends, CSV export of history (milestone 2), the HMI (milestone 3).
 - Commands: the Command button, set and hand mode, override times, release to auto, the hand-mode badge, write limits, confirm prompts; on the HMI, the PIN pad and Lock now (`docs/specs/m7-commands-schedules.md`).
 - Schedules: occupancy, the weekly pattern, holiday calendars, one-off exceptions and which wins, what a schedule applies to, occupancy values per point, hand mode during a schedule, the controller copy (write, check, keep the controller's times).
+- Graphics: the Site and room tabs, what each state looks like (Offline dashed, Fault flashing with !, Hand badge, On spinning), room colours, tapping a room or a symbol; on the HMI, the PIN first (`docs/specs/m9-graphics.md`).
 - Alarms: the header count, acknowledging with comments, history, the notifications log; what Info, Warning and Critical mean and who is told; why a Bad value does not raise a limit alarm.
 
 ## Bench and troubleshooting

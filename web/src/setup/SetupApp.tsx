@@ -8,6 +8,7 @@ import { UsersPage } from "../auth/UsersPage";
 import { DeviceTemplatesPage } from "./DeviceTemplatesPage";
 import { DiscoverPage } from "./DiscoverPage";
 import { EquipTemplatesPage } from "./EquipTemplatesPage";
+import { GraphicsSetupPage } from "./GraphicsSetupPage";
 import { ItemsPage } from "./ItemsPage";
 import { MappingPage } from "./MappingPage";
 import type { Section } from "./nav";
@@ -26,6 +27,7 @@ const SECTIONS: { key: Section; label: string; group: string }[] = [
   { key: "equipment", label: "Equipment", group: "Setup" },
   { key: "device-templates", label: "Device templates", group: "Templates" },
   { key: "equip-templates", label: "Equipment templates", group: "Templates" },
+  { key: "graphics", label: "Graphics", group: "Templates" },
   { key: "alarm-definitions", label: "Alarm definitions", group: "Alarms" },
   { key: "alarm-delivery", label: "Alarm delivery", group: "Alarms" },
   { key: "site", label: "Site and setup file", group: "Site" },
@@ -71,6 +73,7 @@ export function SetupApp() {
         {section === "equipment" && <ItemsPage key="equips" kind="equips" />}
         {section === "device-templates" && <DeviceTemplatesPage />}
         {section === "equip-templates" && <EquipTemplatesPage />}
+        {section === "graphics" && <GraphicsSetupPage />}
         {section === "site" && <SitePage />}
         {section === "alarm-definitions" && <AlarmDefinitionsPage />}
         {section === "alarm-delivery" && <DeliverySettingsPage />}

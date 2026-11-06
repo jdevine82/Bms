@@ -1,0 +1,104 @@
+/* Live graphics (milestone 9A). Named colours per theme; states never shown by colour alone. */
+:root {
+  --g-grey: #8a939e;
+  --g-blue: #2563c9;
+  --g-cyan: #0e7f8c;
+  --g-green: #17853f;
+  --g-amber: #b26b00;
+  --g-red: #c62828;
+  --g-off: #5b6470;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --g-grey: #6b7580;
+    --g-blue: #6ea8ff;
+    --g-cyan: #4fd1c5;
+    --g-green: #5fd08a;
+    --g-amber: #f0b85a;
+    --g-red: #ff6b61;
+    --g-off: #9aa4b0;
+  }
+}
+:root[data-theme="dark"] {
+  --g-grey: #6b7580;
+  --g-blue: #6ea8ff;
+  --g-cyan: #4fd1c5;
+  --g-green: #5fd08a;
+  --g-amber: #f0b85a;
+  --g-red: #ff6b61;
+  --g-off: #9aa4b0;
+}
+
+.graphics-page { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.hmi-graphics.graphics-page { padding: 0; }
+.graphic-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.graphic-tabs button {
+  flex: none; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 6px 14px; font: inherit; cursor: pointer; min-height: 36px;
+}
+.graphic-tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.graphic-frame {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  overflow-x: auto; padding: 8px;
+}
+svg.graphic { display: block; width: 100%; min-width: 640px; height: auto; font-family: inherit; }
+
+.g-text { fill: var(--text); font-weight: 600; }
+.g-value { fill: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
+.g-muted { fill: var(--text-muted); }
+
+/* Pipes and ducts */
+.g-line polyline { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.g-duct .g-line-base, .g-duct .g-line-fill { stroke-opacity: 0.45; }
+.g-line.no-data .g-line-base { stroke-dasharray: 10 8; stroke-opacity: 0.7; }
+.g-flow { stroke: var(--surface); stroke-opacity: 0.85; stroke-dasharray: 2 14; animation: g-flow 1s linear infinite; }
+@keyframes g-flow { to { stroke-dashoffset: -16; } }
+
+/* Rooms */
+.g-room rect { stroke-width: 2; fill-opacity: 0; }
+.g-room rect.banded { fill-opacity: 0.14; }
+.g-room-name { fill: var(--text); font-weight: 600; font-size: 16px; }
+.g-room-value { fill: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
+.tappable { cursor: pointer; }
+.tappable:focus { outline: none; }
+.tappable:focus-visible rect:first-child, .g-room.tappable:focus-visible rect { stroke: var(--accent); stroke-width: 3; }
+.g-room.tappable:hover rect { stroke-width: 3; }
+
+/* Symbols: the art takes the state colour through currentColor. */
+.g-symbol { color: var(--g-off); }
+.g-symbol.s-on { color: var(--g-green); }
+.g-symbol.s-manual { color: var(--g-amber); }
+.g-symbol.s-fault { color: var(--g-red); }
+.g-symbol.s-offline { color: var(--g-grey); }
+.g-hit { fill: transparent; stroke: none; }
+.g-symbol.tappable:hover .g-hit { fill: var(--muted-bg); }
+.g-symbol.tappable:focus-visible .g-hit { stroke: var(--accent); stroke-width: 2; }
+.g-rotor path { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.g-rotor, .g-spin-whole { transform-box: fill-box; transform-origin: center; }
+.g-symbol.spinning .g-rotor, .g-symbol.spinning .g-spin-whole { animation: g-spin 1.6s linear infinite; }
+@keyframes g-spin { to { transform: rotate(360deg); } }
+.g-level { fill: currentColor; fill-opacity: 0.35; }
+.g-offline { fill: none; stroke: var(--g-grey); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.g-symbol.s-fault .g-art { animation: g-flash 1s steps(2, jump-none) infinite; }
+@keyframes g-flash { 50% { opacity: 0.25; } }
+.g-badge circle { stroke: var(--surface); stroke-width: 2; }
+.g-badge text { font-size: 12px; font-weight: 700; }
+.g-badge-fault circle { fill: var(--g-red); }
+.g-badge-fault text { fill: #fff; }
+.g-badge-hand circle { fill: var(--g-amber); }
+.g-badge-hand text { font-size: 10px; }
+.g-label { fill: var(--text); font-size: 14px; }
+.g-state { fill: var(--text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.g-symbol.s-fault .g-state { fill: var(--g-red); font-weight: 600; }
+.g-symbol.s-manual .g-state { fill: var(--g-amber); }
+
+@media (prefers-reduced-motion: reduce) {
+  .g-flow, .g-symbol.spinning .g-rotor, .g-symbol.spinning .g-spin-whole { animation: none; }
+  .g-symbol.s-fault .g-art { animation: none; }
+}
+
+/* HMI: bigger tabs for touch; the graphic fits the screen. */
+.hmi-graphics .graphic-tabs button { min-height: 48px; padding: 8px 18px; font-size: 17px; }
+.hmi-graphics svg.graphic { min-width: 0; }
+.row-actions { white-space: nowrap; }
+.row-actions > * + * { margin-left: 8px; }
