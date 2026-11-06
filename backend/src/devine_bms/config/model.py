@@ -597,6 +597,47 @@ class TextItem(_Model):
 GraphicItem = Annotated[SymbolItem | ValueItem | LineItem | RoomItem | TextItem, Field(discriminator="type")]
 
 
+class GraphicBackground(_Model):
+    """An imported SVG drawn under everything else (milestone 9B), for example a floor plan."""
+
+    svg: str = Field(max_length=1024 * 1024)
+    x: float = 0
+    y: float = 0
+    w: float = Field(gt=0)
+    h: float = Field(gt=0)
+    opacity: float = Field(default=1, ge=0.05, le=1)
+
+
+class SymbolShape(_Model):
+    """A shape of a symbol drawn in the editor, on the 64 x 64 grid (milestone 9B)."""
+
+    type: Literal["line", "polyline", "rect", "circle", "text"]
+    layer: Literal["off", "on", "both"] = "both"
+    points: list[XY] = Field(default=[], max_length=200)  # line and polyline
+    x: float = 0
+    y: float = 0
+    w: float = 0
+    h: float = 0
+    r: float = 0
+    text: str = Field(default="", max_length=40)
+    size: float = Field(default=12, gt=0, le=64)
+    fill: bool = False
+
+
+class CustomSymbol(_Model):
+    """A site's own symbol (main spec 6.4, milestone 9B): drawn in the editor or imported.
+
+    `svg` is cleaned (graphics/sanitize.py) and has `state-off` and `state-on` groups."""
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$", max_length=60)
+    dis: str
+    category: str = "Site symbols"
+    kind: Literal["state", "position", "level", "value"] = "state"
+    animation: Literal["none", "spin", "flash"] = "none"  # for the On group
+    svg: str = Field(max_length=64 * 1024)
+    shapes: list[SymbolShape] | None = Field(default=None, max_length=300)  # drawn ones, to edit again
+
+
 class GraphicTab(_Model):
     order: int = Field(ge=0, le=10000)
 
@@ -611,6 +652,7 @@ class Graphic(_Model):
     width: float = Field(default=1000, gt=0, le=20000)
     height: float = Field(default=600, gt=0, le=20000)
     tab: GraphicTab | None = None
+    background: GraphicBackground | None = None  # milestone 9B
     items: list[GraphicItem] = Field(default=[], max_length=2000)
 
 
@@ -627,6 +669,7 @@ class SiteConfig(_Model):
     devices: list[Device] = []
     points: list[Point] = []
     graphics: list[Graphic] = []  # milestone 9
+    symbols: list[CustomSymbol] = []  # the site's own symbols (milestone 9B)
 
 
 def json_schema() -> dict[str, Any]:

@@ -92,7 +92,14 @@ svg.graphic { display: block; width: 100%; min-width: 640px; height: auto; font-
 .g-symbol.s-fault .g-state { fill: var(--g-red); font-weight: 600; }
 .g-symbol.s-manual .g-state { fill: var(--g-amber); }
 
+/* Site symbols: an Off group and an On group (milestone 9B). */
+.g-symbol:not(.running) .state-on { display: none; }
+.g-symbol.running .state-off { display: none; }
+.g-symbol.running.flash-on .state-on { animation: g-flash 1s steps(2, jump-none) infinite; }
+.g-background { pointer-events: none; }
+
 @media (prefers-reduced-motion: reduce) {
+  .g-symbol.running.flash-on .state-on { animation: none; }
   .g-flow, .g-symbol.spinning .g-rotor, .g-symbol.spinning .g-spin-whole { animation: none; }
   .g-symbol.s-fault .g-art { animation: none; }
 }

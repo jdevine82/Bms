@@ -9,6 +9,7 @@ import { DeviceTemplatesPage } from "./DeviceTemplatesPage";
 import { DiscoverPage } from "./DiscoverPage";
 import { EquipTemplatesPage } from "./EquipTemplatesPage";
 import { GraphicsSetupPage } from "./GraphicsSetupPage";
+import { GraphicEditor } from "../graphics/editor/GraphicEditor";
 import { ItemsPage } from "./ItemsPage";
 import { MappingPage } from "./MappingPage";
 import type { Section } from "./nav";
@@ -40,6 +41,11 @@ export function SetupApp() {
   const hash = useHash();
   const section = (SECTIONS.find((s) => s.key === hash.section)?.key ?? "commission") as Section;
   const groups = [...new Set(SECTIONS.map((s) => s.group))];
+  // The graphics editor takes the whole width (#/setup/graphics/<name>, or +new for a new one).
+  if (section === "graphics" && hash.rest[0]) {
+    const name = decodeURIComponent(hash.rest[0]);
+    return <GraphicEditor key={name} name={name === "+new" ? null : name} onClose={() => navigate("graphics")} />;
+  }
   return (
     <div className="setup">
       <nav className="setup-nav" aria-label="Setup">

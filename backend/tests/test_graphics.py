@@ -233,3 +233,141 @@ def test_published_schema_includes_graphics():
     schema = json.loads((Path(__file__).resolve().parents[2] / "config/schema/devine-bms-config-0.schema.json")
                         .read_text())
     assert "graphics" in schema["properties"]
+
+
+# ---------- milestone 9B: sanitising, custom symbols, backgrounds, tabs ----------
+
+from devine_bms.graphics.sanitize import SanitizeError, is_clean, sanitize  # noqa: E402
+
+EVIL = """<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="64" height="64" onload="alert(1)">
+ <metadata>editor data</metadata>
+ <script>alert(1)</script>
+ <style>@import url(http://evil/x.css);</style>
+ <defs><linearGradient id="grad"><stop offset="0" stop-color="red"/></linearGradient></defs>
+ <g inkscape:label="Off" inkscape:groupmode="layer"><rect x="1" y="1" width="10" height="10" fill="url(#grad)" onclick="x()"/></g>
+ <g id="on"><circle cx="5" cy="5" r="3" style="fill:red;background:url(http://evil/x.png)"/>
+   <animateTransform attributeName="transform" type="rotate" from="0 32 32" to="360 32 32" dur="1s" repeatCount="indefinite"/>
+   <set attributeName="href" to="javascript:alert(1)"/>
+   <text x="2" y="60">T <tspan>1</tspan> end</text>
+ </g>
+ <image xlink:href="http://evil/x.png"/>
+ <use xlink:href="#grad"/><use href="https://evil/#x"/>
+ <foreignObject><div>x</div></foreignObject>
+</svg>"""
+
+
+def test_sanitizing_removes_everything_unsafe_and_keeps_the_drawing():
+    c = sanitize(EVIL, "symbol", "my-pump")
+    lowered = c.svg.lower()
+    for bad in ("script", "onload", "onclick", "evil", "javascript", "foreignobject", "<image", "@import", "<style",
+                "metadata", "inkscape"):
+        assert bad not in lowered, bad
+    assert c.view_box == "0 0 64 64"  # from width and height
+    assert 'class="state-off"' in c.svg and 'class="state-on"' in c.svg
+    assert 'id="my-pump-grad"' in c.svg and 'fill="url(#my-pump-grad)"' in c.svg and 'href="#my-pump-grad"' in c.svg
+    assert "<animateTransform" in c.svg  # SMIL animation is allowed
+    assert "T <tspan>1</tspan> end</text>" in c.svg  # text is kept
+    assert {"<script>", "<image>", "<foreignObject>", "2 × event handlers"} <= set(c.removed)
+    # Cleaning is stable: a cleaned SVG is clean.
+    assert sanitize(c.svg, "symbol", "my-pump").svg == c.svg
+    assert is_clean(c.svg, "symbol", "my-pump") is None
+    assert is_clean(EVIL, "symbol", "my-pump") is not None
+
+
+@pytest.mark.parametrize("text, reason", [
+    ('<!DOCTYPE svg [<!ENTITY a "b">]><svg/>', "DOCTYPE"),
+    ("<html/>", "not an SVG"),
+    ("<svg", "not a readable SVG"),
+    ('<svg viewBox="0 0 10 10"><g id="off"/></svg>', "missing: on"),
+    ("<svg><g id='off'/><g id='on'/></svg>", "no viewBox"),
+    ('<svg viewBox="0 0 0 10"><g id="off"/><g id="on"/></svg>', "positive size"),
+])
+def test_sanitizing_refuses(text, reason):
+    with pytest.raises(SanitizeError, match=reason):
+        sanitize(text, "symbol", "x")
+
+
+def test_size_limits():
+    big = '<svg viewBox="0 0 10 10"><g id="off"/><g id="on"/>' + "<!--" + "x" * 70000 + "--></svg>"
+    with pytest.raises(SanitizeError, match="at most 64 KB"):
+        sanitize(big, "symbol", "x")
+    assert sanitize(big, "background", "bg").svg == '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><g id="bg-off" /><g id="bg-on" /></svg>'
+
+
+def _symbol(sym_id="my-fan"):
+    return {"id": sym_id, "dis": "My fan", "kind": "state", "animation": "spin",
+            "svg": sanitize('<svg viewBox="0 0 64 64"><g id="off"><circle cx="32" cy="32" r="20"/></g>'
+                            '<g id="on"><circle cx="32" cy="32" r="20" fill="currentColor"/></g></svg>',
+                            "symbol", sym_id).svg}
+
+
+def test_custom_symbols_and_backgrounds_in_the_checks():
+    data = site()
+    data["symbols"] = [_symbol(), {**_symbol("pump"), "dis": "Clash"},
+                       {**_symbol("dirty"), "svg": '<svg viewBox="0 0 64 64" onload="x()"><g id="off"/><g id="on"/></svg>'}]
+    data["graphics"] = [{"name": "g", "dis": "G", "kind": "system",
+                         "background": {"svg": "<svg viewBox='0 0 10 10'><script/></svg>", "w": 100, "h": 100},
+                         "items": [{"type": "symbol", "id": "f", "symbol": "my-fan", "x": 0, "y": 0}]}]
+    errors = errors_of(data)
+    assert "symbols.pump: 'pump' is a library symbol; give the site's symbol another ID" in errors
+    assert any(e.startswith("symbols.dirty: the symbol's SVG is refused") for e in errors)
+    assert any(e.startswith("graphics.g.background: the background is refused") for e in errors)
+    assert not any("my-fan" in e for e in errors)  # a graphic can use the site's symbol
+    data["symbols"] = [_symbol()]
+    data["graphics"][0]["background"]["svg"] = sanitize("<svg viewBox='0 0 10 10'><rect width='5' height='5'/></svg>",
+                                                        "background", "bg-g").svg
+    parse_config(data)
+
+
+@needs_db
+async def test_symbols_backgrounds_and_tabs_api():
+    from setup_helpers import running_stack
+
+    async for s in running_stack(site()):
+        client = s["client"]
+        cleaned = (await client.post("/api/setup/graphics/sanitize", json={"svg": EVIL, "purpose": "symbol",
+                                                                           "prefix": "imp"})).json()
+        assert "script" not in cleaned["svg"] and cleaned["viewBox"] == "0 0 64 64" and "<script>" in cleaned["removed"]
+        refused = await client.post("/api/setup/graphics/sanitize", json={"svg": "<html/>", "purpose": "symbol"})
+        assert refused.status_code == 422 and "not an SVG" in refused.json()["error"]
+
+        # A symbol sent as the file was read is cleaned before it is saved.
+        put = (await client.put("/api/setup/graphics/symbols/imported-pump",
+                                json={"dis": "Imported pump", "svg": EVIL, "animation": "spin"})).json()
+        assert put["applied"], put
+        lib = {x["id"]: x for x in (await client.get("/api/graphics/library")).json()}
+        assert lib["imported-pump"]["source"] == "site" and "onload" not in lib["imported-pump"]["svg"]
+        assert 'id="imported-pump-grad"' in lib["imported-pump"]["svg"] and "pump" in lib  # library ones too
+        clash = await client.put("/api/setup/graphics/symbols/pump", json={"dis": "x", "svg": EVIL})
+        assert clash.status_code == 422
+
+        # A graphic using it, with a background, saved; the background is cleaned too.
+        g = {"name": "custom", "dis": "Custom", "kind": "system", "tab": {"order": 500},
+             "background": {"svg": "<svg width='200' height='100'><rect width='10' height='10' onclick='x()'/></svg>",
+                            "w": 1000, "h": 500, "opacity": 0.4},
+             "items": [{"type": "symbol", "id": "p", "symbol": "imported-pump", "x": 100, "y": 100}]}
+        assert (await client.put("/api/setup/graphics/custom", json=g)).json()["applied"]
+        saved = next(x for x in (await client.get("/api/graphics")).json()["graphics"] if x["name"] == "custom")
+        assert "onclick" not in saved["background"]["svg"] and 'viewBox="0 0 200 100"' in saved["background"]["svg"]
+        exported = (await client.get("/api/setup/config")).json()
+        assert [x["id"] for x in exported["symbols"]] == ["imported-pump"]
+
+        in_use = await client.delete("/api/setup/graphics/symbols/imported-pump")
+        assert in_use.status_code == 422 and "still used on Custom" in in_use.json()["error"]
+
+        # Tabs in one step: these, in this order; the rest stop being tabs.
+        r = (await client.put("/api/setup/graphics-tabs", json={"order": ["site", "custom", "room_office"]})).json()
+        assert r["applied"], r
+        graphics = (await client.get("/api/graphics")).json()["graphics"]
+        assert [(x["name"], x.get("tab")) for x in graphics][:3] == [
+            ("site", {"order": 0}), ("custom", {"order": 10}), ("room_office", {"order": 20})]
+        assert all("tab" not in x for x in graphics[3:])
+        bad = await client.put("/api/setup/graphics-tabs", json={"order": ["site", "nope"]})
+        assert bad.status_code == 422
+
+        # Once unused, it can be removed.
+        g["items"] = []
+        await client.put("/api/setup/graphics/custom", json=g)
+        assert (await client.delete("/api/setup/graphics/symbols/imported-pump")).json()["applied"]

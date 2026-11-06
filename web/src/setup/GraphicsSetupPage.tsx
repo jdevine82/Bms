@@ -3,7 +3,9 @@
 import { useState } from "react";
 import type { Graphic } from "../graphics/graphicsApi";
 import { getGraphics } from "../graphics/graphicsApi";
+import { SymbolsPanel } from "../graphics/editor/SymbolsPanel";
 import { del, post, put } from "./api";
+import { navigate } from "./nav";
 import type { Outcome } from "./ui";
 import { ActionButton, OutcomeBox, outcomeFrom, useLoad } from "./ui";
 
@@ -60,6 +62,7 @@ export function GraphicsSetupPage() {
               <td>{g.tab ? g.tab.order : "not a tab"}</td>
               <td>{g.items.length}</td>
               <td className="row-actions">
+                <button type="button" className="link" onClick={() => navigate("graphics", g.name)}>Open in editor</button>
                 <button type="button" className="link" onClick={() => {
                   setOutcome(null);
                   setEditing({ name: g.name, text: JSON.stringify(g, null, 2) });
@@ -80,8 +83,9 @@ export function GraphicsSetupPage() {
         </tbody>
       </table>
       <div className="actions">
+        <button type="button" className="btn primary" onClick={() => navigate("graphics", "+new")}>New graphic</button>
         <ActionButton onClick={() => { setOutcome(null); setEditing({ name: null, text: JSON.stringify(NEW, null, 2) }); }}>
-          Add a graphic
+          Add a graphic as JSON
         </ActionButton>
         <ActionButton onClick={async () => {
           if (list.data?.source === "setup" &&
@@ -95,6 +99,8 @@ export function GraphicsSetupPage() {
         }}>Make starting graphics again</ActionButton>
       </div>
       <OutcomeBox outcome={outcome} />
+      {graphics.length > 0 && <TabOrder graphics={graphics} onSaved={async (m) => { setOutcome(m); await list.reload(); }} />}
+      <SymbolsPanel />
       {editing && (
         <div className="form">
           <div className="form-row">
@@ -112,6 +118,57 @@ export function GraphicsSetupPage() {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+/** Which graphics are tabs, and their order, in one step (Site first by convention). */
+function TabOrder({ graphics, onSaved }: { graphics: Graphic[]; onSaved: (o: Outcome) => Promise<void> }) {
+  const initial = graphics.filter((g) => g.tab).map((g) => g.name);
+  const [order, setOrder] = useState<string[] | null>(null);
+  const current = order ?? initial;
+  const others = graphics.filter((g) => !current.includes(g.name));
+  const dis = (name: string) => graphics.find((g) => g.name === name)?.dis ?? name;
+  const moveBy = (i: number, d: number) => {
+    const next = [...current];
+    [next[i], next[i + d]] = [next[i + d], next[i]];
+    setOrder(next);
+  };
+  return (
+    <section aria-labelledby="tabs-h">
+      <h3 id="tabs-h">Tab order</h3>
+      <ol className="tab-order" aria-label="Tabs in order">
+        {current.map((name, i) => (
+          <li key={name}>
+            <span>{dis(name)}</span>
+            <button type="button" className="link" disabled={i === 0} aria-label={`Move ${dis(name)} up`} onClick={() => moveBy(i, -1)}>↑</button>
+            <button type="button" className="link" disabled={i === current.length - 1} aria-label={`Move ${dis(name)} down`}
+                    onClick={() => moveBy(i, 1)}>↓</button>
+            <button type="button" className="link" aria-label={`Not a tab: ${dis(name)}`}
+                    onClick={() => setOrder(current.filter((n) => n !== name))}>Not a tab</button>
+          </li>
+        ))}
+      </ol>
+      {others.length > 0 && (
+        <p className="muted small">
+          Not tabs:{" "}
+          {others.map((g, i) => (
+            <span key={g.name}>
+              {i > 0 && ", "}
+              <button type="button" className="link" onClick={() => setOrder([...current, g.name])}>{g.dis} (make a tab)</button>
+            </span>
+          ))}
+        </p>
+      )}
+      <div className="actions">
+        <ActionButton disabled={order === null} onClick={async () => {
+          try {
+            await put("/api/setup/graphics-tabs", { order: current });
+            setOrder(null);
+            await onSaved({ kind: "ok", message: "Saved the tab order; it is live." });
+          } catch (e) { await onSaved(outcomeFrom(e)); }
+        }}>Save tab order</ActionButton>
+      </div>
     </section>
   );
 }

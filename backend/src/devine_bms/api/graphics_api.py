@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse
 
 from devine_bms.api.auth_api import require
 from devine_bms.auth.service import Actor
-from devine_bms.graphics.library import library
 from devine_bms.graphics.service import GraphicsService
 from devine_bms.setup.service import SetupError, SetupService
 
@@ -32,14 +31,41 @@ def build_graphics_router(get_setup: Callable[[], SetupService | None]) -> APIRo
             return JSONResponse(exc.as_dict(), status_code=exc.status)
 
     @router.get("/api/graphics/library")
-    async def symbols(request: Request) -> Any:
+    async def symbols(request: Request, svc: GraphicsService = Depends(graphics)) -> Any:
         require("viewer")(request)
-        return library()
+        return await run(svc.library())
 
     @router.get("/api/graphics")
     async def list_graphics(request: Request, svc: GraphicsService = Depends(graphics)) -> Any:
         require("viewer")(request)
         return await run(svc.list())
+
+    # Fixed paths before /api/setup/graphics/{name}.
+    @router.post("/api/setup/graphics/sanitize")
+    async def clean(body: dict = Body(...), _: Actor = Depends(require("admin")),
+                    svc: GraphicsService = Depends(graphics)) -> Any:
+        try:
+            return svc.clean(body)
+        except SetupError as exc:
+            return JSONResponse(exc.as_dict(), status_code=exc.status)
+
+    @router.put("/api/setup/graphics/symbols/{symbol_id}")
+    async def put_symbol(symbol_id: str, body: dict = Body(...), check: bool = False,
+                         client: Actor = Depends(require("admin")), svc: GraphicsService = Depends(graphics)) -> Any:
+        return await run(svc.put_symbol(symbol_id, body, client, check))
+
+    @router.delete("/api/setup/graphics/symbols/{symbol_id}")
+    async def delete_symbol(symbol_id: str, client: Actor = Depends(require("admin")),
+                            svc: GraphicsService = Depends(graphics)) -> Any:
+        return await run(svc.delete_symbol(symbol_id, client))
+
+    @router.put("/api/setup/graphics-tabs")
+    async def put_tabs(body: dict = Body(...), client: Actor = Depends(require("admin")),
+                       svc: GraphicsService = Depends(graphics)) -> Any:
+        order = body.get("order")
+        if not isinstance(order, list) or not all(isinstance(n, str) for n in order):
+            return JSONResponse({"ok": False, "error": "send {order: [graphic names]}"}, status_code=422)
+        return await run(svc.put_tabs(order, client))
 
     @router.put("/api/setup/graphics/{name}")
     async def put(name: str, body: dict = Body(...), check: bool = False, client: Actor = Depends(require("admin")),

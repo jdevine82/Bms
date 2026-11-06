@@ -88,6 +88,8 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
         data["bacnet"] = dict(site.settings["bacnet"])
     if site.settings.get("equipTemplates"):
         data["equipTemplates"] = list(site.settings["equipTemplates"])
+    if site.settings.get("symbols"):
+        data["symbols"] = list(site.settings["symbols"])
     if site.settings.get("graphics"):
         data["graphics"] = list(site.settings["graphics"])
     return data
