@@ -11,6 +11,8 @@ export interface Me {
   totp: boolean;
   kiosk?: boolean;
   totpSetupNeeded?: boolean;
+  pin?: boolean;
+  pinSession?: boolean;
 }
 
 export interface AuthState {
@@ -26,6 +28,7 @@ export interface UserRow {
   platform: boolean;
   enabled: boolean;
   totp: boolean;
+  pin?: boolean;
   locked: boolean;
   lockedUntil: string | null;
   lastLogin: string | null;

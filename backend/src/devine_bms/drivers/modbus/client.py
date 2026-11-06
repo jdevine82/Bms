@@ -131,6 +131,38 @@ class ModbusClient:
         text = lambda key: info[key].decode("utf-8", "replace").strip() if isinstance(info.get(key), bytes) else None  # noqa: E731
         return {k: v for k, v in {"vendor": text(0), "productCode": text(1), "revision": text(2)}.items() if v}
 
+    async def write(self, unit_id: int, object_type: ObjectType, address: int, values: list[int] | bool) -> None:
+        """A command (milestone 7A): one coil (function 05), or holding registers (06 for one,
+        16 for several). Errors as for reads."""
+        if not self._client.connected and not await self.connect():
+            raise BusDown(f"cannot connect to {self.where}")
+        try:
+            if object_type == ObjectType.COIL:
+                result = await self._client.write_coil(address, bool(values), device_id=unit_id)
+            elif object_type == ObjectType.HOLDING_REGISTER:
+                if len(values) == 1:
+                    result = await self._client.write_register(address, values[0], device_id=unit_id)
+                else:
+                    result = await self._client.write_registers(address, list(values), device_id=unit_id)
+            else:
+                raise DeviceFault(f"{object_type} cannot be written")
+        except ConnectionException as exc:
+            self.close()
+            raise BusDown(f"connection lost to {self.where}: {exc}") from exc
+        except ModbusIOException as exc:
+            if not self.shared:
+                self.close()
+            raise DeviceDown(f"no answer: {exc}") from exc
+        except ModbusException as exc:
+            self.close()
+            raise BusDown(f"Modbus error on {self.where}: {exc}") from exc
+        except OSError as exc:
+            self.close()
+            raise BusDown(f"connection error on {self.where}: {exc}") from exc
+        if result.isError():
+            code = getattr(result, "exception_code", None)
+            raise DeviceFault(f"Modbus exception {code} ({EXCEPTION_NAMES.get(code, 'unknown')})")
+
     async def read(self, unit_id: int, object_type: ObjectType, address: int, count: int) -> list[int] | list[bool]:
         if not self._client.connected and not await self.connect():
             raise BusDown(f"cannot connect to {self.where}")

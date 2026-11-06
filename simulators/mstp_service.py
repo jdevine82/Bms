@@ -27,6 +27,11 @@ class SimMstpDevice:
     flags: dict[tuple[int, int], list[bool]] = field(default_factory=dict)
     mode: str = "normal"
     vendor: int = 260
+    # WriteProperty (milestone 7A): (type, instance) -> {priority: value}; the highest set
+    # priority gives the present value, else the relinquish default (the starting value).
+    priorities: dict[tuple[int, int], dict[int, object]] = field(default_factory=dict)
+    defaults: dict[tuple[int, int], object] = field(default_factory=dict)
+    writes: list[tuple] = field(default_factory=list)
 
 
 class MstpServiceStandIn:
@@ -90,7 +95,34 @@ class MstpServiceStandIn:
             ]}
         if command == "READ":
             return await self._read(request_id, args)
-        return {"id": request_id, "ok": False, "error": "unknown request; use PING, STATS, WHOIS or READ"}
+        if command == "WRITE":
+            return await self._write(request_id, args)
+        return {"id": request_id, "ok": False, "error": "unknown request; use PING, STATS, WHOIS, READ or WRITE"}
+
+    async def _write(self, request_id: str, args: list[str]) -> dict:
+        """WRITE <mac> <type>:<instance>:<property> <priority> <tag> <value>, as the real service."""
+        mac = int(args[0])
+        device = self.devices.get(mac)
+        if device is None or device.mode == "silent":
+            await asyncio.sleep(self.timeout_s)
+            return {"id": request_id, "ok": False, "error": "no answer (timeout)"}
+        obj_type, instance, prop = (int(x) for x in args[1].split(":"))
+        priority, tag, raw = int(args[2]), args[3], args[4]
+        key = (obj_type, instance)
+        if key not in device.objects:
+            return {"id": request_id, "ok": False, "error": "BACnet error object: unknown-object"}
+        if obj_type in (0, 3, 13) or prop != PRESENT_VALUE:  # inputs are not writable
+            return {"id": request_id, "ok": False, "error": "BACnet error property: write-access-denied"}
+        value = None if tag == "null" else float(raw) if tag == "real" else int(raw)
+        device.writes.append((key, priority, value))
+        device.defaults.setdefault(key, device.objects[key])
+        slots = device.priorities.setdefault(key, {})
+        if value is None:
+            slots.pop(priority, None)
+        else:
+            slots[priority or 16] = value
+        device.objects[key] = slots[min(slots)] if slots else device.defaults[key]
+        return {"id": request_id, "ok": True}
 
     async def _read(self, request_id: str, args: list[str]) -> dict:
         mac = int(args[0])

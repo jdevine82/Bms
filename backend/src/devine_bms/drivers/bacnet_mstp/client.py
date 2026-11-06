@@ -110,6 +110,20 @@ class MstpServiceClient:
             raise DeviceFault(answer.get("error", "Who-Is failed"))
         return answer["devices"]
 
+    async def write(self, mac: int, obj_type: int, instance: int, prop: int, priority: int, tag: str,
+                    value: Any) -> None:
+        """WriteProperty (milestone 7A). tag: real, enum, unsigned, or null to release `priority`."""
+        args = f"{mac} {obj_type}:{instance}:{prop} {priority} {tag} {'-' if value is None else value}"
+        answer = await self.request("WRITE", args)
+        if answer.get("ok"):
+            return
+        error = answer.get("error", "unknown error")
+        if "timeout" in error:
+            raise DeviceDown(f"no answer from MAC {mac} ({error})")
+        if error.startswith("busy"):
+            raise DeviceDown(f"bms-mstp is busy: {error}")
+        raise DeviceFault(error)
+
     async def read(self, mac: int, refs: list[tuple[int, int, int]]) -> list[dict[str, Any]]:
         """ReadPropertyMultiple of (object type, instance, property) at a MAC address."""
         args = f"{mac} " + " ".join(f"{t}:{i}:{p}" for t, i, p in refs)

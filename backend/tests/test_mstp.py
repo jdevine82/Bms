@@ -57,7 +57,8 @@ def config(service: str, port: str = "/dev/bms-rs485-2") -> dict:
         ],
         "points": [
             point("room_temp", "ctrl5", "analogInput", 1, "Number", unit="°C"),
-            point("sp", "ctrl5", "analogValue", 1, "Number", poll="normal", type_="sp", unit="°C"),
+            {**point("sp", "ctrl5", "analogValue", 1, "Number", poll="normal", type_="sp", unit="°C"),
+             "writeLimits": {"min": 15, "max": 30}},
             point("fan_status", "ctrl5", "binaryInput", 1, "Bool"),
             point("fan_cmd", "ctrl5", "binaryOutput", 1, "Bool", poll="normal", type_="cmd"),
             point("mode", "ctrl5", "multiStateValue", 1, "Str", poll="normal", type_="sp",

@@ -62,6 +62,8 @@ class Site(Base):
     # Alarm delivery: channels per level, SMTP, ClickSend, ntfy and the recipient list (6B).
     # Personal data, kept on the site server only and not in the config file (main spec 5.5.1).
     alarm_settings: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # Override times offered to operators (7A): {"choicesH": [1, 2, 8], "defaultH": 2}.
+    command_settings: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     updated_at: Mapped[datetime] = _updated()
 
 
@@ -184,6 +186,7 @@ class Point(Base):
     stale_after_s: Mapped[float | None] = mapped_column(Double)
     his: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     alarms: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")  # milestone 6B
+    write_limits: Mapped[dict | None] = mapped_column(JSONB)  # milestone 7A
     # False when the point is no longer in the config file. History is kept.
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     updated_at: Mapped[datetime] = _updated()
@@ -257,6 +260,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     totp_secret: Mapped[str | None] = mapped_column(String(64))  # set once 2FA is confirmed
     totp_pending: Mapped[str | None] = mapped_column(String(64))  # during 2FA set-up
+    pin_hash: Mapped[str | None] = mapped_column(Text)  # HMI PIN (milestone 7A), separate from the password
     failed_logins: Mapped[int] = mapped_column(nullable=False, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -273,6 +277,7 @@ class UserSession(Base):
                                                index=True)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     client: Mapped[str] = mapped_column(String(64), nullable=False)
+    kind: Mapped[str] = mapped_column(String(8), nullable=False, server_default="web")  # web, or pin (HMI)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -351,3 +356,16 @@ class AlarmDelivery(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(),
                                                  index=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PointOverride(Base):
+    """A hand-mode override in force (main spec 5.6): it ends at `ends_at` and the point returns
+    to auto. Stored so it survives a restart."""
+
+    __tablename__ = "point_override"
+    point_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("point.id", ondelete="CASCADE"), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSONB, nullable=False)  # {"v": value}
+    previous: Mapped[dict] = mapped_column(JSONB, nullable=False)  # {"v": value before, or null}
+    set_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

@@ -19,6 +19,15 @@ export async function signIn(page, url) {
     await page.getByLabel("User name").fill(TEST_USER);
     await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
     await login.click();
+    // Logins are rate-limited per address (10 a minute, milestone 6A); test runs back to back
+    // from one machine can reach it, so wait it out once.
+    const limited = page.getByText(/Too many login attempts/);
+    const done = page.getByRole("button", { name: "Sign out", exact: true });
+    await Promise.race([limited.waitFor({ timeout: 15000 }), done.waitFor({ timeout: 15000 })]);
+    if (await limited.isVisible()) {
+      await page.waitForTimeout(61000);
+      await login.click();
+    }
   }
   await page.getByRole("button", { name: "Sign out", exact: true }).waitFor({ timeout: 15000 });
 }

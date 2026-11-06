@@ -4,6 +4,7 @@ import type { Outcome } from "../setup/ui";
 import { ActionButton, Badge, OutcomeBox, outcomeFrom, useLoad } from "../setup/ui";
 import { useAuth } from "./AuthGate";
 import type { Role, UserRow } from "./authApi";
+import { removeUserPin } from "../commands/commandsApi";
 import { addUser, changeUser, listUsers, removeUser, resetTotp, setUserPassword, unlockUser } from "./authApi";
 
 const ROLE_TEXT: Record<Role, string> = {
@@ -97,6 +98,7 @@ export function UsersPage() {
               <input type="password" aria-label="New password" placeholder="New password" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
               <ActionButton disabled={!newPw} onClick={() => act(async () => { await setUserPassword(u.username, newPw); setNewPw(""); }, "Password set; they were signed out.")}>Set password</ActionButton>
             </div>
+            {u.pin && <ActionButton onClick={() => act(() => removeUserPin(u.username), "HMI PIN removed.")}>Remove HMI PIN</ActionButton>}
             {u.totp && <ActionButton onClick={() => act(() => resetTotp(u.username), "2FA removed; they can set it up again.")}>Remove 2FA (lost phone)</ActionButton>}
             {u.username !== me.username && (
               <ActionButton danger onClick={async () => {

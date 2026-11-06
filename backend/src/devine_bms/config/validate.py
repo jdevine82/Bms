@@ -236,6 +236,7 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
         if point.kind == Kind.STR and not point.enum:
             error(where, "Str points need an 'enum' list")
         _check_alarms(where, point.kind, point.enum, point.alarms, error)
+        _check_writes(where, point, warning, error)
         if isinstance(point.address, ModbusAddress):
             _check_modbus_point(where, point, error)
         elif isinstance(point.address, BacnetAddress):
@@ -248,6 +249,34 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             warning(where, f"name does not follow <room>_<equipment>_<function>; expected it to start '{prefix}'")
 
     return issues
+
+
+def writable(point) -> bool:
+    """Whether commands can be written to this point (milestone 7A): a setpoint or command whose
+    address can be written (Modbus coils and holding registers; BACnet value and output objects;
+    MQTT with a command topic)."""
+    if point.type.value not in ("sp", "cmd"):
+        return False
+    a = point.address
+    if isinstance(a, ModbusAddress):
+        return a.object_type.value in ("coil", "holdingRegister")
+    if isinstance(a, BacnetAddress):
+        return not a.object_type.value.endswith("Input")
+    return bool(a.command_topic)
+
+
+def _check_writes(where: str, point, warning, error) -> None:
+    if point.write_limits is not None and point.kind != Kind.NUMBER:
+        error(where, "write limits are for Number points")
+    if point.write_limits is not None and point.type.value == "sensor":
+        error(where, "a sensor is never written, so it has no write limits")
+    if isinstance(point.address, MqttAddress) and point.address.command_topic:
+        if any(c in point.address.command_topic for c in "+#"):
+            error(where, "the command topic cannot have wildcards")
+        if point.type.value == "sensor":
+            error(where, "a sensor has no command topic")
+    if writable(point) and point.kind == Kind.NUMBER and point.write_limits is None:
+        warning(where, "a writable Number point needs write limits before it can be commanded (main spec 5.6)")
 
 
 def _check_alarms(where: str, kind, enum, alarms, error) -> None:

@@ -32,6 +32,16 @@ export interface Point {
   his: boolean;
   pollClass: string;
   cur: LiveValue;
+  writable?: boolean; // milestone 7A: can be commanded
+  writeLimits?: { min: number; max: number } | null;
+  override?: Override | null;
+}
+
+export interface Override {
+  value: number | boolean | string;
+  setBy: string;
+  setAt: string;
+  endsAt: string;
 }
 
 export interface Site {

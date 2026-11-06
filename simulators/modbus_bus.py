@@ -25,6 +25,10 @@ Meter register map (holding registers; FC04 returns the same values):
     wire 6    int16    big-endian, scale 0.001             power factor
     wire 8-9  uint32   big-endian bytes, LOW word first,   import energy, kWh
                        scale 0.1
+    wire 20-23         writable (FC06 and FC16), kept as written: setpoints for command
+                       tests (milestone 7A), for example a float32 demand limit at 20-21
+
+Writes: FC05 sets a coil on the I/O module; FC06 and FC16 write the meter's registers 20 to 23.
 
 Fault modes, for the whole bus (`bus.mode`) or one device (`bus.unit_modes[id]`):
 
@@ -49,6 +53,9 @@ FC_READ_COILS = 0x01
 FC_READ_DISCRETE = 0x02
 FC_READ_HOLDING = 0x03
 FC_READ_INPUT = 0x04
+FC_WRITE_COIL = 0x05
+FC_WRITE_REGISTER = 0x06
+FC_WRITE_REGISTERS = 0x10
 FC_DEVICE_ID = 0x2B  # Read Device Identification (MEI type 0x0E)
 EXC_ILLEGAL_FUNCTION = 0x01
 EXC_ILLEGAL_ADDRESS = 0x02
@@ -87,7 +94,7 @@ def uint32_low_word_first(value: int) -> list[int]:
 class MeterModel:
     """Produces realistic-looking meter values."""
 
-    register_count = 16
+    register_count = 24
     bit_counts: dict[int, int] = {}
     # Answers Read Device Identification: vendor, product code, revision.
     identity = ("Devine BMS simulator", "SIM-METER", "1.0")
@@ -99,6 +106,7 @@ class MeterModel:
         self.current_a = 0.0
         self.power_factor = 0.0
         self.energy_kwh = start_energy_kwh
+        self.writable = [0] * 4  # wire 20-23
         self._last = time.monotonic()
         self.update()
 
@@ -121,7 +129,14 @@ class MeterModel:
         regs[4:6] = float32_high_word_first(self.current_a)
         regs[6] = int16(round(self.power_factor * 1000))
         regs[8:10] = uint32_low_word_first(int(self.energy_kwh * 10))
+        regs[20:24] = self.writable
         return regs
+
+    def write_registers(self, address: int, values: list[int]) -> bool:
+        if address < 20 or address + len(values) > 24:
+            return False
+        self.writable[address - 20 : address - 20 + len(values)] = values
+        return True
 
     def bits(self, function: int) -> list[bool]:
         return []
@@ -131,7 +146,7 @@ class IoModuleModel:
     """8 discrete inputs (DI0-DI7, FC02) and 18 coils (DO0-DO17, FC01), like the H1 module.
 
     Inputs follow a slow repeating pattern so changes are visible; coils keep the
-    states the test sets in `coils` (the BMS does not write yet).
+    states the BMS writes (FC05) or a test sets in `coils`.
     """
 
     register_count = 0
@@ -180,6 +195,7 @@ class ModbusSimulator:
         self.mode = "normal"
         self.unit_modes: dict[int, str] = {}
         self.requests_served = 0
+        self.writes: list[bytes] = []  # write requests received (milestone 7A)
         self._server: asyncio.base_events.Server | None = None
         self._updater: asyncio.Task | None = None
         self._writers: set[asyncio.StreamWriter] = set()
@@ -273,6 +289,31 @@ class ModbusSimulator:
             self._writers.discard(writer)
             writer.close()
 
+    def _write(self, model, mode: str, pdu: bytes) -> bytes:
+        """FC05, FC06 and FC16. The answer echoes the request, as the standard says."""
+        function = pdu[0]
+        if mode == "exception":
+            return bytes([function | 0x80, EXC_DEVICE_FAILURE])
+        self.writes.append(pdu)
+        if function == FC_WRITE_COIL:
+            address, value = struct.unpack(">HH", pdu[1:5])
+            coils = getattr(model, "coils", None)
+            if coils is None or address >= len(coils) or value not in (0x0000, 0xFF00):
+                return bytes([function | 0x80, EXC_ILLEGAL_ADDRESS])
+            coils[address] = value == 0xFF00
+            return pdu[:5]
+        writer = getattr(model, "write_registers", None)
+        if function == FC_WRITE_REGISTER:
+            address, value = struct.unpack(">HH", pdu[1:5])
+            if writer is None or not writer(address, [value]):
+                return bytes([function | 0x80, EXC_ILLEGAL_ADDRESS])
+            return pdu[:5]
+        address, count, size = struct.unpack(">HHB", pdu[1:6])
+        values = list(struct.unpack(f">{count}H", pdu[6 : 6 + size]))
+        if writer is None or not writer(address, values):
+            return bytes([function | 0x80, EXC_ILLEGAL_ADDRESS])
+        return pdu[:5]
+
     def handle_pdu(self, unit_id: int, pdu: bytes) -> bytes | None:
         """Return the response PDU for a request PDU, or None to stay silent."""
         model = self.units.get(unit_id)
@@ -288,6 +329,8 @@ class ModbusSimulator:
                 return bytes([function | 0x80, EXC_ILLEGAL_FUNCTION])
             objects = b"".join(bytes([i, len(v)]) + v.encode() for i, v in enumerate(identity))
             return bytes([function, 0x0E, pdu[2], 0x01, 0x00, 0x00, len(identity)]) + objects
+        if function in (FC_WRITE_COIL, FC_WRITE_REGISTER, FC_WRITE_REGISTERS):
+            return self._write(model, mode, pdu)
         if function not in (FC_READ_COILS, FC_READ_DISCRETE, FC_READ_HOLDING, FC_READ_INPUT):
             return bytes([function | 0x80, EXC_ILLEGAL_FUNCTION])
         if len(pdu) != 5:

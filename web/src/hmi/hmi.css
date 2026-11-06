@@ -311,3 +311,72 @@
   color: #9aa4b0;
   font-size: 14px;
 }
+
+/* Setpoints tab and the PIN pad (milestone 7A). */
+.hmi-lockbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 17px;
+}
+
+.hmi-lockbar button,
+.hmi-sp-change,
+.hmi-pin button {
+  min-height: 56px;
+  min-width: 120px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid #3a4350;
+  background: #232a32;
+  color: #e8ebef;
+  font: inherit;
+  font-size: 18px;
+}
+
+.hmi-sp-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  border-bottom: 1px solid #262c34;
+  font-size: 18px;
+}
+
+.hmi-sp-value {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.hmi-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hmi-pin-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.hmi-pin-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 110px);
+  gap: 10px;
+}
+
+.hmi-pin-dots {
+  font-size: 28px;
+  letter-spacing: 8px;
+  min-height: 36px;
+}
+
+.hmi-pin-error {
+  color: #ff8a80;
+}

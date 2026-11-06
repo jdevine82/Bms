@@ -39,7 +39,11 @@
       },
       "required": false,
       "pollClass": "normal",
-      "unit": "%"
+      "unit": "%",
+      "writeLimits": {
+        "min": 0,
+        "max": 100
+      }
     },
     {
       "role": "alarm",

@@ -22,7 +22,8 @@ from devine_bms.auth.service import RANK, Actor, AuthError, AuthService
 from devine_bms.db import models as db
 
 COOKIE = "bms_session"
-PUBLIC = {"/api/health", "/api/auth/state", "/api/auth/login", "/api/auth/first-admin"}
+PUBLIC = {"/api/health", "/api/auth/state", "/api/auth/login", "/api/auth/first-admin", "/api/auth/pin-users",
+          "/api/auth/pin"}
 
 
 def client_ip(peer: str | None, forwarded: str | None) -> str:
@@ -143,6 +144,21 @@ def build_auth_router(get_auth: Callable[[], AuthService | None]) -> APIRouter:
         await svc.logout(actor_of(request), everywhere=bool(body.get("everywhere")))
         return with_cookie(request, {"ok": True}, None)
 
+    # ---------- HMI PIN (milestone 7A) ----------
+
+    @router.get("/api/auth/pin-users")
+    async def pin_users(request: Request, svc: AuthService = Depends(auth)) -> Any:
+        return await run(svc.pin_users(request_client(request)))
+
+    @router.post("/api/auth/pin")
+    async def pin_login(request: Request, body: dict = Body(...), svc: AuthService = Depends(auth)) -> Any:
+        try:
+            user, token = await svc.pin_login(request_client(request), str(body.get("username", "")),
+                                              str(body.get("pin", "")))
+        except AuthError as exc:
+            return JSONResponse(exc.as_dict(), status_code=exc.status)
+        return with_cookie(request, {"ok": True, "user": user}, token)
+
     # ---------- own account ----------
 
     @router.get("/api/auth/me")
@@ -158,6 +174,14 @@ def build_auth_router(get_auth: Callable[[], AuthService | None]) -> APIRouter:
     async def own_password(body: dict = Body(...), actor: Actor = Depends(person),
                            svc: AuthService = Depends(auth)) -> Any:
         return await run(_ok(svc.change_own_password(actor, body.get("current", ""), body.get("password", ""))))
+
+    @router.post("/api/auth/me/pin")
+    async def own_pin(body: dict = Body(...), actor: Actor = Depends(person), svc: AuthService = Depends(auth)) -> Any:
+        return await run(_ok(svc.set_pin(actor, str(body.get("pin", "")), str(body.get("password", "")))))
+
+    @router.post("/api/auth/me/pin/remove")
+    async def own_pin_remove(actor: Actor = Depends(person), svc: AuthService = Depends(auth)) -> Any:
+        return await run(_ok(svc.remove_pin(actor)))
 
     @router.post("/api/auth/me/totp")
     async def totp_begin(actor: Actor = Depends(person), svc: AuthService = Depends(auth)) -> Any:
@@ -202,6 +226,10 @@ def build_auth_router(get_auth: Callable[[], AuthService | None]) -> APIRouter:
     @router.post("/api/users/{username}/unlock")
     async def unlock(username: str, actor: Actor = Depends(admin), svc: AuthService = Depends(auth)) -> Any:
         return await run(_ok(svc.unlock(actor, username)))
+
+    @router.post("/api/users/{username}/pin/remove")
+    async def reset_pin(username: str, actor: Actor = Depends(admin), svc: AuthService = Depends(auth)) -> Any:
+        return await run(_ok(svc.remove_pin(actor, username)))
 
     @router.post("/api/users/{username}/totp/remove")
     async def reset_totp(username: str, actor: Actor = Depends(admin), svc: AuthService = Depends(auth)) -> Any:

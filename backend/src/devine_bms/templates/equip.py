@@ -21,7 +21,7 @@ from typing import Any
 
 from devine_bms.config.model import EquipTemplate, TemplateRole
 
-ROLE_FIELDS = ("dis", "type", "kind", "unit", "enum", "tags", "pollClass", "staleAfterS", "his", "alarms")
+ROLE_FIELDS = ("dis", "type", "kind", "unit", "enum", "tags", "pollClass", "staleAfterS", "his", "alarms", "writeLimits")
 
 
 def _version_key(version: str) -> tuple:

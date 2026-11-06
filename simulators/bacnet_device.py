@@ -3,7 +3,7 @@
 A bacpypes3 device with:
 
     analog-input 1       Room temperature (°C), drifting slowly
-    analog-value 1       Setpoint (°C), 21.0
+    analog-value 1       Setpoint (°C), 21.0, commandable (relinquish default 21.0)
     binary-input 1       Fan status, follows binary-output 1
     binary-output 1      Fan command, starts active
     multi-state-value 1  Mode: 1 Cool, 2 Heat, 3 Fan; starts at 2 (Heat)
@@ -25,7 +25,7 @@ import time
 
 from bacpypes3.errors import UnrecognizedService
 from bacpypes3.ipv4.app import NormalApplication
-from bacpypes3.local.analog import AnalogInputObject, AnalogValueObject
+from bacpypes3.local.analog import AnalogInputObject, AnalogValueObjectCmd
 from bacpypes3.local.binary import BinaryInputObject, BinaryOutputObject
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.local.multistate import MultiStateValueObject
@@ -57,8 +57,9 @@ class BacnetSimulator:
             units="degreesCelsius", statusFlags=OK_FLAGS, eventState="normal", outOfService=False,
             covIncrement=0.1,
         )
-        self.setpoint = AnalogValueObject(
-            objectIdentifier=("analogValue", 1), objectName="Setpoint", presentValue=21.0,
+        # Commandable (priority array and relinquish default), like a real controller's setpoint.
+        self.setpoint = AnalogValueObjectCmd(
+            objectIdentifier=("analogValue", 1), objectName="Setpoint", presentValue=21.0, relinquishDefault=21.0,
             units="degreesCelsius", statusFlags=OK_FLAGS, eventState="normal", outOfService=False,
             covIncrement=0.1,
         )

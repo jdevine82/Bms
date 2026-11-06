@@ -41,6 +41,7 @@ DEFAULT_SECURITY: dict[str, Any] = {
     "allowedNetworks": [],  # empty: any network may log in
 }
 LOGIN_RATE = (10, 60.0)  # attempts per client address, per seconds
+PIN_IDLE_MIN = 5  # an HMI PIN unlocks commands for 5 minutes idle (main spec 7)
 TOUCH_EVERY_S = 30  # how often a session's last_seen is written
 
 
@@ -66,6 +67,7 @@ class Actor:
     dis: str | None = None
     kiosk: bool = False
     session_id: uuid.UUID | None = None
+    pin: bool = False  # unlocked with an HMI PIN (5 minutes idle)
 
     @property
     def label(self) -> str:
@@ -86,7 +88,7 @@ def _now() -> datetime:
 
 def user_json(u: db.User) -> dict:
     return {"username": u.username, "dis": u.dis, "role": u.role, "platform": u.platform, "enabled": u.enabled,
-            "totp": u.totp_secret is not None,
+            "totp": u.totp_secret is not None, "pin": u.pin_hash is not None,
             "locked": bool(u.locked_until and u.locked_until > _now()),
             "lockedUntil": u.locked_until.isoformat() if u.locked_until and u.locked_until > _now() else None,
             "lastLogin": u.last_login.isoformat() if u.last_login else None}
@@ -266,11 +268,82 @@ class AuthService:
             summary += f"; account locked for {rules['lockoutMinutes']} minutes"
         self._audit(session, site_id, actor, "login-failed", "user", user.username, summary, None, None)
 
-    async def _open_session(self, user_id: uuid.UUID, client: str) -> str:
+    async def _open_session(self, user_id: uuid.UUID, client: str, kind: str = "web") -> str:
         token = secrets.token_urlsafe(32)
         async with self.sessions() as session, session.begin():
-            session.add(db.UserSession(user_id=user_id, token_hash=token_hash(token), client=client[:64]))
+            session.add(db.UserSession(user_id=user_id, token_hash=token_hash(token), client=client[:64], kind=kind))
         return token
+
+    # ---------- HMI PIN (main spec 7 and 6.2, milestone 7A) ----------
+
+    async def kiosk_or_server(self, client: str) -> bool:
+        return self.is_loopback(client) or client in {str(a) for a in (await self.security())["kioskAddresses"]}
+
+    async def pin_users(self, client: str) -> list[dict]:
+        """The people who can unlock commands on this HMI: operators and admins with a PIN."""
+        if not await self.kiosk_or_server(client):
+            raise AuthError("PINs are only used on a listed HMI kiosk.", 403)
+        async with self.sessions() as session:
+            site = await self._site(session)
+            rows = (await session.scalars(select(db.User).where(
+                db.User.site_id == site.id, db.User.enabled.is_(True), db.User.pin_hash.is_not(None),
+                db.User.role.in_(("operator", "admin"))).order_by(db.User.dis))).all()
+            return [{"username": u.username, "dis": u.dis} for u in rows]
+
+    async def set_pin(self, actor: Actor, pin: str, password: str) -> None:
+        if not pin.isdigit() or not 4 <= len(pin) <= 12:
+            raise AuthError("a PIN is 4 to 12 digits", 422)
+        if len(set(pin)) == 1 or pin in "01234567890123456789" or pin in "98765432109876543210":
+            raise AuthError("pick a PIN that is not all one digit or a run like 1234", 422)
+        async with self.sessions() as session, session.begin():
+            site = await self._site(session)
+            user = await session.get(db.User, actor.user_id)
+            if not verify_password(password or "", user.password_hash):
+                raise AuthError("The password is not right.", 403)
+            user.pin_hash = hash_password(pin)
+            self._audit(session, site.id, actor, "pin", "user", user.username, "set an HMI PIN", None, None)
+
+    async def remove_pin(self, actor: Actor, username: str | None = None) -> None:
+        async with self.sessions() as session, session.begin():
+            site = await self._site(session)
+            user = await self._user(session, site, username) if username else await session.get(db.User, actor.user_id)
+            user.pin_hash = None
+            await session.execute(delete(db.UserSession).where(db.UserSession.user_id == user.id,
+                                                               db.UserSession.kind == "pin"))
+            self._audit(session, site.id, actor, "pin", "user", user.username,
+                        f"removed the HMI PIN of {user.username}", None, None)
+
+    async def pin_login(self, client: str, username: str, pin: str) -> tuple[dict, str]:
+        """Unlock commands on an HMI kiosk for 5 minutes idle. Lockout and rate limits as for passwords."""
+        if not await self.kiosk_or_server(client):
+            raise AuthError("PINs are only used on a listed HMI kiosk.", 403)
+        if self._rate_limited(client):
+            raise AuthError("Too many attempts. Wait a minute and try again.", 429)
+        rules = await self.security()
+        error: AuthError | None = None
+        async with self.sessions() as session, session.begin():
+            site = await self._site(session)
+            user = await session.scalar(select(db.User).where(db.User.site_id == site.id,
+                                                              db.User.username == (username or "").lower())
+                                        .with_for_update())
+            if user is None or user.pin_hash is None or user.role not in ("operator", "admin"):
+                verify_password(pin or "", DUMMY_HASH)
+                error = AuthError("Wrong PIN.", 401)
+            else:
+                actor = Actor(client=client, role=user.role, user_id=user.id, username=user.username)
+                if user.locked_until and user.locked_until > _now():
+                    error = AuthError("This account is locked after too many failed attempts.", 423, "locked")
+                elif not user.enabled or not verify_password(pin or "", user.pin_hash):
+                    self._fail(session, site.id, user, actor, rules, "wrong HMI PIN")
+                    error = AuthError("Wrong PIN.", 401)
+                else:
+                    user.failed_logins, user.locked_until = 0, None
+                    self._audit(session, site.id, actor, "login", "user", user.username, "unlocked the HMI with a PIN",
+                                None, None)
+                    info = user_json(user)
+        if error is not None:
+            raise error
+        return info, await self._open_session(user.id, client, kind="pin")
 
     async def actor_for(self, token: str | None, client: str, touch: bool = True) -> Actor | None:
         """The signed-in user for a session cookie, or a kiosk by its address; None if neither."""
@@ -284,14 +357,15 @@ class AuthService:
                 if row is not None:
                     now = _now()
                     user = await session.get(db.User, row.user_id)
-                    if now - row.last_seen > timedelta(minutes=rules["idleTimeoutMin"]) or user is None \
+                    idle = PIN_IDLE_MIN if row.kind == "pin" else rules["idleTimeoutMin"]
+                    if now - row.last_seen > timedelta(minutes=idle) or user is None \
                             or not user.enabled:
                         await session.delete(row)
                     else:
                         if touch and (now - row.last_seen).total_seconds() > TOUCH_EVERY_S:
                             row.last_seen = now
                         return Actor(client=client, role=user.role, user_id=user.id, username=user.username,
-                                     dis=user.dis, session_id=row.id)
+                                     dis=user.dis, session_id=row.id, pin=row.kind == "pin")
         if client in {str(a) for a in rules["kioskAddresses"]}:
             return Actor(client=client, role="viewer", kiosk=True)
         return None
@@ -316,6 +390,7 @@ class AuthService:
         async with self.sessions() as session:
             user = await session.get(db.User, actor.user_id)
             info = user_json(user)
+        info["pinSession"] = actor.pin
         rules = await self.security()
         info["totpSetupNeeded"] = user.role == "admin" and rules["requireTotpForAdmins"] and not info["totp"]
         return info

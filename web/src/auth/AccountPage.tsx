@@ -7,6 +7,7 @@ import { ActionButton, OutcomeBox, outcomeFrom } from "../setup/ui";
 import { AuditTable } from "./AuditPage";
 import { useAuth } from "./AuthGate";
 import type { AuditRow } from "./authApi";
+import { removeOwnPin, setOwnPin } from "../commands/commandsApi";
 import { changeOwnPassword, getAudit, logout, totpBegin, totpConfirm, totpRemove } from "./authApi";
 
 export function AccountPage() {
@@ -19,6 +20,8 @@ export function AccountPage() {
   const [removePw, setRemovePw] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [mine, setMine] = useState<AuditRow[] | null>(null);
+  const [pin, setPin] = useState("");
+  const [pinPw, setPinPw] = useState("");
 
   useEffect(() => {
     if (!can("operator") || !user.username) return;
@@ -105,6 +108,23 @@ export function AccountPage() {
           </>
         )}
       </section>
+
+      {can("operator") && (
+        <section className="block">
+          <h3>HMI PIN</h3>
+          <p className="small">{user.pin ? "Set." : "Not set."} On the HMI touch screen, your name and PIN unlock commands for 5 minutes. At least 4 digits, not your password.</p>
+          <div className="row">
+            <input type="password" inputMode="numeric" aria-label="New PIN" placeholder="New PIN" maxLength={12} value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} />
+            <input type="password" aria-label="Password for PIN" placeholder="Your password" value={pinPw} onChange={(e) => setPinPw(e.target.value)} />
+            <ActionButton disabled={pin.length < 4 || !pinPw} onClick={async () => {
+              try { await setOwnPin(pin, pinPw); setPin(""); setPinPw(""); await refresh(); setOutcome({ kind: "ok", message: "HMI PIN set." }); }
+              catch (e) { setOutcome(outcomeFrom(e)); }
+            }}>Set PIN</ActionButton>
+            {user.pin && <ActionButton danger onClick={async () => { await removeOwnPin(); await refresh(); setOutcome({ kind: "ok", message: "HMI PIN removed." }); }}>Remove PIN</ActionButton>}
+          </div>
+        </section>
+      )}
 
       <section className="block">
         <h3>Sessions</h3>

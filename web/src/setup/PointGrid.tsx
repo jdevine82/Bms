@@ -14,7 +14,15 @@ const FILTERS: { key: Flag | "all"; label: string; tone: "info" | "warn" | "bad"
   { key: "untagged", label: "Untagged", tone: "warn" },
   { key: "duplicate", label: "Duplicate names", tone: "bad" },
   { key: "notCommunicating", label: "Not communicating", tone: "muted" },
+  { key: "noLimits", label: "No write limits", tone: "bad" },
 ];
+
+function limitsFrom(min: unknown, max: unknown): Obj | undefined {
+  const lo = min === "" || min == null ? null : Number(min);
+  const hi = max === "" || max == null ? null : Number(max);
+  if (lo === null && hi === null) return undefined;
+  return { min: lo ?? 0, max: hi ?? 0 };
+}
 
 export function PointGrid({
   config,
@@ -123,6 +131,7 @@ export function PointGrid({
               <th>Tags</th>
               <th>Unit</th>
               <th>Scale</th>
+              <th>Write limits</th>
               {showDevice && <th>Device</th>}
               <th>Status</th>
             </tr>
@@ -133,7 +142,7 @@ export function PointGrid({
               const f = flags[p.name] ?? new Set();
               const equip = config.equips.find((e) => e.name === p.equip);
               const st = statuses[p.name];
-              const tone = f.has("duplicate") ? "row-bad" : f.size && !(f.size === 1 && f.has("notCommunicating")) ? "row-warn" : "";
+              const tone = f.has("duplicate") || f.has("noLimits") ? "row-bad" : f.size && !(f.size === 1 && f.has("notCommunicating")) ? "row-warn" : "";
               return (
                 <tr key={i} className={tone} data-point={p.name}>
                   <td>
@@ -222,10 +231,22 @@ export function PointGrid({
                       <span className="muted">–</span>
                     )}
                   </td>
+                  <td className="nowrap">
+                    {(p.type === "sp" || p.type === "cmd") && p.kind === "Number" ? (
+                      <span className={`limits ${f.has("noLimits") ? "missing" : ""}`}>
+                        <input className="narrow" type="number" step="any" aria-label={`Lowest write of ${p.name}`} placeholder="min"
+                          value={p.writeLimits?.min ?? ""} onChange={(e) => setPoint(i, { writeLimits: limitsFrom(e.target.value, p.writeLimits?.max) })} />
+                        <input className="narrow" type="number" step="any" aria-label={`Highest write of ${p.name}`} placeholder="max"
+                          value={p.writeLimits?.max ?? ""} onChange={(e) => setPoint(i, { writeLimits: limitsFrom(p.writeLimits?.min, e.target.value) })} />
+                      </span>
+                    ) : <span className="muted">–</span>}
+                  </td>
                   {showDevice && <td className="mono small">{p.device}</td>}
                   <td>
                     {f.has("duplicate") ? (
                       <Badge tone="bad">Duplicate name</Badge>
+                    ) : f.has("noLimits") ? (
+                      <Badge tone="bad">No write limits</Badge>
                     ) : f.has("notCommunicating") ? (
                       <Badge tone="bad">{st}</Badge>
                     ) : f.has("noRoom") || f.has("untagged") ? (

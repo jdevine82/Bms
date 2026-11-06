@@ -1,0 +1,109 @@
+/* Commands (milestone 7A). Touch targets are at least 44 px; 56 px on the HMI. */
+.command-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border, #2e353e);
+  border-radius: 10px;
+  background: var(--surface, #1a1e24);
+  color: var(--text, #e8ebef);
+  min-width: 280px;
+}
+
+.command-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.command-head h3 {
+  margin: 0 0 4px;
+}
+
+.command-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command-row.wrap {
+  flex-wrap: wrap;
+}
+
+.cmd-btn {
+  min-height: 44px;
+  min-width: 72px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #2e353e);
+  background: var(--muted-bg, #232a32);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cmd-btn.primary {
+  background: var(--accent, #6ea8ff);
+  border-color: var(--accent, #6ea8ff);
+  color: var(--accent-text, #0b1220);
+}
+
+.cmd-btn.step {
+  min-width: 48px;
+  font-size: 22px;
+}
+
+.cmd-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cmd-input {
+  width: 110px;
+  min-height: 44px;
+  font-size: 20px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid var(--border, #2e353e);
+  background: var(--bg, #111418);
+  color: inherit;
+}
+
+.command-panel.big .cmd-btn,
+.command-panel.big .cmd-input {
+  min-height: 56px;
+  font-size: 20px;
+}
+
+.confirm {
+  border: 1px solid var(--warn, #f0b85a);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.confirm p {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.override-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--warn, #f0b85a);
+  color: var(--warn, #f0b85a);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.command-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  padding: 16px;
+}

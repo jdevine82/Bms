@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import type { LiveValue, Point, Site } from "./api";
+import { useAuth } from "./auth/AuthGate";
+import { CommandPanel, OverrideBadge } from "./commands/CommandPanel";
 import { STATUS_TEXT, formatTime, formatValue } from "./format";
 
 interface Props {
@@ -12,6 +14,10 @@ interface Props {
 /** All points with live values and quality (milestone 2 spec 8). */
 export function PointsPage({ site, points, live, onTrend }: Props) {
   const [filter, setFilter] = useState("");
+  const [commanding, setCommanding] = useState<string | null>(null);
+  const { can, user } = useAuth();
+  const canCommand = can("operator") && !!user.username;
+  const target = points.find((p) => p.id === commanding) ?? null;
 
   const shown = useMemo(() => {
     const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
@@ -72,6 +78,7 @@ export function PointsPage({ site, points, live, onTrend }: Props) {
                     <div className="value" data-testid={`value-${p.name}`}>
                       {formatValue(p, cur)}
                     </div>
+                    <OverrideBadge point={p} tz={site.ianaTz} />
                     <div className="narrow-only">
                       <span className={`status status-${cur.status}`}>{STATUS_TEXT[cur.status] ?? cur.status}</span>
                     </div>
@@ -87,6 +94,11 @@ export function PointsPage({ site, points, live, onTrend }: Props) {
                         Trend
                       </button>
                     )}
+                    {canCommand && p.writable && (
+                      <button type="button" className="link" onClick={() => setCommanding(p.id)}>
+                        Command
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
@@ -94,6 +106,11 @@ export function PointsPage({ site, points, live, onTrend }: Props) {
           </tbody>
         </table>
       </div>
+      {target && (
+        <div className="command-overlay" onClick={(e) => e.target === e.currentTarget && setCommanding(null)}>
+          <CommandPanel point={target} live={live[target.id] ?? target.cur} tz={site.ianaTz} onClose={() => setCommanding(null)} />
+        </div>
+      )}
     </section>
   );
 }

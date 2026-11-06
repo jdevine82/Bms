@@ -36,7 +36,8 @@ const ntfyUrl = `http://127.0.0.1:${ntfy.address().port}`;
 const browser = await chromium.launch();
 let page;
 try {
-  page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("dialog", (d) => d.accept());
@@ -93,8 +94,8 @@ try {
   check(true, "the notification is in the delivery log");
 
   // ---------- HMI ----------
-  const hmi = await browser.newPage({ viewport: { width: 1024, height: 600 } });
-  await signIn(hmi, url);
+  const hmi = await context.newPage(); // signed in already (the same browser)
+  await hmi.setViewportSize({ width: 1024, height: 600 });
   await hmi.goto(`${url}/hmi`);
   await hmi.getByRole("region", { name: "Active alarms" }).getByText("Main power high").waitFor({ timeout: 15000 });
   check(true, "the HMI overview shows the active alarm");

@@ -26,6 +26,8 @@ from devine_bms.alarms.delivery import Delivery
 from devine_bms.alarms.engine import AlarmEngine
 from devine_bms.api.alarms_api import build_alarms_router
 from devine_bms.api.auth_api import COOKIE, build_auth_router, client_ip, install_guard
+from devine_bms.api.commands_api import build_commands_router
+from devine_bms.commands.service import CommandService
 from devine_bms.api.history import history_csv, row_json, thin
 from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.timezones import iana_zone
@@ -77,7 +79,7 @@ def live_json(live: LiveValue | None) -> dict:
 
 
 def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path | None = None,
-               alarm_tick_s: float = 1.0) -> FastAPI:
+               alarm_tick_s: float = 1.0, override_check_s: float = 5.0) -> FastAPI:
     state: dict = {}
 
     @asynccontextmanager
@@ -95,13 +97,16 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                                           tick_s=alarm_tick_s)
             await state["alarms"].start()
             await state["delivery"].start()
+            state["commands"] = CommandService(runtime, sessions, runtime.site_name, state["auth"].record,
+                                               check_s=override_check_s)
+            await state["commands"].start()
             state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
             yield
         finally:
             if state.get("prune") is not None:
                 state["prune"].cancel()
-            for name in ("alarms", "delivery"):
+            for name in ("commands", "alarms", "delivery"):
                 if state.get(name) is not None:
                     await state[name].stop()
             if state.get("discover") is not None:
@@ -112,6 +117,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     app = FastAPI(title="Devine BMS", version=__version__, lifespan=lifespan)
     install_guard(app, lambda: state.get("auth"))
     app.include_router(build_auth_router(lambda: state.get("auth")))
+    app.include_router(build_commands_router(lambda: state.get("commands")))
     app.include_router(build_alarms_router(lambda: state.get("alarms"), lambda: state.get("delivery"),
                                            lambda: state.get("auth")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
@@ -148,6 +154,10 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             "his": point.his,
             "pollClass": point.poll_class.value,
             "cur": live_json(runtime().cache.get(point.id)),
+            # Commands (milestone 7A): whether it can be commanded, its limits and any override.
+            "writable": point.writable,
+            "writeLimits": point.write_limits.model_dump() if point.write_limits else None,
+            "override": state["commands"].overrides.get(point.id) if state.get("commands") else None,
         }
 
     def time_range(start: datetime | None, end: datetime | None) -> tuple[datetime, datetime]:
@@ -292,6 +302,12 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                     await ws.send_json({"type": "value", **live_json(change)})
 
         alarm_queue = state["alarms"].subscribe() if state.get("alarms") else None
+        override_queue = state["commands"].subscribe() if state.get("commands") else None
+
+        async def send_overrides() -> None:
+            """Every connection also gets hand-mode changes (set, released, timed out)."""
+            while override_queue is not None:
+                await ws.send_json({"type": "override", **(await override_queue.get())})
 
         async def send_alarms() -> None:
             """Every connection also gets alarm changes (raised, returned, acknowledged)."""
@@ -306,7 +322,8 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                     return
 
         tasks = [asyncio.create_task(receive()), asyncio.create_task(send()),
-                 asyncio.create_task(still_signed_in()), asyncio.create_task(send_alarms())]
+                 asyncio.create_task(still_signed_in()), asyncio.create_task(send_alarms()),
+                 asyncio.create_task(send_overrides())]
         try:
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
             for task in done:
@@ -319,6 +336,8 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             rt.cache.unsubscribe(queue)
             if alarm_queue is not None:
                 state["alarms"].unsubscribe(alarm_queue)
+            if override_queue is not None:
+                state["commands"].unsubscribe(override_queue)
 
     if web_dist and web_dist.is_dir():
         index = web_dist / "index.html"
