@@ -7,6 +7,7 @@
 // backend serving the built app (see docs/specs/m5-setup.md, "Running the screen tests"):
 //   BMS_URL=http://127.0.0.1:8000 node tests/setup.mjs [screenshot-dir]
 import { createRequire } from "node:module";
+import { signIn } from "./login.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +23,8 @@ const check = (ok, message) => {
   console.log(`${ok ? "PASS" : "FAIL"} ${message}`);
   if (!ok) failures.push(message);
 };
-const api = async (path) => (await fetch(`${url}${path}`)).json();
+// API checks use the browser's own login (milestone 6A).
+const api = async (path) => (await page.request.get(`${url}${path}`)).json();
 const shot = async (page, name) => shots && (await page.screenshot({ path: `${shots}/${name}.png`, fullPage: true }));
 
 let page;
@@ -32,6 +34,8 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   let promptAnswer = "";
   page.on("dialog", (d) => d.accept(d.type() === "prompt" ? promptAnswer : undefined));
+
+  await signIn(page, url);
 
   // ---------- Discover ----------
   await page.goto(`${url}/#/setup/discover`);
@@ -147,10 +151,10 @@ try {
   await shot(page, "equip-templates");
 
   // ---------- Change log ----------
-  await page.goto(`${url}/#/setup/changes`);
+  await page.goto(`${url}/#/setup/audit`);
   await page.getByText(`commissioned io2: ${mapSize} points`).waitFor({ timeout: 10000 });
-  check(true, "Change log: the go-live is recorded");
-  check((await page.getByText(/started a modbus_rtu scan/).count()) >= 1, "Change log: the scan is recorded");
+  check(true, "Audit log: the go-live is recorded");
+  check((await page.getByText(/started a modbus_rtu scan/).count()) >= 1, "Audit log: the scan is recorded");
 
   check(errors.length === 0, `no page errors (${errors.join("; ")})`);
 } catch (e) {

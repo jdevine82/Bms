@@ -1,8 +1,8 @@
 """REST and WebSocket API (milestone 2 spec 7).
 
 All times are ISO 8601 in UTC; the web app shows them in the site time zone.
-No logins yet (main spec 7 comes later), so the server listens on localhost only
-by default.
+Every route needs a login (milestone 6A, main spec 7) except the health check and the
+login pages; see api/auth_api.py.
 
 Run:  uv run uvicorn devine_bms.api.app:app --host 127.0.0.1 --port 8000
 """
@@ -22,9 +22,11 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from devine_bms import __version__
+from devine_bms.api.auth_api import COOKIE, build_auth_router, client_ip, install_guard
 from devine_bms.api.history import history_csv, row_json, thin
 from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.timezones import iana_zone
+from devine_bms.auth.service import AuthService
 from devine_bms.runtime import Runtime
 from devine_bms.runtime_model import RuntimeConfig, RuntimePoint
 from devine_bms.setup.discover import DiscoverManager
@@ -34,6 +36,7 @@ from devine_bms.values import LiveValue, Status
 log = logging.getLogger(__name__)
 
 MAX_RANGE = timedelta(days=31)
+PRUNE_EVERY_S = 6 * 3600  # audit log retention check (main spec 5.6: kept for 1 year)
 RuntimeFactory = Callable[[], Awaitable[tuple[Runtime, Callable[[], Awaitable[None]]]]]
 
 
@@ -79,18 +82,24 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         await runtime.start()
         state["runtime"] = runtime
         sessions = getattr(runtime.storage, "sessionmaker", None)
-        if sessions is not None:  # setup needs the database
+        if sessions is not None:  # setup and logins need the database
             state["setup"] = SetupService(sessions, runtime.site_name, runtime.reload)
             state["discover"] = DiscoverManager(runtime, state["setup"])
+            state["auth"] = AuthService(sessions, runtime.site_name)
+            state["prune"] = asyncio.create_task(_prune_forever(state["auth"]), name="audit retention")
         try:
             yield
         finally:
+            if state.get("prune") is not None:
+                state["prune"].cancel()
             if state.get("discover") is not None:
                 await state["discover"].stop_all()
             await runtime.stop()
             await cleanup()
 
     app = FastAPI(title="Devine BMS", version=__version__, lifespan=lifespan)
+    install_guard(app, lambda: state.get("auth"))
+    app.include_router(build_auth_router(lambda: state.get("auth")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 
@@ -228,8 +237,16 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     @app.websocket("/api/live")
     async def live(ws: WebSocket) -> None:
         """Send {"subscribe": ["<point id>", ...]} or {"subscribe": "all"}. The server replies
-        with a snapshot of current values, then one message per change."""
+        with a snapshot of current values, then one message per change. Needs a login, as
+        every route does; the session is checked again every minute."""
+        auth: AuthService | None = state.get("auth")
+        client = client_ip(ws.client.host if ws.client else None, ws.headers.get("x-forwarded-for"))
+        token = ws.cookies.get(COOKIE)
         await ws.accept()
+        if auth is not None and await auth.actor_for(token, client) is None:
+            # Accepted first so the browser sees the reason (closing before accepting is a bare 403).
+            await ws.close(code=4401, reason="log in first")
+            return
         rt = runtime()
         queue = rt.cache.subscribe()
         wanted: set[uuid.UUID] = set()
@@ -260,7 +277,15 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 if change.point_id in wanted:
                     await ws.send_json({"type": "value", **live_json(change)})
 
-        tasks = [asyncio.create_task(receive()), asyncio.create_task(send())]
+        async def still_signed_in() -> None:
+            while auth is not None:
+                await asyncio.sleep(60)
+                if await auth.actor_for(token, client, touch=False) is None:
+                    await ws.close(code=4401, reason="session ended")
+                    return
+
+        tasks = [asyncio.create_task(receive()), asyncio.create_task(send()),
+                 asyncio.create_task(still_signed_in())]
         try:
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
             for task in done:
@@ -283,6 +308,17 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
 
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     return app
+
+
+async def _prune_forever(auth: AuthService) -> None:
+    while True:
+        try:
+            removed = await auth.prune()
+            if removed:
+                log.info("audit log: removed %d entries older than a year", removed)
+        except Exception as exc:  # keep trying; the log only grows meanwhile
+            log.warning("audit log retention failed: %s", exc)
+        await asyncio.sleep(PRUNE_EVERY_S)
 
 
 def _default_web_dist() -> Path | None:

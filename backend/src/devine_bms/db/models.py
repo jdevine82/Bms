@@ -56,6 +56,9 @@ class Site(Base):
     tags: Mapped[dict] = _tags()
     # Site-wide settings from the config file, for example the BMS's own BACnet identity.
     settings: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # Login rules, kiosk addresses and allowed networks (milestone 6A). Not part of the config
+    # file, so importing a setup never changes them.
+    security: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     updated_at: Mapped[datetime] = _updated()
 
 
@@ -210,21 +213,63 @@ class PointHis(Base):
     reason: Mapped[str | None] = mapped_column(Text)
 
 
-class SetupChange(Base):
-    """One change to the site setup (milestone 5A). Becomes the audit log in milestone 6 (main spec 5.6)."""
+class AuditEntry(Base):
+    """One entry in the audit log (main spec 5.6): setup changes, scans, logins and user changes.
+    Milestone 5 called it the setup change log. Kept for 1 year."""
 
-    __tablename__ = "setup_change"
+    __tablename__ = "audit_log"
     id: Mapped[uuid.UUID] = _id()
     site_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("site.id", ondelete="CASCADE"), index=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(),
                                          index=True)
-    client: Mapped[str] = mapped_column(String(64), nullable=False)  # who: the client address until logins exist
-    action: Mapped[str] = mapped_column(String(32), nullable=False)  # import, put, delete, rename, scan, ...
+    client: Mapped[str] = mapped_column(String(64), nullable=False)  # the client address
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"), index=True)
+    username: Mapped[str | None] = mapped_column(String(64))  # kept when the account is removed
+    action: Mapped[str] = mapped_column(String(32), nullable=False)  # import, put, delete, login, ...
     kind: Mapped[str | None] = mapped_column(String(32))
     name: Mapped[str | None] = mapped_column(String(100))
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     before: Mapped[dict | list | None] = mapped_column(JSONB)
     after: Mapped[dict | list | None] = mapped_column(JSONB)
+
+
+SetupChange = AuditEntry  # the milestone 5 name
+
+
+class User(Base):
+    """A person's account on this site (main spec 7). Roles: viewer, operator, admin."""
+
+    __tablename__ = "app_user"
+    __table_args__ = (UniqueConstraint("site_id", "username"),
+                      CheckConstraint("role IN ('viewer', 'operator', 'admin')", name="ck_user_role"))
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    username: Mapped[str] = mapped_column(String(64), nullable=False)
+    dis: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    platform: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    totp_secret: Mapped[str | None] = mapped_column(String(64))  # set once 2FA is confirmed
+    totp_pending: Mapped[str | None] = mapped_column(String(64))  # during 2FA set-up
+    failed_logins: Mapped[int] = mapped_column(nullable=False, server_default="0")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = _updated()
+
+
+class UserSession(Base):
+    """A signed-in browser. Only a hash of the cookie's token is kept."""
+
+    __tablename__ = "user_session"
+    id: Mapped[uuid.UUID] = _id()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False,
+                                               index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    client: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class DeviceTemplateRow(Base):

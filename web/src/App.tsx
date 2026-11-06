@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { LiveValue, Point, Site } from "./api";
 import { getPoints, getSite } from "./api";
 import { useLive } from "./live";
+import { AccountPage } from "./auth/AccountPage";
+import { useAuth } from "./auth/AuthGate";
+import { logout } from "./auth/authApi";
 import { PointsPage } from "./PointsPage";
 import { useHash } from "./setup/nav";
 import { SetupApp } from "./setup/SetupApp";
@@ -26,9 +29,11 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("points");
   const hash = useHash();
-  const inSetup = hash.page === "setup";
+  const { user, can, refresh } = useAuth();
+  const inSetup = hash.page === "setup" && can("admin");
+  const inAccount = hash.page === "account";
   const go = (p: Page) => {
-    if (inSetup) history.pushState(null, "", location.pathname + location.search);
+    if (inSetup || inAccount) history.pushState(null, "", location.pathname + location.search);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     setPage(p);
   };
@@ -71,22 +76,41 @@ export function App() {
           <span className={`conn ${connected ? "on" : "off"}`}>{connected ? "Live" : "Connecting…"}</span>
         </div>
         <nav aria-label="Pages">
-          <button type="button" className={!inSetup && page === "points" ? "active" : ""} onClick={() => go("points")}>
+          <button type="button" className={!inSetup && !inAccount && page === "points" ? "active" : ""} onClick={() => go("points")}>
             Points
           </button>
-          <button type="button" className={!inSetup && page === "trends" ? "active" : ""} onClick={() => go("trends")}>
+          <button type="button" className={!inSetup && !inAccount && page === "trends" ? "active" : ""} onClick={() => go("trends")}>
             Trends
           </button>
-          <button
-            type="button"
-            className={inSetup ? "active" : ""}
-            onClick={() => {
-              location.hash = "#/setup";
-            }}
-          >
-            Setup
-          </button>
+          {can("admin") && (
+            <button
+              type="button"
+              className={inSetup ? "active" : ""}
+              onClick={() => {
+                location.hash = "#/setup";
+              }}
+            >
+              Setup
+            </button>
+          )}
         </nav>
+        <div className="user-menu">
+          <a href="#/account" className="who" title="My account">
+            {user.dis} · {user.role}
+          </a>
+          {user.username && (
+            <button
+              type="button"
+              className="btn-plain"
+              onClick={async () => {
+                await logout();
+                await refresh();
+              }}
+            >
+              Sign out
+            </button>
+          )}
+        </div>
         <label className="theme">
           <span className="visually-hidden">Theme</span>
           <select value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>
@@ -99,8 +123,13 @@ export function App() {
       <main className={inSetup ? "wide" : ""}>
         {error && <p className="error">{error}</p>}
         {inSetup && <SetupApp />}
-        {site && !inSetup && page === "points" && <PointsPage site={site} points={points} live={live} onTrend={openTrend} />}
-        {site && !inSetup && page === "trends" && (
+        {inAccount && (
+          <div className="setup plain">
+            <AccountPage />
+          </div>
+        )}
+        {site && !inSetup && !inAccount && page === "points" && <PointsPage site={site} points={points} live={live} onTrend={openTrend} />}
+        {site && !inSetup && !inAccount && page === "trends" && (
           <TrendPage site={site} points={points} selected={selected} onSelect={setSelected} />
         )}
       </main>

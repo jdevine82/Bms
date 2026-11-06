@@ -169,18 +169,20 @@ async def test_rename_equipment_moves_its_points(stack):
     assert result["warnings"]  # point names no longer follow <room>_<equipment>_<function>
 
 
-async def test_changes_only_from_this_machine(stack):
+async def test_setup_needs_an_admin_login(stack):
+    """Milestone 6A replaced the localhost-only guard: setup needs the admin role, from anywhere."""
     app = stack["app"]
     point = (await stack["client"].get("/api/setup/points/site_meter1_power")).json()
     remote = httpx.AsyncClient(transport=httpx.ASGITransport(app=app, client=("192.168.1.50", 50000)),
                                base_url="http://bms")
     async with remote:
-        assert (await remote.get("/api/setup/config")).status_code == 200  # reading is open
-        assert (await remote.put("/api/setup/points/site_meter1_power", json=point)).status_code == 403
-        assert (await remote.delete("/api/setup/points/site_meter1_power")).status_code == 403
-    forwarded = await stack["client"].put("/api/setup/points/site_meter1_power", json=point,
-                                          headers={"X-Forwarded-For": "10.1.2.3"})
-    assert forwarded.status_code == 403
+        assert (await remote.get("/api/setup/config")).status_code == 401
+        assert (await remote.put("/api/setup/points/site_meter1_power", json=point)).status_code == 401
+        login = await remote.post("/api/auth/login", json={"username": "admin", "password": "correct horse battery"})
+        assert login.status_code == 200
+        assert (await remote.put("/api/setup/points/site_meter1_power", json=point)).json()["applied"]
+    entry = (await stack["client"].get("/api/setup/changes?limit=1")).json()[0]
+    assert entry["user"] == "admin" and entry["client"] == "192.168.1.50"
 
 
 async def test_import_a_whole_setup(stack):

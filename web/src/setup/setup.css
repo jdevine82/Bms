@@ -877,3 +877,9 @@ textarea.json.short {
 .grid.editable td input.mono {
   min-width: 220px;
 }
+
+/* Setup controls on pages outside the Setup area (My account). */
+.setup.plain {
+  display: block;
+  min-height: 0;
+}

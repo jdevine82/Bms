@@ -137,7 +137,7 @@ The mode is chosen once by the provisioning script (`--mode full` or `--mode sta
 | Logic fail-safe default | Release to device; a block can choose hold last value or a stated value (5.3.1) |
 | HMI | Raspberry Pi 4 or 5 running **64-bit Raspberry Pi OS only** (32-bit is not supported), Chromium in kiosk mode loading the site UI (HMI layout) | Reuses the web UI; one build target with ready-made 64-bit Python packages |
 | Remote access | Tailscale | Chosen |
-| Alarms | Email, SMS gateway API (for example ClickSend or Twilio), ntfy push | Chosen |
+| Alarms | Email over SMTP, SMS through ClickSend (swappable plug-in), ntfy push (server is a site setting, default ntfy.sh) | Chosen (milestone 6) |
 | Tests | pytest, Playwright, device simulators | See section 16 |
 
 **BACnet stack (native MS/TP required):** `bacpypes3` covers BACnet/IP only. Native MS/TP uses `bacnet-stack` (open source), running as a service **on the Proxmox host** and exposing a local API (or MQTT) to `bms-backend`. BACnet/IP can stay on `bacpypes3`. See section 11 for the host-service trade-offs.
@@ -387,9 +387,9 @@ Logic can be written outside the editor and pasted in, as Node-RED does with its
 
 ### 5.5 Alarms
 - Alarm types: high/low limit, offline device, stale data, state change.
-- Delivery: on-screen, **email**, **SMS** through a gateway API, and **push through ntfy**. SMS, email and push need internet at the site.
-- The SMS sender is built as a **swappable plug-in**, so the provider (for example ClickSend or Twilio) is chosen at build time.
-- The push sender is also swappable. Whether ntfy is the public service or self-hosted is decided at build time. Keep alarm text free of sensitive detail either way.
+- Delivery: on-screen, **email over SMTP**, **SMS** through a gateway API, and **push through ntfy**. SMS, email and push need internet at the site.
+- The SMS sender is built as a **swappable plug-in**, so the provider can change. **The first plug-in is ClickSend (decided, milestone 6).**
+- The push sender is also swappable. **The ntfy server is a site setting, defaulting to the public ntfy.sh (decided, milestone 6)**, so a site can move to a self-hosted server without code changes. Keep alarm text free of sensitive detail either way.
 - **Three severity levels (decided):** **Info**, **Warning** and **Critical**. Each alarm has a level, shown by text and shape as well as colour (6.3). Default channels, which a site can change in its settings:
 
 | Level | Screen | Email | ntfy push | SMS |
@@ -604,7 +604,7 @@ Write limits apply to every role, including admin (5.6). The same roles apply in
 - Remote reachability is controlled by **Tailscale ACLs** (who can reach which site), then site accounts control what they can do.
 - **Login: local accounts on each site server** with hashed passwords and **optional authenticator-app 2FA**. Works fully offline.
 - **Login rules (decided defaults; an admin can change them in the site settings):**
-  - **Passwords** of at least 10 characters, stored hashed and salted. No shared default passwords (section 1). The first admin sets theirs at setup.
+  - **Passwords** of at least 10 characters, stored hashed and salted. No shared default passwords (section 1). The first admin sets theirs at setup, on a **first-run web page that is only offered from the server itself while the site has no accounts (decided, milestone 6)**.
   - **Web sessions** time out after 30 minutes idle.
   - **HMI PIN** unlocks commands for 5 minutes of idle time and then locks, as in the mockups (6.2). PINs are at least 4 digits and are separate from passwords.
   - **Lockout:** 5 failed logins (password or PIN) lock that account for 10 minutes. Lockouts and failed logins are written to the audit log (5.6) and an admin can unlock an account.
@@ -821,6 +821,7 @@ All figures are proposals and should be adjusted.
 12. Remote access over Tailscale with per-site accounts, ACLs and remote updates.
 12a. Haystack API (read-only) and Haystack model export (5.12). The Haystack data model itself is built from milestone 2 onwards.
 13. Pilot site.
+13b. **Documentation (decided: written at the end):** an installation guide (development machine, site server, Pi HMI, MS/TP service), a settings reference (environment variables, config file, site and security settings), a users and logins guide (first admin, roles, 2FA, lockout, kiosks, allowed networks, password reset, audit log), and commissioning and operating guides. Until then each milestone spec keeps a complete "how to set up and run" section, and `docs/guide-notes.md` lists what the guide must cover.
 14. **Later (not scheduled):** in-house ESP32 I/O module (section 20, F1). No BMS code is planned for it; it is added as a standard device through a template.
 
 ## 19. Decisions register

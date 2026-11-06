@@ -2,6 +2,7 @@
 // draws a chart, and Export CSV downloads a file. Needs the backend serving the built app:
 //   BMS_URL=http://127.0.0.1:8000 node tests/smoke.mjs [screenshot-dir]
 import { createRequire } from "node:module";
+import { signIn } from "./login.mjs";
 import { readFileSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
@@ -18,7 +19,7 @@ const check = (ok, message) => {
 
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
-  await page.goto(url);
+  await signIn(page, url);
   const power = page.getByTestId("value-site_meter1_power");
   await power.waitFor();
   await page.waitForFunction(
@@ -45,7 +46,7 @@ try {
   check(text.startsWith("time (Australia/Sydney),site_meter1_power (kW)"), `CSV downloaded: ${download.suggestedFilename()}`);
 
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  await phone.goto(url);
+  await signIn(phone, url);
   await phone.getByTestId("value-site_meter1_power").waitFor();
   const overflow = await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   check(!overflow, "no sideways page scroll at phone width");

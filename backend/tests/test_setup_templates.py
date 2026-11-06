@@ -145,10 +145,10 @@ async def test_test_read_a_device_that_is_not_saved(stack):
     assert bad.status_code == 422
 
 
-async def test_test_read_is_local_only(stack):
+async def test_test_read_needs_a_login(stack):
     import httpx
 
     remote = httpx.AsyncClient(transport=httpx.ASGITransport(app=stack["app"], client=("10.0.0.9", 1)),
                                base_url="http://bms")
     async with remote:
-        assert (await remote.post("/api/setup/test-read", json={"device": "sim_meter"})).status_code == 403
+        assert (await remote.post("/api/setup/test-read", json={"device": "sim_meter"})).status_code == 401
