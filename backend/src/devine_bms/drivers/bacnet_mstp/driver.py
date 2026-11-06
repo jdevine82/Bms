@@ -74,7 +74,15 @@ class MstpDriver:
         """Keep the trunk's counters (frames, lost tokens, CRC errors) for the health page."""
         while True:
             try:
-                self.stats = await self.client.stats()
+                stats = await self.client.stats()
+                # The router's counters (milestone 8); an older service (0.2.0) does not know ROUTER.
+                try:
+                    router = await self.client.router()
+                    if router.get("routing"):
+                        stats["router"] = {k: v for k, v in router.items() if k not in ("id", "ok")}
+                except Exception:
+                    pass
+                self.stats = stats
             except Exception as exc:  # the poller reports the trunk as down; keep trying
                 log.debug("MS/TP stats from %s failed: %s", self.name, exc)
                 self.stats = None

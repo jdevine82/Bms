@@ -142,6 +142,28 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
 
     device_by_name = {d.name: d for d in config.devices}
 
+    # BACnet network numbers and the MS/TP routers (milestone 8): unique on the site.
+    trunks = [b for b in config.buses if b.type == "bacnet_mstp"]
+    numbers: dict[int, str] = {}
+    if config.bacnet is not None:
+        numbers[config.bacnet.network_number] = "bacnet (the BACnet/IP network)"
+    for t in trunks:
+        where = f"buses.{t.name}"
+        if t.network_number is not None:
+            if t.network_number in numbers:
+                error(where, f"network number {t.network_number} is already used by {numbers[t.network_number]}")
+            numbers[t.network_number] = f"trunk {t.name}"
+        if t.router is not None and t.router.enabled:
+            if t.network_number is None:
+                error(where, "a routing trunk needs its networkNumber")
+            if config.bacnet is None:
+                error(where, "routing needs the site's BACnet settings (bacnet, with networkNumber)")
+            elif t.router.address == config.bacnet.local_address.split("/")[0]:
+                error(where, "the router needs its own address, not the BMS's BACnet/IP address")
+    addresses = [t.router.address for t in trunks if t.router is not None and t.router.enabled]
+    if len(addresses) != len(set(addresses)):
+        error("buses", "each routing trunk needs its own address")
+
     # BACnet: the BMS needs its own identity, and device instances are unique on a network.
     bacnet_devices = [d for d in config.devices if d.protocol in ("bacnet_ip", "bacnet_mstp")]
     if any(d.protocol == "bacnet_ip" for d in bacnet_devices) and config.bacnet is None:

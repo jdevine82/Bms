@@ -1,4 +1,4 @@
-# One bms-mstp service per MS/TP trunk (milestone 4c). Runs on the Proxmox host, which
+# One bms-mstp service per MS/TP trunk (milestone 4c); it can also route the trunk to BACnet/IP (milestone 8). Runs on the Proxmox host, which
 # owns the RS485 adapters (main spec 11). Settings: /etc/devine-bms/mstp-<trunk>.env
 #
 #   sudo cp bms-mstp@.service /etc/systemd/system/
@@ -12,8 +12,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/devine-bms/mstp-%i.env
+# $BMS_MSTP_ROUTE_ARGS (unbraced, so it splits into words) is empty unless the trunk routes (milestone 8).
 ExecStart=/usr/local/bin/bms-mstp --listen ${BMS_MSTP_LISTEN} --instance ${BMS_MSTP_INSTANCE} \
-    --apdu-timeout ${BMS_MSTP_APDU_TIMEOUT} --apdu-retries ${BMS_MSTP_APDU_RETRIES}
+    --apdu-timeout ${BMS_MSTP_APDU_TIMEOUT} --apdu-retries ${BMS_MSTP_APDU_RETRIES} $BMS_MSTP_ROUTE_ARGS
 Restart=always
 RestartSec=2
 User=bms-mstp

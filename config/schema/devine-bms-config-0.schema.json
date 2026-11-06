@@ -219,6 +219,31 @@
           "minimum": 0,
           "title": "Deviceinstance",
           "type": "integer"
+        },
+        "networkNumber": {
+          "anyOf": [
+            {
+              "maximum": 65534,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Networknumber"
+        },
+        "router": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MstpRouter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -273,6 +298,13 @@
           "default": "Devine BMS",
           "title": "Devicename",
           "type": "string"
+        },
+        "networkNumber": {
+          "default": 1,
+          "maximum": 65534,
+          "minimum": 1,
+          "title": "Networknumber",
+          "type": "integer"
         }
       },
       "required": [
@@ -1220,6 +1252,33 @@
         "broker"
       ],
       "title": "MqttConnection",
+      "type": "object"
+    },
+    "MstpRouter": {
+      "additionalProperties": false,
+      "description": "bms-mstp routes this trunk to BACnet/IP (milestone 8): its BACnet/IP side uses `interface`,\na labelled address on the device-network port such as eth1:mstp1 with `address`, port 47808.\nThe same settings go in the service's env file (BMS_MSTP_ROUTE_ARGS).",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "interface": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,15}$",
+          "title": "Interface",
+          "type": "string"
+        },
+        "address": {
+          "pattern": "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$",
+          "title": "Address",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface",
+        "address"
+      ],
+      "title": "MstpRouter",
       "type": "object"
     },
     "ObjectType": {

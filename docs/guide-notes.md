@@ -9,7 +9,7 @@ milestone adds to it.
 - Development machine: Python 3.12 and uv, Node and npm, PostgreSQL 16 (TimescaleDB on sites; `BMS_ALLOW_PLAIN_POSTGRES=true` only on a dev machine), migrations with `uv run alembic upgrade head`. Facts: `docs/decisions/016-native-dev-setup.md`, `docs/specs/m2-simulated-modbus-to-trend.md`.
 - Site server (manual steps until the packaging of milestone 11): database, backend service, built web app (`BMS_WEB_DIST`), listen address (`BMS_LISTEN_HOST`, default 127.0.0.1), Tailscale and `tailscale serve` for HTTPS (decision 010).
 - Pi HMI kiosk: `hmi/README.md` (provision.sh, 64-bit Raspberry Pi OS Lite, cage).
-- BACnet MS/TP service: `mstp/README.md` (build.sh, systemd template, udev rules in `deploy/udev`); version 0.2.0 adds WRITE (rebuild and restart the service when updating).
+- BACnet MS/TP service: `mstp/README.md` (build.sh, systemd template, udev rules in `deploy/udev`); version 0.2.0 adds WRITE and 0.3.0 the BACnet router (rebuild and restart the service when updating). Router set-up: the network-number plan, the trunk's labelled IP address, `BMS_MSTP_ROUTE_ARGS`, checking with a BACnet tool (`mstp/README.md`, "BACnet router").
 - MQTT broker (Mosquitto): `docs/specs/m4d-mqtt.md`.
 
 ## Settings reference
