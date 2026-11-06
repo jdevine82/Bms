@@ -1,5 +1,14 @@
 {
   "$defs": {
+    "AlarmLevel": {
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ],
+      "title": "AlarmLevel",
+      "type": "string"
+    },
     "BacnetAddress": {
       "additionalProperties": false,
       "description": "A BACnet object and property. Multi-state values are 1-based: state 1 is enum[0].",
@@ -341,6 +350,17 @@
           "default": true,
           "title": "Enabled",
           "type": "boolean"
+        },
+        "offlineAlarm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OfflineAlarm"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1175,6 +1195,38 @@
       "title": "ObjectType",
       "type": "string"
     },
+    "OfflineAlarm": {
+      "additionalProperties": false,
+      "description": "An alarm when a device stops answering (main spec 5.5). Only on devices where it is set.",
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/AlarmLevel",
+          "default": "warning"
+        },
+        "delayS": {
+          "default": 300.0,
+          "maximum": 86400,
+          "minimum": 0,
+          "title": "Delays",
+          "type": "number"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        }
+      },
+      "title": "OfflineAlarm",
+      "type": "object"
+    },
     "Point": {
       "additionalProperties": false,
       "properties": {
@@ -1313,6 +1365,14 @@
           "default": true,
           "title": "His",
           "type": "boolean"
+        },
+        "alarms": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PointAlarm"
+          },
+          "title": "Alarms",
+          "type": "array"
         }
       },
       "required": [
@@ -1324,6 +1384,84 @@
         "address"
       ],
       "title": "Point",
+      "type": "object"
+    },
+    "PointAlarm": {
+      "additionalProperties": false,
+      "description": "An alarm on a point (main spec 5.5): a high or low limit, a state, or stale data.\n\nhigh: raised when the value is above `limit`; it returns to normal below limit - deadband.\nlow: raised below `limit`; returns above limit + deadband.\nstate: raised while a Bool or Str point equals `state`.\nstale: raised while the point's value is Stale.\nOnly Good values raise or clear limit and state alarms (main spec 5.2.1).",
+      "properties": {
+        "type": {
+          "enum": [
+            "high",
+            "low",
+            "state",
+            "stale"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/AlarmLevel"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "deadband": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Deadband",
+          "type": "number"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "delayS": {
+          "default": 0.0,
+          "maximum": 86400,
+          "minimum": 0,
+          "title": "Delays",
+          "type": "number"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        }
+      },
+      "required": [
+        "type",
+        "level"
+      ],
+      "title": "PointAlarm",
       "type": "object"
     },
     "PointType": {
@@ -1624,6 +1762,14 @@
           "default": true,
           "title": "His",
           "type": "boolean"
+        },
+        "alarms": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PointAlarm"
+          },
+          "title": "Alarms",
+          "type": "array"
         }
       },
       "required": [

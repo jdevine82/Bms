@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { LiveValue, Point, Site } from "./api";
 import { getPoints, getSite } from "./api";
 import { useLive } from "./live";
+import { AlarmButton, AlarmsPage } from "./alarms/AlarmsPage";
 import { AccountPage } from "./auth/AccountPage";
 import { useAuth } from "./auth/AuthGate";
 import { logout } from "./auth/authApi";
@@ -32,8 +33,10 @@ export function App() {
   const { user, can, refresh } = useAuth();
   const inSetup = hash.page === "setup" && can("admin");
   const inAccount = hash.page === "account";
+  const inAlarms = hash.page === "alarms";
+  const elsewhere = inSetup || inAccount || inAlarms;
   const go = (p: Page) => {
-    if (inSetup || inAccount) history.pushState(null, "", location.pathname + location.search);
+    if (elsewhere) history.pushState(null, "", location.pathname + location.search);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     setPage(p);
   };
@@ -76,12 +79,13 @@ export function App() {
           <span className={`conn ${connected ? "on" : "off"}`}>{connected ? "Live" : "Connecting…"}</span>
         </div>
         <nav aria-label="Pages">
-          <button type="button" className={!inSetup && !inAccount && page === "points" ? "active" : ""} onClick={() => go("points")}>
+          <button type="button" className={!elsewhere && page === "points" ? "active" : ""} onClick={() => go("points")}>
             Points
           </button>
-          <button type="button" className={!inSetup && !inAccount && page === "trends" ? "active" : ""} onClick={() => go("trends")}>
+          <button type="button" className={!elsewhere && page === "trends" ? "active" : ""} onClick={() => go("trends")}>
             Trends
           </button>
+          <AlarmButton active={inAlarms} onClick={() => { location.hash = "#/alarms"; }} />
           {can("admin") && (
             <button
               type="button"
@@ -120,16 +124,21 @@ export function App() {
           </select>
         </label>
       </header>
-      <main className={inSetup ? "wide" : ""}>
+      <main className={inSetup || inAlarms ? "wide" : ""}>
         {error && <p className="error">{error}</p>}
         {inSetup && <SetupApp />}
+        {inAlarms && (
+          <div className="setup plain">
+            <AlarmsPage />
+          </div>
+        )}
         {inAccount && (
           <div className="setup plain">
             <AccountPage />
           </div>
         )}
-        {site && !inSetup && !inAccount && page === "points" && <PointsPage site={site} points={points} live={live} onTrend={openTrend} />}
-        {site && !inSetup && !inAccount && page === "trends" && (
+        {site && !elsewhere && page === "points" && <PointsPage site={site} points={points} live={live} onTrend={openTrend} />}
+        {site && !elsewhere && page === "trends" && (
           <TrendPage site={site} points={points} selected={selected} onSelect={setSelected} />
         )}
       </main>

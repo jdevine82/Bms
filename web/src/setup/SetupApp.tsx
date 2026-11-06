@@ -1,5 +1,7 @@
 // The setup area of the web app (milestone 5B). Changes are accepted only on the server
 // itself until logins exist (milestone 6).
+import { AlarmDefinitionsPage } from "../alarms/AlarmDefinitionsPage";
+import { DeliverySettingsPage } from "../alarms/DeliverySettingsPage";
 import { AuditPage } from "../auth/AuditPage";
 import { SecurityPage } from "../auth/SecurityPage";
 import { UsersPage } from "../auth/UsersPage";
@@ -24,6 +26,8 @@ const SECTIONS: { key: Section; label: string; group: string }[] = [
   { key: "equipment", label: "Equipment", group: "Setup" },
   { key: "device-templates", label: "Device templates", group: "Templates" },
   { key: "equip-templates", label: "Equipment templates", group: "Templates" },
+  { key: "alarm-definitions", label: "Alarm definitions", group: "Alarms" },
+  { key: "alarm-delivery", label: "Alarm delivery", group: "Alarms" },
   { key: "site", label: "Site and setup file", group: "Site" },
   { key: "users", label: "Users", group: "Site" },
   { key: "security", label: "Security", group: "Site" },
@@ -68,6 +72,8 @@ export function SetupApp() {
         {section === "device-templates" && <DeviceTemplatesPage />}
         {section === "equip-templates" && <EquipTemplatesPage />}
         {section === "site" && <SitePage />}
+        {section === "alarm-definitions" && <AlarmDefinitionsPage />}
+        {section === "alarm-delivery" && <DeliverySettingsPage />}
         {section === "users" && <UsersPage />}
         {section === "security" && <SecurityPage />}
         {section === "audit" && <AuditPage />}

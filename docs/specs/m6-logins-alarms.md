@@ -1,6 +1,6 @@
 # Milestone 6: logins, audit log and alarms
 
-Status: **6A built** (5 Nov 2026); 6B (alarms) next. Main spec: 5.5 and 5.5.1 (alarms and recipients), 5.6 (audit log), 7 (users, roles and login rules), 8 (security), 18 (milestone 6).
+Status: **6A and 6B built** (6 Nov 2026). Main spec: 5.5 and 5.5.1 (alarms and recipients), 5.6 (audit log), 7 (users, roles and login rules), 8 (security), 18 (milestone 6).
 
 ## Decisions
 
@@ -10,6 +10,7 @@ Status: **6A built** (5 Nov 2026); 6B (alarms) next. Main spec: 5.5 and 5.5.1 (a
 | 2 | SMS provider | **ClickSend** for the first SMS plug-in. The sender is swappable (main spec 5.5), so another provider is one more plug-in. |
 | 3 | ntfy server | **A site setting**, defaulting to the public `https://ntfy.sh`. A site can point at a self-hosted ntfy server later without code changes. |
 | 4 | Email | **SMTP**: host, port, TLS mode, user name and sender address in the site settings; the password only in an environment variable named there (as MQTT brokers do). Works with Microsoft 365, Gmail, an ISP or a relay. |
+| 6 | Device offline alarms | **Only where an admin sets one** (6 Nov 2026). No device gets an offline alarm automatically. |
 | 5 | The first admin | **A first-run web page**: while the site has no accounts, the web app asks for the first admin's name and password. **It is only offered from the server itself** (127.0.0.1 or ::1), the same guard milestone 5 used, so nobody else on the LAN can claim a new site. Once an account exists the page is gone. |
 
 ## 6A: logins, roles and audit log
@@ -87,6 +88,22 @@ Status: **6A built** (5 Nov 2026); 6B (alarms) next. Main spec: 5.5 and 5.5.1 (a
 - **Alarms** page in the web app: active alarms (level by text and shape as well as colour), acknowledge with comment, history with filters, delivery log. Alarm settings on points in the setup screens and mapping table.
 - **Recipients and channels** in the site settings, with test messages.
 - The HMI alarm list (milestone 3 shell) shows active alarms.
+
+### Built in 6B
+
+- **Definitions** in the setup and the config file: `alarms` on a point (type `high`, `low`, `state` or `stale`; `level`; `limit` and `deadband`; `state`; `delayS`; `message`) and `offlineAlarm` on a device (`level`, `delayS`, `message`). Equipment template roles carry `alarms` as defaults; a point that differs is an override, as for every other role field, and roll-outs keep it. Checked like the rest of the setup: limits only on Number points, states only on Bool or Str points (a Str state must be in the enum), one alarm of each type per point (one per state), high above low. The built-in templates now raise a Warning after 30 s on equipment `alarm` inputs and an Info after 60 s on filter signs.
+- **Engine** (`alarms/engine.py`): checks every alarmed point and device once a second from the live values. Limit and state alarms react only to Good values; stale alarms to Stale; offline alarms when every point of the device is down. One row per occurrence; it is closed once acknowledged and back to normal. If it comes back before it is acknowledged, the same row is raised again **without a second notification**. A removed definition (or a disabled point or device) returns its alarm to normal with a note.
+- **Delivery** (`alarms/delivery.py`): channels per level, SMTP, ClickSend and ntfy settings and the recipient list are stored with the site (not in the config file: personal data). Warnings in a person's quiet hours are held and sent as one summary when the window ends; Critical is never held. Failed sends retry (30 s, 1, 5, 15 minutes, then hourly) for up to 24 hours. Test messages from the settings page. Every send is in the delivery log; people who are not admins see addresses shortened.
+- **API:** `/api/alarms` (open, closed or all, with filters), `/api/alarms/summary`, `/api/alarms/{id}` (history and notifications), `POST /api/alarms/ack`, `POST /api/alarms/{id}/comment`, `/api/alarm-deliveries`, `/api/alarm-settings` (admin) and `/api/alarm-settings/test` (admin). Alarm changes are pushed on the live WebSocket (`{"type": "alarm"}`). Acknowledgements, comments, settings changes and tests are in the audit log. Closed alarms and deliveries older than a year are deleted.
+- **Screens:** an **Alarms** button in the header with the unacknowledged count and the worst level's shape; the Alarms page (active with acknowledge and comment, history, notifications sent); Setup → Alarm definitions (points, and device offline alarms) and Setup → Alarm delivery; alarm defaults in the equipment template editor; the commissioning checklist counts points with alarms; the HMI overview lists active alarms (view only).
+- **Tests:** 208 backend tests (new: conditions with deadband and quality, quiet hours, definition checks, raise and notify by all three channels through fake SMTP, ClickSend and ntfy servers, acknowledge and return, delay and re-raise, removed definitions, device offline, held summaries, retries, settings checks and test messages, roles, template defaults and overrides). Browser: `npm run test:alarms` (12 checks).
+
+### Setting up delivery on a site
+
+- Email: the SMTP server, port and security, sender address and user name in Setup → Alarm delivery; the password in an environment variable on the server (default name `BMS_SMTP_PASSWORD`).
+- SMS: the ClickSend user name in the settings; the API key in `BMS_CLICKSEND_API_KEY` (or the name you give).
+- ntfy: the server (default `https://ntfy.sh`); each person subscribes to their own long, random topic in the ntfy app. A self-hosted server can need a token, named by its variable.
+- Restart the backend after setting environment variables, then use the Test buttons.
 
 ## Testing
 

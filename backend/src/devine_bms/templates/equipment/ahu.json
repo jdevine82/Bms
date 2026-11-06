@@ -136,7 +136,15 @@
         "alarm": true
       },
       "required": false,
-      "pollClass": "slow"
+      "pollClass": "slow",
+      "alarms": [
+        {
+          "type": "state",
+          "level": "info",
+          "state": true,
+          "delayS": 60
+        }
+      ]
     }
   ]
 }

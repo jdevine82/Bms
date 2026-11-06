@@ -1,6 +1,7 @@
 // Equipment templates (main spec 5.1.2; mockup sheet 2): roles, versions, roll-out with a
 // preview, side-by-side difference, instances with their overrides.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { alarmSummary, AlarmListEditor } from "../alarms/AlarmListEditor";
 import type { Obj } from "./api";
 import {
   deleteEquipTemplate,
@@ -39,6 +40,7 @@ export function EquipTemplatesPage() {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [preview, setPreview] = useState<Obj | null>(null);
   const [instance, setInstance] = useState<Obj | null>(null);
+  const [alarmRole, setAlarmRole] = useState<number | null>(null);
 
   const load = async (id: string, version?: string) => {
     try {
@@ -168,13 +170,14 @@ export function EquipTemplatesPage() {
                 <table className="grid editable" aria-label="Point roles">
                   <thead>
                     <tr>
-                      <th>Point role</th><th>Display name</th><th>Type</th><th>Kind</th><th>Units</th><th>Tags</th><th>Speed</th><th>Log</th><th>Use</th>
+                      <th>Point role</th><th>Display name</th><th>Type</th><th>Kind</th><th>Units</th><th>Tags</th><th>Speed</th><th>Log</th><th>Alarms</th><th>Use</th>
                       {editing && <th />}
                     </tr>
                   </thead>
                   <tbody>
                     {t.roles.map((r: Obj, i: number) => (
-                      <tr key={i}>
+                      <Fragment key={i}>
+                      <tr>
                         <td>{editing ? <input className="mono" aria-label="Role" value={r.role} onChange={(e) => setRole(i, { role: e.target.value })} /> : <span className="mono">{r.role}</span>}</td>
                         <td>{editing ? <input aria-label={`Display name of ${r.role}`} value={r.dis} onChange={(e) => setRole(i, { dis: e.target.value })} /> : r.dis}</td>
                         <td>
@@ -201,6 +204,13 @@ export function EquipTemplatesPage() {
                           ) : r.pollClass ?? "normal"}
                         </td>
                         <td>{editing ? <input type="checkbox" aria-label="Logged" checked={r.his !== false} onChange={(e) => setRole(i, { his: e.target.checked })} /> : r.his === false ? "no" : "yes"}</td>
+                        <td className="small">
+                          {editing ? (
+                            <button type="button" className="link" onClick={() => setAlarmRole(alarmRole === i ? null : i)}>
+                              {(r.alarms ?? []).length ? alarmSummary(r.alarms) : "None"} (edit)
+                            </button>
+                          ) : (alarmSummary(r.alarms) || "–")}
+                        </td>
                         <td>
                           {editing ? (
                             <select aria-label="Use" value={r.required === false ? "optional" : "required"} onChange={(e) => setRole(i, { required: e.target.value === "required" })}>
@@ -214,6 +224,15 @@ export function EquipTemplatesPage() {
                           </td>
                         )}
                       </tr>
+                      {editing && alarmRole === i && (
+                        <tr>
+                          <td colSpan={11}>
+                            <AlarmListEditor alarms={r.alarms ?? []} kind={r.kind} enumValues={r.enum}
+                              onChange={(alarms) => setRole(i, { alarms: alarms.length ? alarms : undefined })} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

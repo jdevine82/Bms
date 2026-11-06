@@ -6,6 +6,8 @@ import uuid
 from dataclasses import dataclass, field
 
 from devine_bms.config.model import (
+    OfflineAlarm,
+    PointAlarm,
     POLL_INTERVAL_S,
     BacnetAddress,
     BacnetIpConnection,
@@ -66,6 +68,8 @@ class RuntimeDevice:
     )
     enabled: bool
     bus_id: uuid.UUID | None = None
+    dis: str = ""
+    offline_alarm: OfflineAlarm | None = None  # milestone 6B
 
     @property
     def unit_id(self) -> int:
@@ -94,6 +98,7 @@ class RuntimePoint:
     equip_id: uuid.UUID | None = None
     space_id: uuid.UUID | None = None
     tags: dict = field(default_factory=dict, hash=False)
+    alarms: tuple[PointAlarm, ...] = ()  # milestone 6B
 
     def stale_after(self, intervals: dict[PollClass, float] = POLL_INTERVAL_S) -> float:
         if self.stale_after_s is not None:
@@ -137,7 +142,8 @@ def from_site_config(config) -> RuntimeConfig:
             or getattr(d.connection, "broker", None)
         return buses[name].id if name else None
 
-    devices = {d.name: RuntimeDevice(_uuid.uuid4(), d.name, d.protocol, d.connection, d.enabled, bus_id=bus_of(d))
+    devices = {d.name: RuntimeDevice(_uuid.uuid4(), d.name, d.protocol, d.connection, d.enabled, bus_id=bus_of(d),
+                                     dis=d.dis, offline_alarm=d.offline_alarm)
                for d in config.devices}
     points = tuple(
         RuntimePoint(
@@ -145,7 +151,7 @@ def from_site_config(config) -> RuntimeConfig:
             enum=tuple(p.enum) if p.enum else None, address=p.address, poll_class=p.poll_class,
             stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.type.value,
             equip_id=equips[p.equip].id if p.equip else None,
-            space_id=spaces[p.space].id if p.space else None, tags=dict(p.tags),
+            space_id=spaces[p.space].id if p.space else None, tags=dict(p.tags), alarms=tuple(p.alarms),
         )
         for p in config.points
     )

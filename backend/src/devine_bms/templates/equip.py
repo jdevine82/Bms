@@ -21,7 +21,7 @@ from typing import Any
 
 from devine_bms.config.model import EquipTemplate, TemplateRole
 
-ROLE_FIELDS = ("dis", "type", "kind", "unit", "enum", "tags", "pollClass", "staleAfterS", "his")
+ROLE_FIELDS = ("dis", "type", "kind", "unit", "enum", "tags", "pollClass", "staleAfterS", "his", "alarms")
 
 
 def _version_key(version: str) -> tuple:
@@ -68,6 +68,8 @@ def point_name(room: str | None, equip: str, role: str) -> str:
 def _same(a: Any, b: Any) -> bool:
     if isinstance(a, dict) or isinstance(b, dict):
         return (a or {}) == (b or {})
+    if isinstance(a, list) or isinstance(b, list):  # alarms: none and an empty list are the same
+        return (a or []) == (b or [])
     return a == b
 
 
