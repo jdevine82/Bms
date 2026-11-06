@@ -1028,6 +1028,43 @@
           },
           "title": "Falsevalues",
           "type": "array"
+        },
+        "commandTopic": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commandtopic"
+        },
+        "commandTemplate": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commandtemplate"
+        },
+        "commandTrue": {
+          "default": "ON",
+          "title": "Commandtrue",
+          "type": "string"
+        },
+        "commandFalse": {
+          "default": "OFF",
+          "title": "Commandfalse",
+          "type": "string"
         }
       },
       "required": [
@@ -1373,6 +1410,17 @@
           },
           "title": "Alarms",
           "type": "array"
+        },
+        "writeLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WriteLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1770,6 +1818,17 @@
           },
           "title": "Alarms",
           "type": "array"
+        },
+        "writeLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WriteLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1788,6 +1847,26 @@
       ],
       "title": "WordOrder",
       "type": "string"
+    },
+    "WriteLimits": {
+      "additionalProperties": false,
+      "description": "The range the server accepts for a command to a Number point (main spec 5.6), for every role.",
+      "properties": {
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "WriteLimits",
+      "type": "object"
     }
   },
   "additionalProperties": false,

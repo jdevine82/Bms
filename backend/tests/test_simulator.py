@@ -39,7 +39,7 @@ async def test_input_registers_match(sim, client):
 
 
 async def test_out_of_range_is_illegal_address(sim, client):
-    result = await client.read_holding_registers(14, count=4, device_id=1)
+    result = await client.read_holding_registers(22, count=4, device_id=1)  # the meter has 24 registers
     assert result.isError()
     assert result.exception_code == 2
 

@@ -1,6 +1,6 @@
 # Milestone 7: commands, override timers and schedules
 
-Status: **planned** (6 Nov 2026). Main spec: 5.4 (schedules), 5.6 (commands and safety), 6.2 (HMI PIN), 7 (roles), 18 (milestone 7).
+Status: **7A built** (6 Nov 2026); 7B (schedules) next. Main spec: 5.4 (schedules), 5.6 (commands and safety), 6.2 (HMI PIN), 7 (roles), 18 (milestone 7).
 
 Schedules and override timers both need **commands** (writing to devices), which did not exist before this milestone, so commands come first.
 
@@ -43,6 +43,23 @@ Schedules and override timers both need **commands** (writing to devices), which
 - Web app: a command control on each writable point (set a value or hand mode with the time, release to auto), the override badge and its end time, and a list of active overrides.
 - HMI: the **Setpoints** tab becomes live: setpoints and commands with large controls, behind the PIN.
 - Setup: write limits in the point editor, mapping table and commissioning checks; the override times in the site settings.
+
+### Built in 7A
+
+- **Config:** `writeLimits: {min, max}` on points and on equipment template roles (an override like any other role field); `commandTopic`, `commandTemplate`, `commandTrue` and `commandFalse` on MQTT addresses. Checks: limits only on Number setpoints and commands; a writable Number point without limits is a warning in the setup and an **error that blocks go-live** in the commissioning checks and the mapping table (as the mockup shows). The built-in templates now carry limits (indoor unit 17 to 30 °C, mode 1 to 5, fan speed 1 to 4; AHU supply air 12 to 30 °C; valves, dampers and speeds 0 to 100 %). The example configs' setpoints have limits.
+- **Writer** (`commands/writer.py`): Modbus FC05, FC06 and FC16 with the point's scale, offset, byte and word order reversed (`codec.encode_registers`); BACnet/IP WriteProperty with priority and release (Null); MS/TP through the service's new **`WRITE`** command (`bms-mstp` 0.2.0, tested against bacnet-stack's own MS/TP server, including releasing a priority); MQTT publish (QoS 1, not retained).
+- **Command service** (`commands/service.py`): value and limit checks, `confirm` for Bool commands and every override, **set** and **hand** (the site's choices, default 1, 2 or 8 hours, 2 by default), release to auto, override expiry every 5 seconds, overrides stored in `point_override` (migration `0011`). Before hand mode starts, the point is **read from the device** for the value to return to, and every command's read-back becomes the live value at once (found while testing: the last poll can be seconds old).
+- **API:** `POST /api/points/{id}/command`, `POST /api/points/{id}/release`, `GET /api/overrides`, `GET`/`PUT /api/command-settings`; `/api/points` gives `writable`, `writeLimits` and `override`; override changes are pushed on the live WebSocket. Every command, release, timer end and failure is in the audit log with the old and new value.
+- **HMI PIN:** set on My account (4 to 12 digits, not all one digit or a run), removed by an admin. `GET /api/auth/pin-users` and `POST /api/auth/pin` only answer a listed kiosk (or the server itself). A PIN session ends after 5 minutes idle; wrong PINs count towards the lockout.
+- **Screens:** a Command button on writable points (set, hand mode with its time, release to auto, the limits shown, confirm step); a hand-mode badge with who and until when; the HMI Setpoints tab (grouped by equipment, PIN pad, Lock now, large controls); write-limit columns and a "No write limits" filter in the mapping table and commissioning table; override times in Setup → Site.
+- **Simulators:** the Modbus meter has writable registers 20 to 23 and the I/O module takes coil writes; the BACnet simulator's setpoint is commandable; the MS/TP stand-in keeps a priority array.
+- **Tests:** 222 backend tests (new: the encoder, writes on all four protocols, BACnet priorities and release, the real MS/TP `WRITE`, MQTT templates, limits, confirm, set and hand, expiry back to the previous value, release, set ending hand mode, a restart, override choices, roles, kiosk and PIN). Browser: `npm run test:commands` (14 checks).
+
+### Notes
+
+- Bool commands on the screens are always hand mode (with a time), as start/stop overrides; a lasting change is for setpoints. The API still accepts `set` for a Bool command.
+- On BACnet, **set** writes at priority 8 and stays until released; the Command panel offers Release to auto on BACnet points.
+- A write to an MQTT device is not read back; the device reports its new state on its own topic.
 
 ## 7B: schedules
 

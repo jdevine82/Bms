@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from devine_bms.config.model import (
     OfflineAlarm,
     PointAlarm,
+    WriteLimits,
     POLL_INTERVAL_S,
     BacnetAddress,
     BacnetIpConnection,
@@ -99,6 +100,8 @@ class RuntimePoint:
     space_id: uuid.UUID | None = None
     tags: dict = field(default_factory=dict, hash=False)
     alarms: tuple[PointAlarm, ...] = ()  # milestone 6B
+    write_limits: WriteLimits | None = None  # milestone 7A
+    writable: bool = False  # a setpoint or command whose address can be written
 
     def stale_after(self, intervals: dict[PollClass, float] = POLL_INTERVAL_S) -> float:
         if self.stale_after_s is not None:
@@ -121,6 +124,21 @@ class RuntimeConfig:
 
     def points_for(self, device_id: uuid.UUID) -> list[RuntimePoint]:
         return [p for p in self.points if p.device_id == device_id]
+
+
+def point_writable(point_type: str, address) -> bool:
+    """Whether commands can be written (milestone 7A); the same rule as config.validate.writable."""
+    if point_type not in ("sp", "cmd"):
+        return False
+    if isinstance(address, ModbusAddress):
+        return address.object_type.value in ("coil", "holdingRegister")
+    if isinstance(address, BacnetAddress):
+        return not address.object_type.value.endswith("Input")
+    return bool(getattr(address, "command_topic", None))
+
+
+def _writable(p) -> bool:
+    return point_writable(p.type.value, p.address)
 
 
 def from_site_config(config) -> RuntimeConfig:
@@ -152,6 +170,7 @@ def from_site_config(config) -> RuntimeConfig:
             stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.type.value,
             equip_id=equips[p.equip].id if p.equip else None,
             space_id=spaces[p.space].id if p.space else None, tags=dict(p.tags), alarms=tuple(p.alarms),
+            write_limits=p.write_limits, writable=_writable(p),
         )
         for p in config.points
     )

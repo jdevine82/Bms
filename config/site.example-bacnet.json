@@ -78,6 +78,10 @@
       "address": {
         "objectType": "analogValue",
         "instance": 1
+      },
+      "writeLimits": {
+        "min": 17,
+        "max": 28
       }
     },
     {

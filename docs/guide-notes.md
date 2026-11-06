@@ -9,7 +9,7 @@ milestone adds to it.
 - Development machine: Python 3.12 and uv, Node and npm, PostgreSQL 16 (TimescaleDB on sites; `BMS_ALLOW_PLAIN_POSTGRES=true` only on a dev machine), migrations with `uv run alembic upgrade head`. Facts: `docs/decisions/016-native-dev-setup.md`, `docs/specs/m2-simulated-modbus-to-trend.md`.
 - Site server (manual steps until the packaging of milestone 11): database, backend service, built web app (`BMS_WEB_DIST`), listen address (`BMS_LISTEN_HOST`, default 127.0.0.1), Tailscale and `tailscale serve` for HTTPS (decision 010).
 - Pi HMI kiosk: `hmi/README.md` (provision.sh, 64-bit Raspberry Pi OS Lite, cage).
-- BACnet MS/TP service: `mstp/README.md` (build.sh, systemd template, udev rules in `deploy/udev`).
+- BACnet MS/TP service: `mstp/README.md` (build.sh, systemd template, udev rules in `deploy/udev`); version 0.2.0 adds WRITE (rebuild and restart the service when updating).
 - MQTT broker (Mosquitto): `docs/specs/m4d-mqtt.md`.
 
 ## Settings reference
@@ -27,6 +27,7 @@ milestone adds to it.
 - Adding people, 2FA with an authenticator app, lost phone (admin removes 2FA), lockout and unlock.
 - Forgotten admin password: `uv run python -m devine_bms.setup.cli password <username>` on the server.
 - HMI kiosks by address; allowed networks; passwords cross the LAN unencrypted, so keep the web app on the device or management network (main spec 8).
+- HMI PINs: set on My account, removed by an admin; only on listed kiosks; 5 minutes idle.
 - The audit log: what it records, filters, CSV, kept for 1 year.
 
 ## Commissioning
@@ -37,6 +38,7 @@ milestone adds to it.
 ## Operating
 
 - Points and trends, CSV export of history (milestone 2), the HMI (milestone 3).
+- Commands: the Command button, set and hand mode, override times, release to auto, the hand-mode badge, write limits, confirm prompts; on the HMI, the PIN pad and Lock now (`docs/specs/m7-commands-schedules.md`).
 - Alarms: the header count, acknowledging with comments, history, the notifications log; what Info, Warning and Critical mean and who is told; why a Bad value does not raise a limit alarm.
 
 ## Bench and troubleshooting

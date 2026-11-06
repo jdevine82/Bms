@@ -15,6 +15,7 @@ from pydantic import TypeAdapter
 from devine_bms.config.model import (
     OfflineAlarm,
     PointAlarm,
+    WriteLimits,
     BacnetAddress,
     BacnetIpConnection,
     BacnetMstpConnection,
@@ -30,6 +31,7 @@ from devine_bms.config.model import (
 )
 from devine_bms.db import models as db
 from devine_bms.runtime_model import (
+    point_writable,
     RuntimeBus,
     RuntimeConfig,
     RuntimeDevice,
@@ -125,6 +127,8 @@ class PostgresStorage:
                     stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.point_type,
                     equip_id=p.equip_id, space_id=p.space_id, tags=dict(p.tags),
                     alarms=tuple(PointAlarm.model_validate(a) for a in p.alarms or []),
+                    write_limits=WriteLimits.model_validate(p.write_limits) if p.write_limits else None,
+                    writable=point_writable(p.point_type, _address(p.address)),
                 )
                 for p in points
                 if p.device_id in device_ids

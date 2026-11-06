@@ -33,6 +33,8 @@ export function useLive(ids: string[] | "all", onValue: Listener): boolean {
         if (message.type === "value") listener.current(message as LiveValue);
         // Alarm changes come on the same connection (milestone 6B); pages listen for this event.
         if (message.type === "alarm") window.dispatchEvent(new CustomEvent("bms-alarm", { detail: message.alarm }));
+        // Hand-mode overrides set, released or timed out (milestone 7A).
+        if (message.type === "override") window.dispatchEvent(new CustomEvent("bms-override", { detail: message }));
       };
       socket.onclose = (event) => {
         setConnected(false);

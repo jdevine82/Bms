@@ -558,7 +558,7 @@ function StepVerify({ draft, update }: { draft: WizardDraft; update: (d: WizardD
             <tr><th>Logging</th><td>{logged} of {points.length} logged to history</td></tr>
             <tr><th>Poll speed</th><td>{Object.entries(classes).map(([k, n]) => `${n} ${k}`).join(", ")}</td></tr>
             <tr><th>Communicating</th><td>{notTested ? `${notTested} not tested yet (Test the new points in step 2)` : `${points.filter((p) => draft.tested[p.name] === "ok").length} of ${points.length} read`}</td></tr>
-            <tr><th>Write limits</th><td>{writable} writable points. Commands and write limits arrive in milestone 7; until then every point is read-only.</td></tr>
+            <tr><th>Write limits</th><td>{writable} setpoints and commands; every writable Number point needs write limits before go-live (set them in the table).</td></tr>
             <tr><th>Alarms</th><td>{points.filter((p) => (p.alarms ?? []).length).length} of {points.length} points have alarms (from the template, or add them in Setup → Alarm definitions)</td></tr>
           </tbody>
         </table>

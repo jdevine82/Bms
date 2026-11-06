@@ -63,6 +63,16 @@ export function App() {
     }
   }, [theme]);
 
+  // Hand-mode overrides change on the live connection (milestone 7A).
+  useEffect(() => {
+    const on = (e: Event) => {
+      const { pointId, override } = (e as CustomEvent).detail as { pointId: string; override: Point["override"] };
+      setPoints((old) => old.map((p) => (p.id === pointId ? { ...p, override } : p)));
+    };
+    window.addEventListener("bms-override", on);
+    return () => window.removeEventListener("bms-override", on);
+  }, []);
+
   const onValue = useCallback((v: LiveValue) => setLive((old) => ({ ...old, [v.id]: v })), []);
   const connected = useLive(points.length ? "all" : [], onValue);
 

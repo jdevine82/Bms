@@ -258,6 +258,19 @@ class ModbusBusConnection(_Model):
     block_size: int = Field(default=32, ge=1, le=125)
 
 
+class WriteLimits(_Model):
+    """The range the server accepts for a command to a Number point (main spec 5.6), for every role."""
+
+    min: float
+    max: float
+
+    @model_validator(mode="after")
+    def _ordered(self) -> WriteLimits:
+        if self.min >= self.max:
+            raise ValueError("write limits need min below max")
+        return self
+
+
 class AlarmLevel(StrEnum):
     INFO = "info"
     WARNING = "warning"
@@ -381,6 +394,13 @@ class MqttAddress(_Model):
     # Payload texts for true and false (Bool points), compared without case.
     true_values: list[str] = ["on", "true", "1", "yes", "online", "open", "active"]
     false_values: list[str] = ["off", "false", "0", "no", "offline", "closed", "inactive"]
+    # Commands (milestone 7A): where a command is published, and what it looks like. In the
+    # template, {value} is replaced by the value (the true or false text for Bool points), for
+    # example {"state": "{value}"} for Zigbee2MQTT. Without a template the value alone is sent.
+    command_topic: str | None = Field(default=None, min_length=1, max_length=512)
+    command_template: str | None = Field(default=None, max_length=1000)
+    command_true: str = "ON"
+    command_false: str = "OFF"
 
 
 class BacnetSettings(_Model):
@@ -411,6 +431,7 @@ class Point(_Model):
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True
     alarms: list[PointAlarm] = []
+    write_limits: WriteLimits | None = None  # milestone 7A
 
 
 class TemplateRole(_Model):
@@ -428,6 +449,7 @@ class TemplateRole(_Model):
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True
     alarms: list[PointAlarm] = []  # default alarms for the points made for this role
+    write_limits: WriteLimits | None = None
 
 
 class EquipTemplate(_Model):

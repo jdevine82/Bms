@@ -7,7 +7,7 @@ adapter, takes part in the token passing as an MS/TP master (MAC 0 on the site s
 `bms-backend` a small local API to find and read devices. It is built on
 [bacnet-stack](https://github.com/bacnet-stack/bacnet-stack) **1.6.1** (pinned by tag and commit).
 
-It only reads. Writing comes in milestone 7.
+It reads, and from version 0.2.0 (milestone 7A) writes present values with a BACnet priority for commands.
 
 ## Build
 
@@ -53,6 +53,7 @@ Text request lines over TCP; one JSON answer line each, with the request's ID an
 | `STATS <id>` | trunk counters: frames sent and received, invalid frames, lost tokens, CRC errors, poll-for-master |
 | `WHOIS <id> <low> <high> <wait_ms>` | devices that answered: instance, MAC, max APDU, segmentation, vendor (`-1 -1` for all) |
 | `READ <id> <mac> <type>:<instance>:<property> ...` | one ReadPropertyMultiple; a value or an error for each property |
+| `WRITE <id> <mac> <type>:<instance>:<property> <priority> <tag> <value>` | one WriteProperty (version 0.2.0, milestone 7A); `<tag>` is `real`, `enum`, `unsigned` or `null` (`null -` releases that priority); `{"ok": true}` on the device's acknowledgement |
 
 Object types and properties are BACnet numbers: `0:1:85` is analog-input 1 present-value, and `:111` is its
 status flags. A device that does not answer gives `"error": "no answer (timeout)"` after the timeout and retries.

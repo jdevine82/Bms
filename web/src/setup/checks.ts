@@ -3,7 +3,16 @@
 // warnings can be accepted.
 import type { Issue, Obj, SiteConfig } from "./api";
 
-export type Flag = "noRoom" | "untagged" | "duplicate" | "notCommunicating";
+export type Flag = "noRoom" | "untagged" | "duplicate" | "notCommunicating" | "noLimits";
+
+/** A setpoint or command that can be written (milestone 7A), as the backend decides. */
+export function writable(p: Obj): boolean {
+  if (p.type !== "sp" && p.type !== "cmd") return false;
+  const a = p.address ?? {};
+  if (a.topic !== undefined) return !!a.commandTopic;
+  if (a.instance !== undefined) return !String(a.objectType).endsWith("Input");
+  return a.objectType === "coil" || a.objectType === "holdingRegister";
+}
 
 export function roomOf(config: SiteConfig, point: Obj): string | null {
   if (point.space) return point.space;
@@ -22,6 +31,7 @@ export function pointFlags(config: SiteConfig, statuses: Record<string, string>)
     if ((counts.get(p.name) ?? 0) > 1) flags.add("duplicate");
     const s = statuses[p.name];
     if (s && s !== "ok" && s !== "stale") flags.add("notCommunicating");
+    if (writable(p) && p.kind === "Number" && !p.writeLimits) flags.add("noLimits");
     out[p.name] = flags;
   });
   return out;
@@ -41,6 +51,8 @@ export function verdict(config: SiteConfig, statuses: Record<string, string>, se
   const warnings: string[] = [];
   const dup = [...new Set(config.points.filter((p) => names.has(p.name) && flags[p.name]?.has("duplicate")).map((p) => p.name))];
   if (dup.length) errors.push(`${dup.length} point name${dup.length > 1 ? "s are" : " is"} used twice: ${dup.slice(0, 5).join(", ")}. Rename one.`);
+  const noLimits = [...names].filter((n) => flags[n]?.has("noLimits"));
+  if (noLimits.length) errors.push(`${noLimits.length} writable point${noLimits.length > 1 ? "s have" : " has"} no write limits: ${noLimits.slice(0, 5).join(", ")}.`);
   for (const i of server.filter((x) => x.severity === "error")) errors.push(`${i.where}: ${i.message}`);
   const noRoom = count("noRoom");
   if (noRoom) warnings.push(`${noRoom} point${noRoom > 1 ? "s have" : " has"} no room.`);

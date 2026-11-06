@@ -50,6 +50,7 @@ class BrokerLink:
 
     def __init__(self, settings: MqttBroker, devices: list[RuntimeDevice], points_for, tracker: QualityTracker,
                  site_name: str) -> None:
+        self.client: aiomqtt.Client | None = None  # while connected; commands publish on it (7A)
         self.settings = settings
         self.name = settings.name
         self.where = f"MQTT {settings.host}:{settings.port}"
@@ -66,6 +67,17 @@ class BrokerLink:
             topic = state.device.connection.availability_topic
             if topic:
                 self.availability.setdefault(topic, []).append(state)
+
+    async def publish(self, topic: str, payload: str) -> None:
+        """A command (milestone 7A), QoS 1, not retained. Raises DeviceDown when the broker is lost."""
+        from devine_bms.drivers.errors import DeviceDown
+
+        if getattr(self, "client", None) is None:
+            raise DeviceDown(f"the MQTT broker {self.settings.host}:{self.settings.port} is not connected")
+        try:
+            await self.client.publish(topic, payload, qos=1, retain=False)
+        except aiomqtt.MqttError as exc:
+            raise DeviceDown(f"publishing to the MQTT broker failed: {exc}") from exc
 
     def topics(self) -> list[str]:
         return sorted(set(self.routes) | set(self.availability))
@@ -87,6 +99,7 @@ class BrokerLink:
         while True:
             try:
                 async with self._client() as client:
+                    self.client = client
                     for topic in self.topics():
                         await client.subscribe(topic, qos=1)
                     if self.online is not True:
@@ -96,6 +109,7 @@ class BrokerLink:
                     async for message in client.messages:
                         self.handle(str(message.topic), bytes(message.payload or b""))
             except aiomqtt.MqttError as exc:
+                self.client = None
                 self._broker_down(f"lost the MQTT broker {self.settings.host}:{self.settings.port}: {exc}")
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, BACKOFF_MAX_S)

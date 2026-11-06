@@ -1,5 +1,6 @@
 // Site settings, and the whole setup as one file (export and import, main spec 3.1 and 5.1.1).
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getCommandSettings, putCommandSettings } from "../commands/commandsApi";
 import type { Obj } from "./api";
 import { download, getConfig, put } from "./api";
 import type { Outcome } from "./ui";
@@ -41,6 +42,7 @@ export function SitePage() {
           </div>
         )}
         <OutcomeBox outcome={outcome} />
+        <OverrideTimes />
       </section>
       <aside className="side-pane" aria-label="Setup file">
         <p className="eyebrow">Setup file</p>
@@ -69,6 +71,36 @@ export function SitePage() {
           }}>Import {file.name}</ActionButton>
         )}
       </aside>
+    </div>
+  );
+}
+
+/** Hand-mode times offered to operators (main spec 5.6: 1, 2 or 8 hours, 2 by default). */
+function OverrideTimes() {
+  const [choices, setChoices] = useState("");
+  const [def, setDef] = useState("");
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  useEffect(() => {
+    getCommandSettings().then((s) => { setChoices(s.choicesH.join(", ")); setDef(String(s.defaultH)); }).catch(() => undefined);
+  }, []);
+  return (
+    <div className="block">
+      <h3>Hand-mode override times</h3>
+      <p className="muted small">The times an operator can pick when overriding a point, in hours. When the time ends the point returns to auto.</p>
+      <div className="form">
+        <div className="form-row"><label htmlFor="o-choices">Choices (hours)</label><input id="o-choices" value={choices} onChange={(e) => setChoices(e.target.value)} /></div>
+        <div className="form-row"><label htmlFor="o-default">Default (hours)</label><input id="o-default" value={def} onChange={(e) => setDef(e.target.value)} /></div>
+        <div className="actions">
+          <ActionButton onClick={async () => {
+            try {
+              const saved = await putCommandSettings({ choicesH: choices.split(/[\s,]+/).filter(Boolean).map(Number), defaultH: Number(def) });
+              setChoices(saved.choicesH.join(", ")); setDef(String(saved.defaultH));
+              setOutcome({ kind: "ok", message: "Saved." });
+            } catch (e) { setOutcome(outcomeFrom(e)); }
+          }}>Save override times</ActionButton>
+        </div>
+        <OutcomeBox outcome={outcome} />
+      </div>
     </div>
   );
 }

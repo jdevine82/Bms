@@ -32,7 +32,11 @@
       },
       "required": true,
       "pollClass": "normal",
-      "unit": "°C"
+      "unit": "°C",
+      "writeLimits": {
+        "min": 12,
+        "max": 30
+      }
     },
     {
       "role": "return_air_temp",
@@ -97,7 +101,11 @@
       },
       "required": false,
       "pollClass": "normal",
-      "unit": "%"
+      "unit": "%",
+      "writeLimits": {
+        "min": 0,
+        "max": 100
+      }
     },
     {
       "role": "heating_valve",
@@ -110,7 +118,11 @@
       },
       "required": false,
       "pollClass": "normal",
-      "unit": "%"
+      "unit": "%",
+      "writeLimits": {
+        "min": 0,
+        "max": 100
+      }
     },
     {
       "role": "oa_damper",
@@ -124,7 +136,11 @@
       },
       "required": false,
       "pollClass": "normal",
-      "unit": "%"
+      "unit": "%",
+      "writeLimits": {
+        "min": 0,
+        "max": 100
+      }
     },
     {
       "role": "filter_alarm",

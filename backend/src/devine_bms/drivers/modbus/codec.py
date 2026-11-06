@@ -95,3 +95,36 @@ def decode_registers(
 def decode_bit(value: bool | int) -> bool:
     """Coils and discrete inputs are already true/false."""
     return bool(value)
+
+
+def encode_registers(
+    value: float,
+    data_type: DataType,
+    byte_order: ByteOrder = ByteOrder.BIG,
+    word_order: WordOrder = WordOrder.HIGH_FIRST,
+    scale: float = 1.0,
+    offset: float = 0.0,
+) -> list[int]:
+    """The reverse of decode_registers, for commands (milestone 7A): `raw = (value - offset) / scale`.
+
+    Integer types are rounded to the nearest whole raw value; a value outside the type's range
+    raises DecodeError (nothing is written).
+    """
+    data_type = DataType(data_type)
+    if data_type == DataType.BIT:
+        raise DecodeError("bit values are written to coils")
+    if scale == 0:
+        raise DecodeError("the point's scale is 0, so it cannot be written")
+    raw: float | int = (value - offset) / scale
+    fmt = _STRUCT_FORMAT[data_type]
+    if fmt[-1] not in "fd":
+        raw = round(raw)
+    try:
+        raw_bytes = struct.pack(fmt, raw)
+    except struct.error as exc:
+        raise DecodeError(f"{value} does not fit a {data_type} register value") from exc
+    words = [int.from_bytes(raw_bytes[i:i + 2], "big" if ByteOrder(byte_order) == ByteOrder.BIG else "little")
+             for i in range(0, len(raw_bytes), 2)]
+    if len(words) == 2 and WordOrder(word_order) == WordOrder.LOW_FIRST:
+        words.reverse()
+    return words

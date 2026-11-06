@@ -32,7 +32,11 @@
       },
       "required": true,
       "pollClass": "normal",
-      "unit": "°C"
+      "unit": "°C",
+      "writeLimits": {
+        "min": 17,
+        "max": 30
+      }
     },
     {
       "role": "on_off_cmd",
@@ -95,7 +99,11 @@
         "hvacMode": true
       },
       "required": false,
-      "pollClass": "normal"
+      "pollClass": "normal",
+      "writeLimits": {
+        "min": 1,
+        "max": 5
+      }
     },
     {
       "role": "mode_state",
@@ -118,7 +126,11 @@
         "speed": true
       },
       "required": false,
-      "pollClass": "normal"
+      "pollClass": "normal",
+      "writeLimits": {
+        "min": 1,
+        "max": 4
+      }
     },
     {
       "role": "fan_speed_state",
@@ -169,6 +181,7 @@
     "setpointMax": 30
   },
   "notes": [
-    "Mode and fan speed are state numbers until the Mitsubishi state order is checked on the bench; then they become Str roles with an enum list."
+    "Mode and fan speed are state numbers until the Mitsubishi state order is checked on the bench; then they become Str roles with an enum list.",
+    "Write limits: set temperature 17 to 30 °C (the widest range; narrow it per model), mode 1 to 5 and fan speed 1 to 4 (state numbers; check them on the bench)."
   ]
 }

@@ -26,9 +26,11 @@
  *   READ <id> <mac> <type>:<instance>:<property> [...]
  *        type and property are BACnet numbers, e.g. 0:1:85 is
  *        analog-input 1 present-value. Sent as one ReadPropertyMultiple.
+ *   WRITE <id> <mac> <type>:<instance>:<property> <priority> <tag> <value>   (milestone 7A)
+ *        One WriteProperty. <priority> is 1 to 16 (0: none). <tag> is real, enum, unsigned
+ *        or null; null (with any <value>, e.g. -) releases that priority. Answers
+ *        {"ok":true} on the device's SimpleACK.
  * Answers are one JSON object per line, always with "id" and "ok".
- *
- * The service only reads: it never writes to a device (writes come in milestone 7).
  *
  * @copyright Devine BMS. Proprietary. Links the bacnet-stack library
  * (GPL-2.0-or-later WITH GCC-exception-2.0), which permits linking.
@@ -67,7 +69,7 @@
 #include "bacnet/datalink/dlmstp.h"
 #include "bacport.h"
 
-#define SERVICE_VERSION "0.1.0"
+#define SERVICE_VERSION "0.2.0"
 #define MAX_CLIENTS 8
 #define LINE_MAX_LEN 4096
 #define OUT_MAX_LEN 65536
@@ -97,6 +99,7 @@ typedef struct {
     int fd;
     char id[64];
     uint8_t mac;
+    bool write; /* a WriteProperty waiting for its SimpleACK */
 } PENDING_READ;
 
 static PENDING_READ Pending[256];
@@ -362,6 +365,19 @@ static void rpm_ack_handler(
     finish_read(invoke_id);
 }
 
+static void write_ack_handler(BACNET_ADDRESS *src, uint8_t invoke_id)
+{
+    OUT o = { 0 };
+    if (!pending_from(invoke_id, src) || !Pending[invoke_id].write) {
+        return;
+    }
+    out_raw(&o, "{\"id\":");
+    out_str(&o, Pending[invoke_id].id);
+    out_raw(&o, ",\"ok\":true}");
+    send_line(Pending[invoke_id].fd, &o);
+    finish_read(invoke_id);
+}
+
 static void error_handler(
     BACNET_ADDRESS *src, uint8_t invoke_id, BACNET_ERROR_CLASS error_class, BACNET_ERROR_CODE error_code)
 {
@@ -448,6 +464,8 @@ static void init_service_handlers(void)
     apdu_set_confirmed_handler(SERVICE_CONFIRMED_READ_PROPERTY, handler_read_property);
     apdu_set_confirmed_ack_handler(SERVICE_CONFIRMED_READ_PROP_MULTIPLE, rpm_ack_handler);
     apdu_set_error_handler(SERVICE_CONFIRMED_READ_PROP_MULTIPLE, error_handler);
+    apdu_set_confirmed_simple_ack_handler(SERVICE_CONFIRMED_WRITE_PROPERTY, write_ack_handler);
+    apdu_set_error_handler(SERVICE_CONFIRMED_WRITE_PROPERTY, error_handler);
     apdu_set_abort_handler(abort_handler);
     apdu_set_reject_handler(reject_handler);
 }
@@ -534,6 +552,7 @@ static void handle_read(int fd, const char *id, char *args)
         answer_error(fd, id, "busy: no free invoke ID or the request is too long");
     } else {
         Pending[invoke_id].active = true;
+        Pending[invoke_id].write = false;
         Pending[invoke_id].fd = fd;
         Pending[invoke_id].mac = (uint8_t)mac;
         snprintf(Pending[invoke_id].id, sizeof(Pending[invoke_id].id), "%s", id);
@@ -550,6 +569,55 @@ cleanup:
         free(head);
         head = next;
     }
+}
+
+static void handle_write(int fd, const char *id, char *args)
+{
+    long mac = -1, priority = 0;
+    unsigned type = 0, property = 0;
+    unsigned long instance = 0;
+    char tag[16] = "", value[64] = "";
+    BACNET_APPLICATION_DATA_VALUE v = { 0 };
+    BACNET_ADDRESS dest = { 0 };
+    uint8_t invoke_id;
+
+    if (sscanf(args, "%ld %u:%lu:%u %ld %15s %63s", &mac, &type, &instance, &property, &priority, tag, value) != 7) {
+        answer_error(fd, id, "WRITE needs <mac> <type>:<instance>:<property> <priority> <tag> <value>");
+        return;
+    }
+    if (mac < 0 || mac > 254 || mac == My_Mac || type >= MAX_BACNET_OBJECT_TYPE || instance > BACNET_MAX_INSTANCE ||
+        property > MAX_BACNET_PROPERTY_ID || priority < 0 || priority > 16) {
+        answer_error(fd, id, "bad MAC address, object reference or priority");
+        return;
+    }
+    if (strcmp(tag, "real") == 0) {
+        v.tag = BACNET_APPLICATION_TAG_REAL;
+        v.type.Real = strtof(value, NULL);
+    } else if (strcmp(tag, "enum") == 0) {
+        v.tag = BACNET_APPLICATION_TAG_ENUMERATED;
+        v.type.Enumerated = (uint32_t)strtoul(value, NULL, 10);
+    } else if (strcmp(tag, "unsigned") == 0) {
+        v.tag = BACNET_APPLICATION_TAG_UNSIGNED_INT;
+        v.type.Unsigned_Int = (BACNET_UNSIGNED_INTEGER)strtoull(value, NULL, 10);
+    } else if (strcmp(tag, "null") == 0) {
+        v.tag = BACNET_APPLICATION_TAG_NULL;
+    } else {
+        answer_error(fd, id, "the value tag is real, enum, unsigned or null");
+        return;
+    }
+    dest.mac_len = 1;
+    dest.mac[0] = (uint8_t)mac;
+    invoke_id = Send_Write_Property_Request_Address(&dest, MSTP_MAX_APDU, (BACNET_OBJECT_TYPE)type,
+        (uint32_t)instance, (BACNET_PROPERTY_ID)property, &v, (uint8_t)priority, BACNET_ARRAY_ALL);
+    if (invoke_id == 0) {
+        answer_error(fd, id, "busy: no free invoke ID");
+        return;
+    }
+    Pending[invoke_id].active = true;
+    Pending[invoke_id].write = true;
+    Pending[invoke_id].fd = fd;
+    Pending[invoke_id].mac = (uint8_t)mac;
+    snprintf(Pending[invoke_id].id, sizeof(Pending[invoke_id].id), "%s", id);
 }
 
 static void handle_whois(int fd, const char *id, char *args)
@@ -627,8 +695,10 @@ static void handle_line(int fd, char *line)
         handle_whois(fd, id, rest);
     } else if (strcmp(cmd, "READ") == 0) {
         handle_read(fd, id, rest);
+    } else if (strcmp(cmd, "WRITE") == 0) {
+        handle_write(fd, id, rest);
     } else {
-        answer_error(fd, id, "unknown request; use PING, STATS, WHOIS or READ");
+        answer_error(fd, id, "unknown request; use PING, STATS, WHOIS, READ or WRITE");
     }
 }
 

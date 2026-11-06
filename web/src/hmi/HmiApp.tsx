@@ -7,6 +7,8 @@ import { getHistory, getPoints, getSite } from "../api";
 import { STATUS_TEXT, formatValue } from "../format";
 import { useLive } from "../live";
 import { HmiAlarms } from "./HmiAlarms";
+import { HmiSetpoints } from "./HmiSetpoints";
+import { useAuth } from "../auth/AuthGate";
 import { Chart, toSamples, type Sample } from "../TrendPage";
 import "./hmi.css";
 
@@ -21,6 +23,7 @@ const TABS: { key: Tab; label: string }[] = [
 const OFFLINE_AFTER_MS = 5000;
 
 export function HmiApp() {
+  const { user, can } = useAuth();
   const [site, setSite] = useState<Site | null>(null);
   const [points, setPoints] = useState<Point[]>([]);
   const [live, setLive] = useState<Record<string, LiveValue>>({});
@@ -53,6 +56,15 @@ export function HmiApp() {
   }, []);
 
   const onValue = useCallback((v: LiveValue) => setLive((old) => ({ ...old, [v.id]: v })), []);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const { pointId, override } = (e as CustomEvent).detail as { pointId: string; override: Point["override"] };
+      setPoints((old) => old.map((p) => (p.id === pointId ? { ...p, override } : p)));
+    };
+    window.addEventListener("bms-override", on);
+    return () => window.removeEventListener("bms-override", on);
+  }, []);
+
   const connected = useLive(points.length ? "all" : [], onValue);
   const offline = useOffline(connected, points.length > 0);
 
@@ -65,9 +77,7 @@ export function HmiApp() {
         </span>
         <span className="hmi-spacer" />
         {site && <Clock timeZone={site.ianaTz} />}
-        <span className="hmi-lock" title="PIN login comes in a later milestone">
-          View only
-        </span>
+        <span className="hmi-lock">{user.username && can("operator") ? `Unlocked: ${user.dis}` : "Locked"}</span>
       </header>
 
       {(offline || loadError) && (
@@ -81,7 +91,8 @@ export function HmiApp() {
         {site && tab === "overview" && <HmiAlarms />}
         {site && tab === "overview" && <Overview points={points} live={live} />}
         {site && tab === "trends" && <ShortTrends site={site} points={points} />}
-        {site && (tab === "graphics" || tab === "setpoints" || tab === "schedules") && (
+        {site && tab === "setpoints" && <HmiSetpoints points={points} live={live} tz={site.ianaTz} />}
+        {site && (tab === "graphics" || tab === "schedules") && (
           <ComingLater tab={TABS.find((t) => t.key === tab)!.label} />
         )}
       </main>
