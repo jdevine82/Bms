@@ -3,6 +3,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { signIn } from "./login.mjs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -42,6 +43,7 @@ try {
       ws.connectToServer();
     });
 
+    await signIn(page, url); // milestone 6A: a login (or a listed kiosk address) is needed
     await page.goto(`${url}/hmi`);
     await page.waitForFunction(
       () => /\d.*kW/.test(document.querySelector('[data-testid="hmi-value-site_meter1_power"]')?.textContent ?? ""),

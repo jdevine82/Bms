@@ -1,6 +1,6 @@
 # Milestone 6: logins, audit log and alarms
 
-Status: **planned** (5 Nov 2026). Main spec: 5.5 and 5.5.1 (alarms and recipients), 5.6 (audit log), 7 (users, roles and login rules), 8 (security), 18 (milestone 6).
+Status: **6A built** (5 Nov 2026); 6B (alarms) next. Main spec: 5.5 and 5.5.1 (alarms and recipients), 5.6 (audit log), 7 (users, roles and login rules), 8 (security), 18 (milestone 6).
 
 ## Decisions
 
@@ -43,6 +43,21 @@ Status: **planned** (5 Nov 2026). Main spec: 5.5 and 5.5.1 (alarms and recipient
 - **Users** (admin): add, change role, disable, reset a password, unlock, require 2FA.
 - **Site settings → Security**: login rules, kiosk addresses, allowed networks.
 - **Audit log** replaces the change log page.
+
+### Built in 6A
+
+- Tables `app_user` and `user_session`; the `setup_change` table is renamed `audit_log` and keeps its entries, with the user added (migration `0009`). Security settings live in their own column on the site, so importing a setup file never changes them.
+- API: `/api/auth/state`, `/api/auth/first-admin`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me` (password, 2FA set-up and removal), `/api/users` (admin), `/api/auth/settings` (admin), `/api/audit` and `/api/audit.csv`. Every other `/api` route answers 401 without a login; `/api/setup/*` needs the admin role. The live WebSocket closes with code 4401 when not signed in, and re-checks the session every minute.
+- **Behind tailscale serve:** a request from this machine with `X-Forwarded-For` is taken to come from the address it names, for lockout, rate limits, allowed networks and the audit log, and the first-run page is not offered to it.
+- **The way back in:** if the only admin forgets their password, `uv run python -m devine_bms.setup.cli password <username>` on the server sets a new one, unlocks the account and records it in the audit log.
+- Screens: login (asks for the 2FA code when needed), first-run, My account (password, 2FA with a QR code, sign out everywhere, my recent actions), and in Setup: Users, Security, Audit log (filters, before and after, CSV). The Setup button only shows for admins.
+- Tests: 196 backend tests (new: first run, every route needs a login, roles, lockout and unlock, rate limit, idle time-out, password change ends other sessions, 2FA, kiosk and allowed networks, the proxy address, last-admin rules, audit CSV and retention). Browser: `npm run test:auth` (12 checks) and the existing smoke, HMI and setup tests, which now sign in (`tests/login.mjs`).
+
+### Notes from building 6A
+
+- The web app and API are served from one origin; the session cookie is HttpOnly and SameSite=Strict, and changes are JSON requests, which another site cannot send with the cookie.
+- The backend still listens on 127.0.0.1 by default (`BMS_LISTEN_HOST`); a site sets the LAN address at install (milestone 11 packaging).
+- HMI PINs come with commands in milestone 7.
 
 ## 6B: alarms
 

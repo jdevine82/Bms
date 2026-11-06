@@ -190,7 +190,7 @@ class SetupService:
                 select(db.SetupChange).where(db.SetupChange.site_id == site.id)
                 .order_by(db.SetupChange.ts.desc()).limit(limit)
             )).all()
-        return [{"ts": r.ts.isoformat(), "client": r.client, "action": r.action, "kind": r.kind, "name": r.name,
+        return [{"ts": r.ts.isoformat(), "client": r.client, "user": r.username, "action": r.action, "kind": r.kind, "name": r.name,
                  "summary": r.summary, "before": r.before, "after": r.after} for r in rows]
 
     async def record(self, client: str, action: str, summary: str, kind: str | None = None,
@@ -258,11 +258,16 @@ class SetupService:
         return site
 
     @staticmethod
-    def _log(session: AsyncSession, site_id, client: str, action: str, kind: str | None, name: str | None,
+    def _log(session: AsyncSession, site_id, client: Any, action: str, kind: str | None, name: str | None,
              summary: str, before: Any, after: Any) -> None:
-        session.add(db.SetupChange(site_id=site_id, client=client[:64], action=action, kind=kind, name=name,
-                                   summary=summary, before=before, after=after))
-        log.info("setup change by %s: %s", client, summary)
+        """Write to the audit log. `client` is the signed-in Actor (milestone 6A), or a plain label
+        for changes made without one (start-up import, command line)."""
+        address = getattr(client, "client", None) or str(client)
+        username = getattr(client, "username", None)
+        session.add(db.AuditEntry(site_id=site_id, client=address[:64], user_id=getattr(client, "user_id", None),
+                                  username=username, action=action, kind=kind, name=name,
+                                  summary=summary, before=before, after=after))
+        log.info("setup change by %s: %s", getattr(client, "label", address), summary)
 
 
 def _rename_in(data: dict, kind: str, old: str, new: str) -> dict:

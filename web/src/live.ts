@@ -32,8 +32,10 @@ export function useLive(ids: string[] | "all", onValue: Listener): boolean {
         if (message.type === "snapshot") message.values.forEach((v: LiveValue) => listener.current(v));
         if (message.type === "value") listener.current(message as LiveValue);
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         setConnected(false);
+        // 4401: not signed in, or the session ended (milestone 6A). The login screen takes over.
+        if (event.code === 4401) window.dispatchEvent(new Event("bms-signed-out"));
         if (!closed) {
           retry = setTimeout(open, delay);
           delay = Math.min(delay * 2, 15000);

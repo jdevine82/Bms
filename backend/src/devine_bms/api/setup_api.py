@@ -1,8 +1,7 @@
 """Setup API (milestone 5A): read, change, rename and remove the site setup.
 
-Reading is open, like the rest of the API. Changes are accepted only from the server
-itself (127.0.0.1 or ::1) until logins exist (milestone 5 decision 2, main spec 7);
-milestone 6 replaces this guard with the admin role.
+Everything here needs the admin role (main spec 7; milestone 6A replaced the localhost-only
+guard of milestone 5). Each change is recorded in the audit log with the user.
 """
 
 from __future__ import annotations
@@ -10,36 +9,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from devine_bms.api.auth_api import require
+from devine_bms.auth.service import Actor
 from devine_bms.setup.equip_templates import EquipTemplateService
 from devine_bms.setup.service import KINDS, SetupError, SetupService
 from devine_bms.setup.templates import TemplateLibrary
 
-LOOPBACK = {"127.0.0.1", "::1", "localhost"}
-
-
-def client_label(request: Request) -> str:
-    host = request.client.host if request.client else "unknown"
-    forwarded = request.headers.get("x-forwarded-for")
-    return f"{host} (for {forwarded})" if forwarded else host
-
-
-def local_only(request: Request) -> str:
-    """Refuse setup changes from anywhere but this machine. Returns the client label for the change log."""
-    host = request.client.host if request.client else ""
-    forwarded = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
-    if host not in LOOPBACK or any(h not in LOOPBACK for h in forwarded):
-        raise HTTPException(
-            403, "Setup changes are only accepted from the server itself until logins exist (milestone 6).")
-    return client_label(request)
-
-
 def build_setup_router(get_service: Callable[[], SetupService | None],
                        get_runtime: Callable[[], Any] = lambda: None,
                        get_discover: Callable[[], Any] = lambda: None) -> APIRouter:
-    router = APIRouter(prefix="/api/setup")
+    router = APIRouter(prefix="/api/setup", dependencies=[Depends(require("admin"))])
 
     def service() -> SetupService:
         svc = get_service()
@@ -62,7 +44,7 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
         return JSONResponse(data, headers={"X-Setup-Revision": svc.revision(data)})
 
     @router.post("/commit")
-    async def commit(body: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+    async def commit(body: dict = Body(...), check: bool = False, client: Actor = Depends(require("admin")),
                      svc: SetupService = Depends(service)) -> Any:
         """Save a whole edited setup in one checked change: the wizard's go-live and the mapping
         table. body: config, revision (from X-Setup-Revision when it was read), summary."""
@@ -72,17 +54,17 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
         return await run(svc.import_config(body["config"], client, check, body["revision"], summary, "commit"))
 
     @router.put("/config")
-    async def import_config(data: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+    async def import_config(data: dict = Body(...), check: bool = False, client: Actor = Depends(require("admin")),
                             svc: SetupService = Depends(service)) -> Any:
         return await run(svc.import_config(data, client, check))
 
     @router.put("/site")
-    async def put_site(body: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+    async def put_site(body: dict = Body(...), check: bool = False, client: Actor = Depends(require("admin")),
                        svc: SetupService = Depends(service)) -> Any:
         return await run(svc.put_site(body.get("site", {}), body.get("bacnet"), client, check))
 
     @router.put("/feeds")
-    async def put_feeds(feeds: list[dict] = Body(...), check: bool = False, client: str = Depends(local_only),
+    async def put_feeds(feeds: list[dict] = Body(...), check: bool = False, client: Actor = Depends(require("admin")),
                         svc: SetupService = Depends(service)) -> Any:
         return await run(svc.put_feeds(feeds, client, check))
 
@@ -103,18 +85,18 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
         return await run(get())
 
     @router.post("/templates")
-    async def save_template(data: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+    async def save_template(data: dict = Body(...), check: bool = False, client: Actor = Depends(require("admin")),
                             svc: SetupService = Depends(service)) -> Any:
         return await run(TemplateLibrary(svc).save(data, client, check))
 
     @router.delete("/templates/{template_id}")
-    async def delete_template(template_id: str, version: str | None = None, client: str = Depends(local_only),
+    async def delete_template(template_id: str, version: str | None = None, client: Actor = Depends(require("admin")),
                               svc: SetupService = Depends(service)) -> Any:
         return await run(TemplateLibrary(svc).delete(template_id, version, client))
 
     @router.post("/templates/{template_id}/apply")
     async def apply_template(template_id: str, body: dict = Body(...), check: bool = False,
-                             client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+                             client: Actor = Depends(require("admin")), svc: SetupService = Depends(service)) -> Any:
         return await run(TemplateLibrary(svc).apply(template_id, body, client, check))
 
     # ---------- equipment templates (main spec 5.1.2) ----------
@@ -134,23 +116,23 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
         return await run(EquipTemplateService(svc).diff(template_id, old, new))
 
     @router.post("/equip-templates")
-    async def save_equip_template(body: dict = Body(...), check: bool = False, client: str = Depends(local_only),
+    async def save_equip_template(body: dict = Body(...), check: bool = False, client: Actor = Depends(require("admin")),
                                   svc: SetupService = Depends(service)) -> Any:
         return await run(EquipTemplateService(svc).save(body, client, check))
 
     @router.delete("/equip-templates/{template_id}")
-    async def delete_equip_template(template_id: str, version: str | None = None, client: str = Depends(local_only),
+    async def delete_equip_template(template_id: str, version: str | None = None, client: Actor = Depends(require("admin")),
                                     svc: SetupService = Depends(service)) -> Any:
         return await run(EquipTemplateService(svc).delete(template_id, version, client))
 
     @router.post("/equip-templates/{template_id}/create")
     async def create_from_template(template_id: str, body: dict = Body(...), check: bool = False,
-                                   client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+                                   client: Actor = Depends(require("admin")), svc: SetupService = Depends(service)) -> Any:
         return await run(EquipTemplateService(svc).create(template_id, body, client, check))
 
     @router.post("/equip-templates/{template_id}/rollout")
     async def rollout(template_id: str, body: dict = Body(...), check: bool = False,
-                      client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+                      client: Actor = Depends(require("admin")), svc: SetupService = Depends(service)) -> Any:
         return await run(EquipTemplateService(svc).rollout(template_id, body, client, check))
 
     @router.get("/instances/{kind}/{name}")
@@ -158,20 +140,20 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
         return await run(EquipTemplateService(svc).instance(kind, name))
 
     @router.post("/instances/{kind}/{name}/reset")
-    async def reset_override(kind: str, name: str, body: dict = Body(...), client: str = Depends(local_only),
+    async def reset_override(kind: str, name: str, body: dict = Body(...), client: Actor = Depends(require("admin")),
                              svc: SetupService = Depends(service)) -> Any:
         return await run(EquipTemplateService(svc).reset_override(kind, name, body.get("role", ""),
                                                                   body.get("field", ""), client))
 
     @router.post("/instances/{kind}/{name}/unlink")
-    async def unlink(kind: str, name: str, client: str = Depends(local_only),
+    async def unlink(kind: str, name: str, client: Actor = Depends(require("admin")),
                      svc: SetupService = Depends(service)) -> Any:
         return await run(EquipTemplateService(svc).unlink(kind, name, client))
 
     # ---------- test reads (read-only, but they send traffic to devices) ----------
 
     @router.post("/test-read")
-    async def test_read_route(body: dict = Body(...), client: str = Depends(local_only),
+    async def test_read_route(body: dict = Body(...), client: Actor = Depends(require("admin")),
                               svc: SetupService = Depends(service)) -> Any:
         from devine_bms.setup.testread import test_read
         return await run(test_read(get_runtime(), svc, body))
@@ -185,7 +167,7 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
         return manager
 
     @router.post("/discover")
-    async def start_scan(body: dict = Body(...), client: str = Depends(local_only), manager=Depends(discover)) -> Any:
+    async def start_scan(body: dict = Body(...), client: Actor = Depends(require("admin")), manager=Depends(discover)) -> Any:
         params = {k: v for k, v in body.items() if k != "kind"}
 
         async def start():
@@ -204,13 +186,13 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
         return await run(get())
 
     @router.delete("/discover/{scan_id}")
-    async def stop_scan(scan_id: str, client: str = Depends(local_only), manager=Depends(discover)) -> Any:
+    async def stop_scan(scan_id: str, client: Actor = Depends(require("admin")), manager=Depends(discover)) -> Any:
         async def stop():
             return (await manager.stop(scan_id)).as_dict()
         return await run(stop())
 
     @router.post("/discover/{scan_id}/add")
-    async def add_found(scan_id: str, body: dict = Body(...), client: str = Depends(local_only),
+    async def add_found(scan_id: str, body: dict = Body(...), client: Actor = Depends(require("admin")),
                         manager=Depends(discover)) -> Any:
         return await run(manager.add(scan_id, body.get("picks", []), client))
 
@@ -235,17 +217,17 @@ def build_setup_router(get_service: Callable[[], SetupService | None],
 
     @router.put("/{kind}/{name}")
     async def put_item(kind: str, name: str, item: dict = Body(...), check: bool = False,
-                       client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+                       client: Actor = Depends(require("admin")), svc: SetupService = Depends(service)) -> Any:
         return await run(svc.put_item(kind, name, item, client, check))
 
     @router.delete("/{kind}/{name}")
-    async def delete_item(kind: str, name: str, check: bool = False, client: str = Depends(local_only),
+    async def delete_item(kind: str, name: str, check: bool = False, client: Actor = Depends(require("admin")),
                           svc: SetupService = Depends(service)) -> Any:
         return await run(svc.delete_item(kind, name, client, check))
 
     @router.post("/{kind}/{name}/rename")
     async def rename_item(kind: str, name: str, body: dict = Body(...), check: bool = False,
-                          client: str = Depends(local_only), svc: SetupService = Depends(service)) -> Any:
+                          client: Actor = Depends(require("admin")), svc: SetupService = Depends(service)) -> Any:
         new_name = body.get("newName")
         if not isinstance(new_name, str) or not new_name:
             raise HTTPException(422, "give the new name as {\"newName\": \"...\"}")

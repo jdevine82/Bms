@@ -9,16 +9,19 @@
     "typecheck": "tsc --noEmit -p .",
     "test:e2e": "node tests/smoke.mjs",
     "test:hmi": "node tests/hmi.mjs",
-    "test:setup": "node tests/setup.mjs"
+    "test:setup": "node tests/setup.mjs",
+    "test:auth": "node tests/auth.mjs"
   },
   "author": "Jason Devine",
   "license": "UNLICENSED",
   "dependencies": {
+    "qrcode": "1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "uplot": "^1.6.32"
   },
   "devDependencies": {
+    "@types/qrcode": "1.5.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",

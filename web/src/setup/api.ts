@@ -37,6 +37,7 @@ export interface SiteConfig {
 export class SetupError extends Error {
   status: number;
   issues: Issue[];
+  code: string | null = null;
   constructor(message: string, status: number, issues: Issue[] = []) {
     super(message);
     this.status = status;
@@ -59,10 +60,10 @@ async function send<T>(method: string, url: string, body?: unknown): Promise<T> 
   if (!response.ok || (data && data.ok === false)) {
     const message =
       (data && (data.error || (typeof data.detail === "string" ? data.detail : null))) ||
-      (response.status === 403
-        ? "Setup changes are only accepted on the server itself until logins exist."
-        : `${response.status} ${response.statusText}`);
-    throw new SetupError(message, response.status, (data && data.issues) || []);
+      (response.status === 403 ? "Your role does not allow this." : `${response.status} ${response.statusText}`);
+    const error = new SetupError(message, response.status, (data && data.issues) || []);
+    error.code = data?.code ?? null;
+    throw error;
   }
   return data as T;
 }

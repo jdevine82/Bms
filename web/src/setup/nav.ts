@@ -12,7 +12,10 @@ export type Section =
   | "rooms"
   | "equipment"
   | "site"
-  | "changes";
+  | "changes"
+  | "users"
+  | "security"
+  | "audit";
 
 export function readHash(): { page: string; section: string | null; rest: string[] } {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);

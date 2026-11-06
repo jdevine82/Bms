@@ -21,6 +21,7 @@ from helpers import TEST_INTERVALS, example_data
 from simulators.modbus_meter import MeterSimulator
 
 URL = os.environ.get("BMS_TEST_DATABASE_URL")
+ADMIN = {"username": "admin", "dis": "Test admin", "password": "correct horse battery"}
 BACKEND = Path(__file__).resolve().parents[1]
 
 
@@ -68,6 +69,9 @@ async def running_stack(data: dict, extra: dict | None = None):
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50000))
         async with httpx.AsyncClient(transport=transport, base_url="http://bms") as client:
+            # Milestone 6A: every route needs a login. The client is the site's first admin.
+            first = await client.post("/api/auth/first-admin", json=ADMIN)
+            assert first.status_code == 200, first.text
             yield {"client": client, "app": app, "sessions": sessions, **(extra or {})}
     await engine.dispose()
 

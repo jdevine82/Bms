@@ -1,0 +1,120 @@
+/* Login and first-run pages (milestone 6A). */
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-card h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.auth-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.auth-card input {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 0 12px;
+  font: inherit;
+}
+
+.auth-card .btn {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.auth-card .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-error {
+  color: var(--bad);
+  border: 1px solid color-mix(in srgb, var(--bad) 60%, var(--border));
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.auth-card .muted {
+  color: var(--text-muted);
+}
+
+.auth-card .small {
+  font-size: 13px;
+}
+
+.gate-error {
+  padding: 16px;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-menu .who {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.qr {
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  width: 200px;
+  height: 200px;
+}
+
+.btn-plain {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.user-menu a.who {
+  text-decoration: none;
+}
+
+.user-menu a.who:hover {
+  text-decoration: underline;
+}

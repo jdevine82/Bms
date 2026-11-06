@@ -1,6 +1,8 @@
 // The setup area of the web app (milestone 5B). Changes are accepted only on the server
 // itself until logins exist (milestone 6).
-import { ChangeLogPage } from "./ChangeLogPage";
+import { AuditPage } from "../auth/AuditPage";
+import { SecurityPage } from "../auth/SecurityPage";
+import { UsersPage } from "../auth/UsersPage";
 import { DeviceTemplatesPage } from "./DeviceTemplatesPage";
 import { DiscoverPage } from "./DiscoverPage";
 import { EquipTemplatesPage } from "./EquipTemplatesPage";
@@ -23,10 +25,10 @@ const SECTIONS: { key: Section; label: string; group: string }[] = [
   { key: "device-templates", label: "Device templates", group: "Templates" },
   { key: "equip-templates", label: "Equipment templates", group: "Templates" },
   { key: "site", label: "Site and setup file", group: "Site" },
-  { key: "changes", label: "Change log", group: "Site" },
+  { key: "users", label: "Users", group: "Site" },
+  { key: "security", label: "Security", group: "Site" },
+  { key: "audit", label: "Audit log", group: "Site" },
 ];
-
-const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 
 export function SetupApp() {
   const hash = useHash();
@@ -54,12 +56,6 @@ export function SetupApp() {
             ))}
           </div>
         ))}
-        {!isLocal && (
-          <p className="note warn small">
-            Changes are only accepted from the server itself until logins exist (milestone 6). You can look, but saving
-            will be refused here.
-          </p>
-        )}
       </nav>
       <div className="setup-body">
         {section === "commission" && <WizardPage />}
@@ -72,7 +68,9 @@ export function SetupApp() {
         {section === "device-templates" && <DeviceTemplatesPage />}
         {section === "equip-templates" && <EquipTemplatesPage />}
         {section === "site" && <SitePage />}
-        {section === "changes" && <ChangeLogPage />}
+        {section === "users" && <UsersPage />}
+        {section === "security" && <SecurityPage />}
+        {section === "audit" && <AuditPage />}
       </div>
     </div>
   );
