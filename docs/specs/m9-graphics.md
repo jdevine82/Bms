@@ -1,6 +1,6 @@
 # Milestone 9: graphics
 
-Status: **9A built** (6 Nov 2026); 9B planned. Main spec: 6.4 (symbols and graphics), 6.5 (tabs), 6.2 (HMI), 5.6 (commands), 18 (milestone 9).
+Status: **9A built**, **9B in progress** (6 Nov 2026). Main spec: 6.4 (symbols and graphics), 6.5 (tabs), 6.2 (HMI), 5.6 (commands), 18 (milestone 9).
 
 ## Decisions
 
@@ -8,6 +8,8 @@ Status: **9A built** (6 Nov 2026); 9B planned. Main spec: 6.4 (symbols and graph
 |---|---|---|
 | 1 | How it is split | **Two parts.** **9A:** the graphics model, the shipped symbol library, live rendering (states, colour rules, animation), tap to control, and the Site and room tabs on the web app and HMI, with starting graphics made automatically from the rooms and equipment. **9B:** the graphics editor in the web app, plus custom symbols and sanitised SVG import. |
 | 2 | Where the symbols come from | **Equinor's engineering-symbols (MIT licence) where they fit**, recoloured by the BMS for states and the dark theme, and **the missing ones drawn for this project in the same line style** (light, door, meter, compressor and any other HVAC gap). The licence and credit ship with the symbols. |
+| 4 | How much the symbol editor draws (9B) | **Simple shapes:** lines, polylines, rectangles, circles and text on the 64 x 64 grid, each in the Off layer, the On layer or both, with an animation for the On layer. Anything more elaborate is drawn in a vector tool (for example Inkscape) and imported. |
+| 5 | Backgrounds (9B) | **One imported SVG background per graphic** (for example a floor plan exported from CAD), sanitised like symbols and drawn under everything else. |
 | 3 | Where graphics are stored | **In the site setup** (`graphics` in the config file), so they are checked like everything else, exported with the setup (main spec 5.1.1: graphic bindings export as one file), backed up, and edited by admins (main spec 7). |
 
 ## 9A: model, library, rendering and tabs
@@ -65,4 +67,40 @@ Checks: names unique, bound points exist, a `command` binding is a writable poin
 
 ## 9B: the editor, custom symbols and SVG import
 
-Planned after 9A.
+### Custom symbols
+
+- Stored in the site setup (`symbols` in the config file) with an ID that is not a library ID, a display name, a category, a kind (state, position, level, value), an optional animation for the On layer (spin the whole symbol, or flash), the cleaned SVG with its viewBox, and, for a drawn symbol, its shapes so it can be edited again.
+- **States:** a custom symbol has an **Off group** and an **On group**. Off is shown while the symbol is not running, On while it runs; Fault, Offline and Manual are drawn from the same artwork as for library symbols (colour, dashed frame, badge). Parts outside both groups always show.
+- **Drawn in the editor** (decision 4): the shapes above, in Off, On or both, with stroke or fill in the state colour. The editor writes the SVG.
+- **Imported:** an SVG file whose groups have the IDs `off` and `on` (Inkscape layers named Off and On work too). Missing groups are refused with the reason.
+
+### Sanitising (main spec 6.4)
+
+Every imported SVG, symbol or background, is cleaned on the server before it is shown or saved, and the setup checks refuse any stored SVG that cleaning would change, so a setup file cannot bring one in either:
+
+- Only drawing elements are kept (shapes, paths, text, groups, gradients, clip paths, markers, `use` within the file, and SMIL animation); scripts, `foreignObject`, images, style sheets, fonts and anything unknown are removed.
+- Event handlers (`on...`), links to anything outside the file (`href` not starting `#`, `url(...)` not starting `#`) and `javascript:` are removed; a DOCTYPE or entity is refused outright.
+- IDs are renamed with the symbol's ID in front so they cannot clash with the page.
+- Size limits: 64 KB for a symbol, 1 MB for a background, 5,000 elements.
+- The import screen lists what was removed.
+
+### Backgrounds
+
+A graphic can have one background (decision 5): the cleaned SVG, its place and size on the graphic, and an opacity. It is drawn first, under rooms, pipes and symbols, and never animates or reacts to taps.
+
+### The graphics editor (web app, admins)
+
+- **Setup → Graphics → Open in editor** (or New graphic). Desktop browsers only; the HMI and phones show graphics and do not edit them (main spec 6.4).
+- A **palette** of library and site symbols by category, and tools for pipe, duct, room, live value and text. Click a symbol or tool, then click the drawing to place it; pipes and ducts are drawn by clicking corner points (double-click or Enter ends the line).
+- Everything **snaps to a 10-unit grid**; drag to move, drag the corner handle to resize a symbol or room, drag a pipe's corner points; arrow keys nudge, Delete removes, Ctrl+D duplicates, Ctrl+Z and Ctrl+Y undo and redo.
+- A **properties panel** for the selected item: point bindings picked from the site's points (by name or display name), colour rules (follows a symbol, up to four value bands with hysteresis, proportional fill), labels, sizes and rotation; with nothing selected, the graphic's name, display name, kind, room, size, tab and background.
+- The drawing shows **live values** while editing, so bindings can be checked on the spot.
+- **Check** runs the setup checks without saving; **Save** saves it as a checked setup change (audit log). Leaving with unsaved changes asks first.
+- **Tabs:** which graphics are tabs and their order are set in one step (Setup → Graphics → Tab order).
+
+### API (admins)
+
+- `POST /api/setup/graphics/sanitize` with `{svg, purpose: "symbol" | "background"}`: the cleaned SVG, its viewBox and what was removed (nothing is saved).
+- `PUT /api/setup/graphics/symbols/{id}`, `DELETE /api/setup/graphics/symbols/{id}` (refused while a graphic uses it).
+- `PUT /api/setup/graphics-tabs` with the tab graphics in order (the others become non-tabs).
+- `GET /api/graphics/library` also returns the site's symbols, with their SVG.
