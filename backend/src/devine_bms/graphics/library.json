@@ -1,0 +1,19 @@
+[
+  {"id": "pump", "dis": "Pump", "category": "Pumps and fans", "source": "equinor:PP001A", "kind": "state", "spin": {"cx": 32, "cy": 27, "r": 7}},
+  {"id": "fan", "dis": "Fan (centrifugal)", "category": "Pumps and fans", "source": "equinor:PP007A", "kind": "state", "spin": {"cx": 32, "cy": 27, "r": 8}},
+  {"id": "fan-axial", "dis": "Fan (axial)", "category": "Pumps and fans", "source": "devine", "kind": "state", "spinWhole": true},
+  {"id": "compressor", "dis": "Compressor", "category": "Pumps and fans", "source": "devine", "kind": "state", "spin": {"cx": 32, "cy": 32, "r": 8}},
+  {"id": "valve", "dis": "On/off valve", "category": "Valves and dampers", "source": "equinor:PV005A", "kind": "state"},
+  {"id": "valve-control", "dis": "Proportional valve", "category": "Valves and dampers", "source": "equinor:PV005AUmbrella", "kind": "position"},
+  {"id": "damper", "dis": "Volume control damper", "category": "Valves and dampers", "source": "equinor:PV018A", "kind": "position"},
+  {"id": "coil-heating", "dis": "Heating coil", "category": "Coils and heat exchange", "source": "equinor:ND0014", "kind": "state"},
+  {"id": "coil-cooling", "dis": "Cooling coil", "category": "Coils and heat exchange", "source": "devine", "kind": "state"},
+  {"id": "heat-recovery", "dis": "Heat recovery", "category": "Coils and heat exchange", "source": "devine", "kind": "state", "spinWhole": true},
+  {"id": "filter", "dis": "Filter", "category": "Coils and heat exchange", "source": "equinor:LZ009A", "kind": "state"},
+  {"id": "tank", "dis": "Tank", "category": "Tanks", "source": "equinor:PT002A", "kind": "level"},
+  {"id": "sensor-temp", "dis": "Temperature sensor", "category": "Sensors and meters", "source": "equinor:IM005A", "kind": "value", "text": "T"},
+  {"id": "sensor-humidity", "dis": "Humidity sensor", "category": "Sensors and meters", "source": "equinor:IM005A", "kind": "value", "text": "H"},
+  {"id": "meter", "dis": "Meter", "category": "Sensors and meters", "source": "devine", "kind": "value"},
+  {"id": "light", "dis": "Light", "category": "Lighting and doors", "source": "devine", "kind": "state"},
+  {"id": "door", "dis": "Door", "category": "Lighting and doors", "source": "devine", "kind": "state"}
+]
