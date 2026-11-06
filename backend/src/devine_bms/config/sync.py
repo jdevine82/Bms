@@ -96,6 +96,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
             site_id=site.id, name=item.name, dis=item.dis, protocol=item.protocol,
             connection=item.connection.model_dump(mode="json", by_alias=True), enabled=item.enabled,
             bus_id=buses[bus_name].id if bus_name else None,
+            offline_alarm=item.offline_alarm.model_dump(mode="json", by_alias=True) if item.offline_alarm else None,
         )
     await session.flush()
 
@@ -110,6 +111,7 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
             point_type=item.type.value, kind=item.kind.value, unit=item.unit, enum=item.enum,
             tags=dict(item.tags), address=item.address.model_dump(mode="json", by_alias=True),
             poll_class=item.poll_class.value, stale_after_s=item.stale_after_s, his=item.his, enabled=True,
+            alarms=[a.model_dump(mode="json", by_alias=True) for a in item.alarms],
         )
 
     in_file = {

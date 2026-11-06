@@ -6,6 +6,7 @@ import type { LiveValue, Point, Site } from "../api";
 import { getHistory, getPoints, getSite } from "../api";
 import { STATUS_TEXT, formatValue } from "../format";
 import { useLive } from "../live";
+import { HmiAlarms } from "./HmiAlarms";
 import { Chart, toSamples, type Sample } from "../TrendPage";
 import "./hmi.css";
 
@@ -77,6 +78,7 @@ export function HmiApp() {
 
       <main className="hmi-main">
         {!site && !loadError && <p className="hmi-note">Loading…</p>}
+        {site && tab === "overview" && <HmiAlarms />}
         {site && tab === "overview" && <Overview points={points} live={live} />}
         {site && tab === "trends" && <ShortTrends site={site} points={points} />}
         {site && (tab === "graphics" || tab === "setpoints" || tab === "schedules") && (

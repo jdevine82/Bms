@@ -37,7 +37,15 @@
         "alarm": true
       },
       "required": false,
-      "pollClass": "fast"
+      "pollClass": "fast",
+      "alarms": [
+        {
+          "type": "state",
+          "level": "warning",
+          "state": true,
+          "delayS": 30
+        }
+      ]
     },
     {
       "role": "mode_state",

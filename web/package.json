@@ -10,7 +10,8 @@
     "test:e2e": "node tests/smoke.mjs",
     "test:hmi": "node tests/hmi.mjs",
     "test:setup": "node tests/setup.mjs",
-    "test:auth": "node tests/auth.mjs"
+    "test:auth": "node tests/auth.mjs",
+    "test:alarms": "node tests/alarms.mjs"
   },
   "author": "Jason Devine",
   "license": "UNLICENSED",

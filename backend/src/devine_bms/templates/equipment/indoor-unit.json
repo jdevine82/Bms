@@ -65,7 +65,15 @@
         "alarm": true
       },
       "required": true,
-      "pollClass": "fast"
+      "pollClass": "fast",
+      "alarms": [
+        {
+          "type": "state",
+          "level": "warning",
+          "state": true,
+          "delayS": 30
+        }
+      ]
     },
     {
       "role": "error_code",
@@ -134,7 +142,15 @@
         "alarm": true
       },
       "required": false,
-      "pollClass": "slow"
+      "pollClass": "slow",
+      "alarms": [
+        {
+          "type": "state",
+          "level": "info",
+          "state": true,
+          "delayS": 60
+        }
+      ]
     },
     {
       "role": "comms_state",

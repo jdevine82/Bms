@@ -31,6 +31,8 @@ export function useLive(ids: string[] | "all", onValue: Listener): boolean {
         const message = JSON.parse(event.data as string);
         if (message.type === "snapshot") message.values.forEach((v: LiveValue) => listener.current(v));
         if (message.type === "value") listener.current(message as LiveValue);
+        // Alarm changes come on the same connection (milestone 6B); pages listen for this event.
+        if (message.type === "alarm") window.dispatchEvent(new CustomEvent("bms-alarm", { detail: message.alarm }));
       };
       socket.onclose = (event) => {
         setConnected(false);

@@ -559,7 +559,7 @@ function StepVerify({ draft, update }: { draft: WizardDraft; update: (d: WizardD
             <tr><th>Poll speed</th><td>{Object.entries(classes).map(([k, n]) => `${n} ${k}`).join(", ")}</td></tr>
             <tr><th>Communicating</th><td>{notTested ? `${notTested} not tested yet (Test the new points in step 2)` : `${points.filter((p) => draft.tested[p.name] === "ok").length} of ${points.length} read`}</td></tr>
             <tr><th>Write limits</th><td>{writable} writable points. Commands and write limits arrive in milestone 7; until then every point is read-only.</td></tr>
-            <tr><th>Alarms</th><td>Alarm limits arrive in milestone 6.</td></tr>
+            <tr><th>Alarms</th><td>{points.filter((p) => (p.alarms ?? []).length).length} of {points.length} points have alarms (from the template, or add them in Setup → Alarm definitions)</td></tr>
           </tbody>
         </table>
         <div className="actions">

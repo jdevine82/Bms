@@ -13,6 +13,7 @@ dependencies = [
     "asyncpg>=0.32.0",
     "bacpypes3>=0.0.110",
     "fastapi>=0.162.0",
+    "httpx>=0.28.1",
     "pydantic>=2",
     "pydantic-settings>=2.16.2",
     "pymodbus>=3.16.1",

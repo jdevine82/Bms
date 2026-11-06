@@ -235,6 +235,7 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
 
         if point.kind == Kind.STR and not point.enum:
             error(where, "Str points need an 'enum' list")
+        _check_alarms(where, point.kind, point.enum, point.alarms, error)
         if isinstance(point.address, ModbusAddress):
             _check_modbus_point(where, point, error)
         elif isinstance(point.address, BacnetAddress):
@@ -247,6 +248,27 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             warning(where, f"name does not follow <room>_<equipment>_<function>; expected it to start '{prefix}'")
 
     return issues
+
+
+def _check_alarms(where: str, kind, enum, alarms, error) -> None:
+    """Point alarms (main spec 5.5): limits need a Number point, states a Bool or Str one."""
+    keys = [a.key for a in alarms]
+    if len(keys) != len(set(keys)):
+        error(where, "one alarm of each type per point (and one per state for state alarms)")
+    for a in alarms:
+        if a.type in ("high", "low") and kind != Kind.NUMBER:
+            error(where, f"a {a.type} limit alarm needs a Number point")
+        if a.type == "state":
+            if kind == Kind.NUMBER:
+                error(where, "a state alarm needs a Bool or Str point; use high or low for numbers")
+            elif kind == Kind.BOOL and not isinstance(a.state, bool):
+                error(where, "a state alarm on a Bool point needs state true or false")
+            elif kind == Kind.STR and (not isinstance(a.state, str) or (enum and a.state not in enum)):
+                error(where, f"a state alarm on a Str point needs one of its enum values {list(enum or [])}")
+    highs = [a.limit for a in alarms if a.type == "high"]
+    lows = [a.limit for a in alarms if a.type == "low"]
+    if highs and lows and highs[0] <= lows[0]:
+        error(where, "the high alarm limit must be above the low alarm limit")
 
 
 def _check_equip_templates(config, error, warning) -> None:
@@ -264,6 +286,8 @@ def _check_equip_templates(config, error, warning) -> None:
         roles = [r.role for r in t.roles]
         if len(roles) != len(set(roles)):
             error(where, "role names must be unique")
+        for r in t.roles:
+            _check_alarms(f"{where}.roles.{r.role}", r.kind, r.enum, r.alarms, error)
 
     points = {p.name: p for p in config.points}
     owners = [("equips", e, "equip") for e in config.equips] + [("spaces", s, "space") for s in config.spaces]

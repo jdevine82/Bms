@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from pydantic import TypeAdapter
 
 from devine_bms.config.model import (
+    OfflineAlarm,
+    PointAlarm,
     BacnetAddress,
     BacnetIpConnection,
     BacnetMstpConnection,
@@ -109,7 +111,8 @@ class PostgresStorage:
                 RuntimeDevice(
                     id=d.id, name=d.name, protocol=d.protocol,
                     connection=_CONNECTIONS[d.protocol].model_validate(d.connection),
-                    enabled=d.enabled, bus_id=d.bus_id,
+                    enabled=d.enabled, bus_id=d.bus_id, dis=d.dis,
+                    offline_alarm=OfflineAlarm.model_validate(d.offline_alarm) if d.offline_alarm else None,
                 )
                 for d in devices
             ),
@@ -121,6 +124,7 @@ class PostgresStorage:
                     poll_class=PollClass(p.poll_class),
                     stale_after_s=p.stale_after_s, his=p.his, dis=p.dis, point_type=p.point_type,
                     equip_id=p.equip_id, space_id=p.space_id, tags=dict(p.tags),
+                    alarms=tuple(PointAlarm.model_validate(a) for a in p.alarms or []),
                 )
                 for p in points
                 if p.device_id in device_ids

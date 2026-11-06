@@ -59,6 +59,9 @@ class Site(Base):
     # Login rules, kiosk addresses and allowed networks (milestone 6A). Not part of the config
     # file, so importing a setup never changes them.
     security: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # Alarm delivery: channels per level, SMTP, ClickSend, ntfy and the recipient list (6B).
+    # Personal data, kept on the site server only and not in the config file (main spec 5.5.1).
+    alarm_settings: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     updated_at: Mapped[datetime] = _updated()
 
 
@@ -151,6 +154,7 @@ class Device(Base):
     protocol: Mapped[str] = mapped_column(String(32), nullable=False)
     connection: Mapped[dict] = mapped_column(JSONB, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    offline_alarm: Mapped[dict | None] = mapped_column(JSONB)  # milestone 6B
     updated_at: Mapped[datetime] = _updated()
 
 
@@ -179,6 +183,7 @@ class Point(Base):
     poll_class: Mapped[str] = mapped_column(String(8), nullable=False, server_default="normal")
     stale_after_s: Mapped[float | None] = mapped_column(Double)
     his: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    alarms: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")  # milestone 6B
     # False when the point is no longer in the config file. History is kept.
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     updated_at: Mapped[datetime] = _updated()
@@ -286,3 +291,63 @@ class DeviceTemplateRow(Base):
     version: Mapped[str] = mapped_column(String(32), nullable=False)
     data: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class Alarm(Base):
+    """One occurrence of an alarm (main spec 5.5): raised, maybe returned to normal, acknowledged.
+    It is closed (off the active list) once it is both acknowledged and back to normal."""
+
+    __tablename__ = "alarm"
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)  # which definition
+    point_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("point.id", ondelete="SET NULL"), index=True)
+    device_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("device.id", ondelete="SET NULL"), index=True)
+    source: Mapped[str] = mapped_column(String(100), nullable=False)  # point or device name when raised
+    source_dis: Mapped[str] = mapped_column(Text, nullable=False)
+    type: Mapped[str] = mapped_column(String(16), nullable=False)  # high, low, state, stale, offline
+    level: Mapped[str] = mapped_column(String(16), nullable=False)  # info, warning, critical
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")  # value, limit, unit
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    closed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", index=True)
+    raised_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acked_by: Mapped[str | None] = mapped_column(String(64))
+
+
+class AlarmEvent(Base):
+    """The history of an alarm: raised, returned to normal, acknowledged, comments."""
+
+    __tablename__ = "alarm_event"
+    id: Mapped[uuid.UUID] = _id()
+    alarm_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("alarm.id", ondelete="CASCADE"), nullable=False,
+                                                index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # raised, returned, acked, comment
+    username: Mapped[str | None] = mapped_column(String(64))
+    text: Mapped[str | None] = mapped_column(Text)
+
+
+class AlarmDelivery(Base):
+    """One notification to one person on one channel (main spec 5.5.1 delivery log)."""
+
+    __tablename__ = "alarm_delivery"
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    alarm_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("alarm.id", ondelete="SET NULL"), index=True)
+    recipient: Mapped[str] = mapped_column(String(100), nullable=False)
+    channel: Mapped[str] = mapped_column(String(8), nullable=False)  # email, sms, ntfy
+    address: Mapped[str] = mapped_column(String(200), nullable=False)
+    level: Mapped[str] = mapped_column(String(16), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False, index=True)  # pending, held, sent, failed
+    attempts: Mapped[int] = mapped_column(nullable=False, server_default="0")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    hold_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # quiet hours (Warning only)
+    error: Mapped[str | None] = mapped_column(Text)
+    test: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(),
+                                                 index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

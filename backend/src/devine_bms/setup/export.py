@@ -68,8 +68,8 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
         "buses": [{"name": b.name, "dis": b.dis, "type": b.bus_type, "enabled": b.enabled, **b.settings}
                   for b in buses],
         "devices": [
-            {"name": d.name, "dis": d.dis, "protocol": d.protocol, "connection": dict(d.connection),
-             "enabled": d.enabled}
+            _drop_none({"name": d.name, "dis": d.dis, "protocol": d.protocol, "connection": dict(d.connection),
+                        "enabled": d.enabled, "offlineAlarm": d.offline_alarm})
             for d in devices
         ],
         "points": [
@@ -78,7 +78,7 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
                 "space": space_names.get(p.space_id), "device": device_names.get(p.device_id),
                 "type": p.point_type, "kind": p.kind, "unit": p.unit, "enum": p.enum, "tags": dict(p.tags),
                 "address": dict(p.address), "pollClass": p.poll_class, "staleAfterS": p.stale_after_s,
-                "his": p.his,
+                "his": p.his, "alarms": list(p.alarms) or None,
             })
             for p in points
             if p.device_id in device_names  # points of a removed device are not part of the setup

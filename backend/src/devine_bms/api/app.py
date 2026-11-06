@@ -22,6 +22,9 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from devine_bms import __version__
+from devine_bms.alarms.delivery import Delivery
+from devine_bms.alarms.engine import AlarmEngine
+from devine_bms.api.alarms_api import build_alarms_router
 from devine_bms.api.auth_api import COOKIE, build_auth_router, client_ip, install_guard
 from devine_bms.api.history import history_csv, row_json, thin
 from devine_bms.api.setup_api import build_setup_router
@@ -73,7 +76,8 @@ def live_json(live: LiveValue | None) -> dict:
     }
 
 
-def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path | None = None) -> FastAPI:
+def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path | None = None,
+               alarm_tick_s: float = 1.0) -> FastAPI:
     state: dict = {}
 
     @asynccontextmanager
@@ -86,12 +90,20 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             state["setup"] = SetupService(sessions, runtime.site_name, runtime.reload)
             state["discover"] = DiscoverManager(runtime, state["setup"])
             state["auth"] = AuthService(sessions, runtime.site_name)
-            state["prune"] = asyncio.create_task(_prune_forever(state["auth"]), name="audit retention")
+            state["delivery"] = Delivery(sessions, runtime.site_name, iana_zone(runtime.config.site_tz).key)
+            state["alarms"] = AlarmEngine(runtime, sessions, runtime.site_name, state["delivery"].queue_for,
+                                          tick_s=alarm_tick_s)
+            await state["alarms"].start()
+            await state["delivery"].start()
+            state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
             yield
         finally:
             if state.get("prune") is not None:
                 state["prune"].cancel()
+            for name in ("alarms", "delivery"):
+                if state.get(name) is not None:
+                    await state[name].stop()
             if state.get("discover") is not None:
                 await state["discover"].stop_all()
             await runtime.stop()
@@ -100,6 +112,8 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     app = FastAPI(title="Devine BMS", version=__version__, lifespan=lifespan)
     install_guard(app, lambda: state.get("auth"))
     app.include_router(build_auth_router(lambda: state.get("auth")))
+    app.include_router(build_alarms_router(lambda: state.get("alarms"), lambda: state.get("delivery"),
+                                           lambda: state.get("auth")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 
@@ -277,6 +291,13 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 if change.point_id in wanted:
                     await ws.send_json({"type": "value", **live_json(change)})
 
+        alarm_queue = state["alarms"].subscribe() if state.get("alarms") else None
+
+        async def send_alarms() -> None:
+            """Every connection also gets alarm changes (raised, returned, acknowledged)."""
+            while alarm_queue is not None:
+                await ws.send_json({"type": "alarm", "alarm": await alarm_queue.get()})
+
         async def still_signed_in() -> None:
             while auth is not None:
                 await asyncio.sleep(60)
@@ -285,7 +306,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                     return
 
         tasks = [asyncio.create_task(receive()), asyncio.create_task(send()),
-                 asyncio.create_task(still_signed_in())]
+                 asyncio.create_task(still_signed_in()), asyncio.create_task(send_alarms())]
         try:
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
             for task in done:
@@ -296,6 +317,8 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             for task in tasks:
                 task.cancel()
             rt.cache.unsubscribe(queue)
+            if alarm_queue is not None:
+                state["alarms"].unsubscribe(alarm_queue)
 
     if web_dist and web_dist.is_dir():
         index = web_dist / "index.html"
@@ -310,12 +333,16 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     return app
 
 
-async def _prune_forever(auth: AuthService) -> None:
+async def _prune_forever(auth: AuthService, alarms: AlarmEngine) -> None:
+    """Retention (main spec 5.6): audit entries, closed alarms and deliveries older than a year."""
     while True:
         try:
             removed = await auth.prune()
             if removed:
                 log.info("audit log: removed %d entries older than a year", removed)
+            removed = await alarms.prune()
+            if removed:
+                log.info("alarms: removed %d closed alarms older than a year", removed)
         except Exception as exc:  # keep trying; the log only grows meanwhile
             log.warning("audit log retention failed: %s", exc)
         await asyncio.sleep(PRUNE_EVERY_S)

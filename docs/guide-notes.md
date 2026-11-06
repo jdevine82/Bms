@@ -17,7 +17,8 @@ milestone adds to it.
 - Environment variables (`backend/.env.example`, `backend/src/devine_bms/settings.py`): `BMS_DATABASE_URL`, `BMS_CONFIG_PATH`, `BMS_SITE_NAME`, `BMS_LISTEN_HOST`, `BMS_LISTEN_PORT`, `BMS_LOG_LEVEL`, `BMS_WEB_DIST`, `BMS_ALLOW_PLAIN_POSTGRES`; secrets such as MQTT broker passwords through the variable named in `passwordEnv`.
 - The config file `devine-bms-config/0` and its JSON Schema (`config/schema/`), examples in `config/`. The database is the master copy; the file is import and export (decision 021).
 - Security settings (Setup → Security): shortest password, idle time-out, lockout count and time, 2FA for admins, HMI kiosk addresses, allowed networks (`docs/specs/m6-logins-alarms.md`).
-- Alarm delivery settings (6B): SMTP, ClickSend, ntfy server, recipients, quiet hours.
+- Alarm delivery settings (Setup → Alarm delivery): channels per level, SMTP (`BMS_SMTP_PASSWORD`), ClickSend (`BMS_CLICKSEND_API_KEY`), ntfy server and token, recipients and quiet hours, test messages (`docs/specs/m6-logins-alarms.md`, "Setting up delivery on a site").
+- Alarm definitions: point alarms (high, low, state, stale; deadband, delay, level, message), device offline alarms (only where set), template defaults.
 
 ## Users and logins
 
@@ -35,7 +36,8 @@ milestone adds to it.
 
 ## Operating
 
-- Points and trends, CSV export of history (milestone 2), the HMI (milestone 3), alarms (6B).
+- Points and trends, CSV export of history (milestone 2), the HMI (milestone 3).
+- Alarms: the header count, acknowledging with comments, history, the notifications log; what Info, Warning and Critical mean and who is told; why a Bad value does not raise a limit alarm.
 
 ## Bench and troubleshooting
 

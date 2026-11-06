@@ -258,6 +258,56 @@ class ModbusBusConnection(_Model):
     block_size: int = Field(default=32, ge=1, le=125)
 
 
+class AlarmLevel(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
+class PointAlarm(_Model):
+    """An alarm on a point (main spec 5.5): a high or low limit, a state, or stale data.
+
+    high: raised when the value is above `limit`; it returns to normal below limit - deadband.
+    low: raised below `limit`; returns above limit + deadband.
+    state: raised while a Bool or Str point equals `state`.
+    stale: raised while the point's value is Stale.
+    Only Good values raise or clear limit and state alarms (main spec 5.2.1).
+    """
+
+    type: Literal["high", "low", "state", "stale"]
+    level: AlarmLevel
+    limit: float | None = None
+    deadband: float = Field(default=0.0, ge=0)
+    state: bool | str | None = None
+    delay_s: float = Field(default=0.0, ge=0, le=86400)  # the condition must hold this long
+    message: str | None = Field(default=None, max_length=200)  # no sensitive detail (5.5)
+
+    @model_validator(mode="after")
+    def _fields_match_type(self) -> PointAlarm:
+        if self.type in ("high", "low") and self.limit is None:
+            raise ValueError(f"a {self.type} alarm needs a limit")
+        if self.type == "state" and self.state is None:
+            raise ValueError("a state alarm needs the state that raises it")
+        if self.type not in ("high", "low") and (self.limit is not None or self.deadband):
+            raise ValueError(f"a {self.type} alarm has no limit or deadband")
+        if self.type != "state" and self.state is not None:
+            raise ValueError(f"a {self.type} alarm has no state")
+        return self
+
+    @property
+    def key(self) -> str:
+        """Which alarm of the point this is: one per type, and one per state for state alarms."""
+        return f"{self.type}:{self.state}" if self.type == "state" else self.type
+
+
+class OfflineAlarm(_Model):
+    """An alarm when a device stops answering (main spec 5.5). Only on devices where it is set."""
+
+    level: AlarmLevel = AlarmLevel.WARNING
+    delay_s: float = Field(default=300.0, ge=0, le=86400)
+    message: str | None = Field(default=None, max_length=200)
+
+
 class Device(_Model):
     name: Name
     dis: str
@@ -271,6 +321,7 @@ class Device(_Model):
         ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection | MqttConnection
     )
     enabled: bool = True
+    offline_alarm: OfflineAlarm | None = None
 
     @model_validator(mode="after")
     def _connection_matches_protocol(self) -> Device:
@@ -359,6 +410,7 @@ class Point(_Model):
     poll_class: PollClass = PollClass.NORMAL
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True
+    alarms: list[PointAlarm] = []
 
 
 class TemplateRole(_Model):
@@ -375,6 +427,7 @@ class TemplateRole(_Model):
     poll_class: PollClass = PollClass.NORMAL
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True
+    alarms: list[PointAlarm] = []  # default alarms for the points made for this role
 
 
 class EquipTemplate(_Model):

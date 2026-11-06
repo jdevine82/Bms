@@ -15,7 +15,9 @@ export type Section =
   | "changes"
   | "users"
   | "security"
-  | "audit";
+  | "audit"
+  | "alarm-definitions"
+  | "alarm-delivery";
 
 export function readHash(): { page: string; section: string | null; rest: string[] } {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
