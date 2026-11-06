@@ -314,6 +314,44 @@
       "title": "BacnetSettings",
       "type": "object"
     },
+    "BandsRule": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "bands",
+          "title": "Type",
+          "type": "string"
+        },
+        "point": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Point",
+          "type": "string"
+        },
+        "bands": {
+          "items": {
+            "$ref": "#/$defs/ValueBand"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Bands",
+          "type": "array"
+        },
+        "hysteresis": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Hysteresis",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "point",
+        "bands"
+      ],
+      "title": "BandsRule",
+      "type": "object"
+    },
     "ByteOrder": {
       "enum": [
         "big",
@@ -633,6 +671,88 @@
       "title": "Feed",
       "type": "object"
     },
+    "FillRule": {
+      "additionalProperties": false,
+      "description": "Proportional fill: 0 to 100 % of the point's value (or of min..max).",
+      "properties": {
+        "type": {
+          "const": "fill",
+          "title": "Type",
+          "type": "string"
+        },
+        "point": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Point",
+          "type": "string"
+        },
+        "colour": {
+          "default": "blue",
+          "enum": [
+            "grey",
+            "blue",
+            "cyan",
+            "green",
+            "amber",
+            "red"
+          ],
+          "title": "Colour",
+          "type": "string"
+        },
+        "min": {
+          "default": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "default": 100,
+          "title": "Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "point"
+      ],
+      "title": "FillRule",
+      "type": "object"
+    },
+    "FollowsRule": {
+      "additionalProperties": false,
+      "description": "A pipe or duct coloured like a symbol: On shows flow, Off is grey.",
+      "properties": {
+        "type": {
+          "const": "follows",
+          "title": "Type",
+          "type": "string"
+        },
+        "item": {
+          "maxLength": 60,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Item",
+          "type": "string"
+        },
+        "colour": {
+          "default": "green",
+          "enum": [
+            "grey",
+            "blue",
+            "cyan",
+            "green",
+            "amber",
+            "red"
+          ],
+          "title": "Colour",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "item"
+      ],
+      "title": "FollowsRule",
+      "type": "object"
+    },
     "GeoCoord": {
       "additionalProperties": false,
       "properties": {
@@ -656,6 +776,129 @@
       "title": "GeoCoord",
       "type": "object"
     },
+    "Graphic": {
+      "additionalProperties": false,
+      "description": "A live graphic (main spec 6.4): a drawing area in its own units with bound items.",
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "site",
+            "room",
+            "system"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "space": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Space"
+        },
+        "width": {
+          "default": 1000,
+          "exclusiveMinimum": 0,
+          "maximum": 20000,
+          "title": "Width",
+          "type": "number"
+        },
+        "height": {
+          "default": 600,
+          "exclusiveMinimum": 0,
+          "maximum": 20000,
+          "title": "Height",
+          "type": "number"
+        },
+        "tab": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GraphicTab"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "duct": "#/$defs/LineItem",
+                "pipe": "#/$defs/LineItem",
+                "room": "#/$defs/RoomItem",
+                "symbol": "#/$defs/SymbolItem",
+                "text": "#/$defs/TextItem",
+                "value": "#/$defs/ValueItem"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/SymbolItem"
+              },
+              {
+                "$ref": "#/$defs/ValueItem"
+              },
+              {
+                "$ref": "#/$defs/LineItem"
+              },
+              {
+                "$ref": "#/$defs/RoomItem"
+              },
+              {
+                "$ref": "#/$defs/TextItem"
+              }
+            ]
+          },
+          "maxItems": 2000,
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "kind"
+      ],
+      "title": "Graphic",
+      "type": "object"
+    },
+    "GraphicTab": {
+      "additionalProperties": false,
+      "properties": {
+        "order": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "order"
+      ],
+      "title": "GraphicTab",
+      "type": "object"
+    },
     "Kind": {
       "enum": [
         "Number",
@@ -664,6 +907,95 @@
       ],
       "title": "Kind",
       "type": "string"
+    },
+    "LineItem": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "pipe",
+            "duct"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 60,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 200,
+          "minItems": 2,
+          "title": "Path",
+          "type": "array"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "bands": "#/$defs/BandsRule",
+                  "fill": "#/$defs/FillRule",
+                  "follows": "#/$defs/FollowsRule"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FollowsRule"
+                },
+                {
+                  "$ref": "#/$defs/BandsRule"
+                },
+                {
+                  "$ref": "#/$defs/FillRule"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "path"
+      ],
+      "title": "LineItem",
+      "type": "object"
     },
     "Medium": {
       "enum": [
@@ -1640,6 +1972,79 @@
       "title": "PollClass",
       "type": "string"
     },
+    "RoomItem": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "room",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 60,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "space": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Space",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "w": {
+          "exclusiveMinimum": 0,
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "exclusiveMinimum": 0,
+          "title": "H",
+          "type": "number"
+        },
+        "values": {
+          "default": [],
+          "items": {
+            "maxLength": 100,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "maxItems": 4,
+          "title": "Values",
+          "type": "array"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BandsRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "space",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "RoomItem",
+      "type": "object"
+    },
     "Site": {
       "additionalProperties": false,
       "properties": {
@@ -1765,6 +2170,146 @@
         "dis"
       ],
       "title": "Space",
+      "type": "object"
+    },
+    "SymbolBindings": {
+      "additionalProperties": false,
+      "properties": {
+        "run": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "fault": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fault"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command"
+        }
+      },
+      "title": "SymbolBindings",
+      "type": "object"
+    },
+    "SymbolItem": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "symbol",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 60,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "symbol": {
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Symbol",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "size": {
+          "default": 64,
+          "exclusiveMinimum": 0,
+          "maximum": 2000,
+          "title": "Size",
+          "type": "number"
+        },
+        "rotate": {
+          "default": 0,
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ],
+          "title": "Rotate",
+          "type": "integer"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "bind": {
+          "$ref": "#/$defs/SymbolBindings",
+          "default": {
+            "run": null,
+            "value": null,
+            "fault": null,
+            "command": null
+          }
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "symbol",
+        "x",
+        "y"
+      ],
+      "title": "SymbolItem",
       "type": "object"
     },
     "TemplateLink": {
@@ -1961,6 +2506,156 @@
       "title": "TemplateRole",
       "type": "object"
     },
+    "TextItem": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "text",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 60,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "text": {
+          "maxLength": 200,
+          "title": "Text",
+          "type": "string"
+        },
+        "size": {
+          "default": 16,
+          "exclusiveMinimum": 0,
+          "maximum": 200,
+          "title": "Size",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "x",
+        "y",
+        "text"
+      ],
+      "title": "TextItem",
+      "type": "object"
+    },
+    "ValueBand": {
+      "additionalProperties": false,
+      "description": "One band of a value-band rule: values below `below` (the last band has none) get `colour`.",
+      "properties": {
+        "below": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Below"
+        },
+        "colour": {
+          "enum": [
+            "grey",
+            "blue",
+            "cyan",
+            "green",
+            "amber",
+            "red"
+          ],
+          "title": "Colour",
+          "type": "string"
+        },
+        "flow": {
+          "default": true,
+          "title": "Flow",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "colour"
+      ],
+      "title": "ValueBand",
+      "type": "object"
+    },
+    "ValueItem": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "value",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 60,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "point": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Point",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "maximum": 6,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decimals"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "x",
+        "y",
+        "point"
+      ],
+      "title": "ValueItem",
+      "type": "object"
+    },
     "WordOrder": {
       "enum": [
         "high_first",
@@ -2091,6 +2786,14 @@
         "$ref": "#/$defs/Point"
       },
       "title": "Points",
+      "type": "array"
+    },
+    "graphics": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Graphic"
+      },
+      "title": "Graphics",
       "type": "array"
     }
   },

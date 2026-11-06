@@ -492,6 +492,128 @@ class EquipTemplate(_Model):
     notes: list[str] = []
 
 
+# ---------- graphics (milestone 9A) ----------
+
+ItemId = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]*$", max_length=60)]
+# Named colours, so each theme (and the HMI) picks the shade.
+Colour = Literal["grey", "blue", "cyan", "green", "amber", "red"]
+XY = tuple[float, float]
+
+
+class ValueBand(_Model):
+    """One band of a value-band rule: values below `below` (the last band has none) get `colour`."""
+
+    below: float | None = None
+    colour: Colour
+    flow: bool = True  # a pipe or duct in this band shows flow
+
+
+class FollowsRule(_Model):
+    """A pipe or duct coloured like a symbol: On shows flow, Off is grey."""
+
+    type: Literal["follows"]
+    item: ItemId
+    colour: Colour = "green"
+
+
+class BandsRule(_Model):
+    type: Literal["bands"]
+    point: Name
+    bands: list[ValueBand] = Field(min_length=1, max_length=4)
+    hysteresis: float = Field(default=0, ge=0)
+
+
+class FillRule(_Model):
+    """Proportional fill: 0 to 100 % of the point's value (or of min..max)."""
+
+    type: Literal["fill"]
+    point: Name
+    colour: Colour = "blue"
+    min: float = 0
+    max: float = 100
+
+
+ColourRule = Annotated[FollowsRule | BandsRule | FillRule, Field(discriminator="type")]
+
+
+class SymbolBindings(_Model):
+    run: Name | None = None
+    value: Name | None = None
+    fault: Name | None = None
+    command: Name | None = None
+
+
+class SymbolItem(_Model):
+    type: Literal["symbol"]
+    id: ItemId
+    symbol: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
+    x: float
+    y: float
+    size: float = Field(default=64, gt=0, le=2000)
+    rotate: Literal[0, 90, 180, 270] = 0
+    label: str | None = None
+    bind: SymbolBindings = SymbolBindings()
+
+
+class ValueItem(_Model):
+    type: Literal["value"]
+    id: ItemId
+    x: float
+    y: float
+    point: Name
+    label: str | None = None
+    decimals: int | None = Field(default=None, ge=0, le=6)
+
+
+class LineItem(_Model):
+    type: Literal["pipe", "duct"]
+    id: ItemId
+    path: list[XY] = Field(min_length=2, max_length=200)
+    width: float | None = Field(default=None, gt=0, le=100)
+    rule: ColourRule | None = None
+
+
+class RoomItem(_Model):
+    type: Literal["room"]
+    id: ItemId
+    space: Name
+    x: float
+    y: float
+    w: float = Field(gt=0)
+    h: float = Field(gt=0)
+    values: list[Name] = Field(default=[], max_length=4)
+    rule: BandsRule | None = None
+
+
+class TextItem(_Model):
+    type: Literal["text"]
+    id: ItemId
+    x: float
+    y: float
+    text: str = Field(max_length=200)
+    size: float = Field(default=16, gt=0, le=200)
+
+
+GraphicItem = Annotated[SymbolItem | ValueItem | LineItem | RoomItem | TextItem, Field(discriminator="type")]
+
+
+class GraphicTab(_Model):
+    order: int = Field(ge=0, le=10000)
+
+
+class Graphic(_Model):
+    """A live graphic (main spec 6.4): a drawing area in its own units with bound items."""
+
+    name: Name
+    dis: str
+    kind: Literal["site", "room", "system"]
+    space: Name | None = None
+    width: float = Field(default=1000, gt=0, le=20000)
+    height: float = Field(default=600, gt=0, le=20000)
+    tab: GraphicTab | None = None
+    items: list[GraphicItem] = Field(default=[], max_length=2000)
+
+
 class SiteConfig(_Model):
     schema_: Literal["devine-bms-config/0"] = Field(alias="schema")
     site: Site
@@ -504,6 +626,7 @@ class SiteConfig(_Model):
     buses: list[Bus] = []
     devices: list[Device] = []
     points: list[Point] = []
+    graphics: list[Graphic] = []  # milestone 9
 
 
 def json_schema() -> dict[str, Any]:

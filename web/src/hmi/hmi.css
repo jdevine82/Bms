@@ -247,16 +247,10 @@
   margin: 6px 0 0;
 }
 
-.hmi-note,
-.hmi-later {
+.hmi-note {
   color: var(--text-muted);
   text-align: center;
   padding: 40px 16px;
-}
-
-.hmi-later h2 {
-  color: var(--text);
-  margin: 0 0 8px;
 }
 
 /* Active alarms on the overview (milestone 6B). Level by shape and text as well as colour. */

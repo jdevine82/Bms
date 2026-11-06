@@ -16,6 +16,7 @@ export type Section =
   | "users"
   | "security"
   | "audit"
+  | "graphics"
   | "alarm-definitions"
   | "alarm-delivery";
 

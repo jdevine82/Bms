@@ -4,6 +4,7 @@ import { getPoints, getSite } from "./api";
 import { useLive } from "./live";
 import { AlarmButton, AlarmsPage } from "./alarms/AlarmsPage";
 import { SchedulesPage } from "./schedules/SchedulesPage";
+import { GraphicsPage } from "./graphics/GraphicsPage";
 import { AccountPage } from "./auth/AccountPage";
 import { useAuth } from "./auth/AuthGate";
 import { logout } from "./auth/authApi";
@@ -36,7 +37,8 @@ export function App() {
   const inAccount = hash.page === "account";
   const inAlarms = hash.page === "alarms";
   const inSchedules = hash.page === "schedules";
-  const elsewhere = inSetup || inAccount || inAlarms || inSchedules;
+  const inGraphics = hash.page === "graphics";
+  const elsewhere = inSetup || inAccount || inAlarms || inSchedules || inGraphics;
   const go = (p: Page) => {
     if (elsewhere) history.pushState(null, "", location.pathname + location.search);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -91,6 +93,9 @@ export function App() {
           <span className={`conn ${connected ? "on" : "off"}`}>{connected ? "Live" : "Connecting…"}</span>
         </div>
         <nav aria-label="Pages">
+          <button type="button" className={inGraphics ? "active" : ""} onClick={() => { location.hash = "#/graphics"; }}>
+            Graphics
+          </button>
           <button type="button" className={!elsewhere && page === "points" ? "active" : ""} onClick={() => go("points")}>
             Points
           </button>
@@ -139,7 +144,7 @@ export function App() {
           </select>
         </label>
       </header>
-      <main className={inSetup || inAlarms || inSchedules ? "wide" : ""}>
+      <main className={inSetup || inAlarms || inSchedules || inGraphics ? "wide" : ""}>
         {error && <p className="error">{error}</p>}
         {inSetup && <SetupApp />}
         {inSchedules && (
@@ -150,6 +155,12 @@ export function App() {
         {inAlarms && (
           <div className="setup plain">
             <AlarmsPage />
+          </div>
+        )}
+        {inGraphics && site && (
+          <div>
+            <GraphicsPage site={site} points={points} live={live} selected={hash.section}
+                          onSelect={(name) => { location.hash = `#/graphics/${encodeURIComponent(name)}`; }} />
           </div>
         )}
         {inAccount && (

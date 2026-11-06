@@ -14,7 +14,15 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from devine_bms.config.model import BacnetAddress, Kind, ModbusAddress, MqttAddress, ObjectType, PointType, SiteConfig
+from devine_bms.config.model import (
+    BacnetAddress,
+    Kind,
+    ModbusAddress,
+    MqttAddress,
+    ObjectType,
+    PointType,
+    SiteConfig,
+)
 from devine_bms.drivers.modbus.codec import DataType
 from devine_bms.haystack.library import TagLibrary, load_library
 
@@ -227,6 +235,7 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             warning(f"equips.{equip.name}", "has no Haystack equipment type tag (for example ahu, fcu, meter)")
 
     _check_equip_templates(config, error, warning)
+    _check_graphics(config, error, warning)
 
     # Points.
     for point in config.points:
@@ -453,3 +462,82 @@ def _name_prefix(point, equips) -> str | None:
     if point.space and not point.equip:
         return f"{point.space}_"
     return None
+
+
+def _check_graphics(config, error, warning) -> None:
+    """Graphics (milestone 9A): names unique, bound points exist, commands writable, rooms exist,
+    tab orders unique."""
+    from devine_bms.graphics.library import symbol_ids
+
+    points = {p.name: p for p in config.points}
+    spaces = {s.name for s in config.spaces}
+    names: set[str] = set()
+    tabs: dict[int, str] = {}
+    for g in config.graphics:
+        where = f"graphics.{g.name}"
+        if g.name in names:
+            error(where, "graphic names must be unique")
+        names.add(g.name)
+        if g.space and g.space not in spaces:
+            error(where, f"space '{g.space}' does not exist")
+        if g.tab is not None:
+            if g.tab.order in tabs:
+                error(where, f"tab order {g.tab.order} is also used by '{tabs[g.tab.order]}'")
+            tabs[g.tab.order] = g.name
+        ids: dict[str, str] = {}
+        for item in g.items:
+            if item.id in ids:
+                error(f"{where}.items.{item.id}", "item IDs must be unique in a graphic")
+            ids[item.id] = item.type
+
+        def point(at: str, name: str | None, numeric: bool = False) -> None:
+            if name is None:
+                return
+            p = points.get(name)
+            if p is None:
+                error(at, f"point '{name}' does not exist")
+            elif numeric and p.kind.value != "Number":
+                error(at, f"'{name}' is not a number")
+
+        def bands(at: str, rule) -> None:
+            point(at, rule.point, numeric=True)
+            limits = [b.below for b in rule.bands]
+            if limits[-1] is not None:
+                error(at, "the last band has no upper limit (leave 'below' out)")
+            if any(b is None for b in limits[:-1]):
+                error(at, "every band but the last needs 'below'")
+            elif limits[:-1] != sorted(limits[:-1]) or len(set(limits[:-1])) != len(limits) - 1:
+                error(at, "the band limits must go up")
+
+        for item in g.items:
+            at = f"{where}.items.{item.id}"
+            if item.type == "symbol":
+                if item.symbol not in symbol_ids():
+                    error(at, f"no symbol '{item.symbol}' in the library")
+                point(at, item.bind.run)
+                point(at, item.bind.value)
+                point(at, item.bind.fault)
+                point(at, item.bind.command)
+                cmd = points.get(item.bind.command) if item.bind.command else None
+                if cmd is not None and not writable(cmd):
+                    error(at, f"'{cmd.name}' cannot be commanded, so it cannot be a symbol's command")
+            elif item.type == "value":
+                point(at, item.point)
+            elif item.type in ("pipe", "duct") and item.rule is not None:
+                rule = item.rule
+                if rule.type == "follows":
+                    if ids.get(rule.item) != "symbol":
+                        error(at, f"follows '{rule.item}', which is not a symbol in this graphic")
+                elif rule.type == "bands":
+                    bands(at, rule)
+                else:
+                    point(at, rule.point, numeric=True)
+                    if rule.max <= rule.min:
+                        error(at, "the fill's max must be above its min")
+            elif item.type == "room":
+                if item.space not in spaces:
+                    error(at, f"space '{item.space}' does not exist")
+                for name in item.values:
+                    point(at, name)
+                if item.rule is not None:
+                    bands(at, item.rule)

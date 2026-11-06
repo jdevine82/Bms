@@ -6,6 +6,7 @@ import type { LiveValue, Point, Site } from "../api";
 import { getHistory, getPoints, getSite } from "../api";
 import { STATUS_TEXT, formatValue } from "../format";
 import { useLive } from "../live";
+import { GraphicsPage } from "../graphics/GraphicsPage";
 import { HmiAlarms } from "./HmiAlarms";
 import { HmiSetpoints } from "./HmiSetpoints";
 import { HmiSchedules } from "./HmiSchedules";
@@ -94,9 +95,7 @@ export function HmiApp() {
         {site && tab === "trends" && <ShortTrends site={site} points={points} />}
         {site && tab === "setpoints" && <HmiSetpoints points={points} live={live} tz={site.ianaTz} />}
         {site && tab === "schedules" && <HmiSchedules />}
-        {site && tab === "graphics" && (
-          <ComingLater tab={TABS.find((t) => t.key === tab)!.label} />
-        )}
+        {site && tab === "graphics" && <GraphicsPage site={site} points={points} live={live} hmi />}
       </main>
 
       <nav className="hmi-tabs" aria-label="HMI screens">
@@ -268,15 +267,6 @@ function ShortTrends({ site, points }: { site: Site; points: Point[] }) {
         )}
         <p className="hmi-small">Gaps show where the value was Bad or Stale. Longer history is in the web app.</p>
       </div>
-    </div>
-  );
-}
-
-function ComingLater({ tab }: { tab: string }) {
-  return (
-    <div className="hmi-later">
-      <h2>{tab}</h2>
-      <p>This screen arrives in a later milestone.</p>
     </div>
   );
 }
