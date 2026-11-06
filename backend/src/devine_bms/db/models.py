@@ -187,6 +187,7 @@ class Point(Base):
     his: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     alarms: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")  # milestone 6B
     write_limits: Mapped[dict | None] = mapped_column(JSONB)  # milestone 7A
+    occupancy: Mapped[dict | None] = mapped_column(JSONB)  # milestone 7B: {occupied, unoccupied}
     # False when the point is no longer in the config file. History is kept.
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     updated_at: Mapped[datetime] = _updated()
@@ -369,3 +370,39 @@ class PointOverride(Base):
     set_by: Mapped[str] = mapped_column(String(64), nullable=False)
     set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+
+
+class HolidayCalendar(Base):
+    """Dates when the site is closed, shared by schedules (milestone 7B): each entry is
+    {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD" or null, "dis": "..."}; those days are Unoccupied."""
+
+    __tablename__ = "holiday_calendar"
+    __table_args__ = (UniqueConstraint("site_id", "name"),)
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    dis: Mapped[str] = mapped_column(Text, nullable=False)
+    dates: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    updated_at: Mapped[datetime] = _updated()
+
+
+class Schedule(Base):
+    """An occupancy schedule (main spec 5.4, milestone 7B): a weekly pattern of Occupied periods,
+    holiday calendars, one-off exceptions, the equipment it applies to, and an optional copy in
+    a BACnet controller."""
+
+    __tablename__ = "schedule"
+    __table_args__ = (UniqueConstraint("site_id", "name"),)
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    dis: Mapped[str] = mapped_column(Text, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    weekly: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")  # {"mon": [{"start","end"}]}
+    calendars: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")  # calendar names
+    exceptions: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    equips: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")  # equipment names
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")  # or every equipment with a tag
+    controller: Mapped[dict | None] = mapped_column(JSONB)  # the BACnet Schedule object it is copied to
+    controller_state: Mapped[dict | None] = mapped_column(JSONB)  # last push and read-back
+    updated_at: Mapped[datetime] = _updated()

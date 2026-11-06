@@ -27,6 +27,8 @@ from devine_bms.alarms.engine import AlarmEngine
 from devine_bms.api.alarms_api import build_alarms_router
 from devine_bms.api.auth_api import COOKIE, build_auth_router, client_ip, install_guard
 from devine_bms.api.commands_api import build_commands_router
+from devine_bms.api.schedules_api import build_schedules_router
+from devine_bms.schedules.service import ScheduleService
 from devine_bms.commands.service import CommandService
 from devine_bms.api.history import history_csv, row_json, thin
 from devine_bms.api.setup_api import build_setup_router
@@ -79,7 +81,7 @@ def live_json(live: LiveValue | None) -> dict:
 
 
 def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path | None = None,
-               alarm_tick_s: float = 1.0, override_check_s: float = 5.0) -> FastAPI:
+               alarm_tick_s: float = 1.0, override_check_s: float = 5.0, schedule_tick_s: float = 15.0) -> FastAPI:
     state: dict = {}
 
     @asynccontextmanager
@@ -100,13 +102,18 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             state["commands"] = CommandService(runtime, sessions, runtime.site_name, state["auth"].record,
                                                check_s=override_check_s)
             await state["commands"].start()
+            state["schedules"] = ScheduleService(runtime, sessions, runtime.site_name,
+                                                 iana_zone(runtime.config.site_tz).key, state["auth"].record,
+                                                 lambda: state["commands"].overrides, tick_s=schedule_tick_s)
+            state["commands"].schedule_value = state["schedules"].value_for  # hand mode ends at the schedule's value
+            await state["schedules"].start()
             state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
             yield
         finally:
             if state.get("prune") is not None:
                 state["prune"].cancel()
-            for name in ("commands", "alarms", "delivery"):
+            for name in ("schedules", "commands", "alarms", "delivery"):
                 if state.get(name) is not None:
                     await state[name].stop()
             if state.get("discover") is not None:
@@ -118,6 +125,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     install_guard(app, lambda: state.get("auth"))
     app.include_router(build_auth_router(lambda: state.get("auth")))
     app.include_router(build_commands_router(lambda: state.get("commands")))
+    app.include_router(build_schedules_router(lambda: state.get("schedules")))
     app.include_router(build_alarms_router(lambda: state.get("alarms"), lambda: state.get("delivery"),
                                            lambda: state.get("auth")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),

@@ -65,7 +65,7 @@ async def running_stack(data: dict, extra: dict | None = None):
 
         return runtime, cleanup
 
-    app = create_app(factory, alarm_tick_s=0.1, override_check_s=0.2)
+    app = create_app(factory, alarm_tick_s=0.1, override_check_s=0.2, schedule_tick_s=0.2)
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50000))
         async with httpx.AsyncClient(transport=transport, base_url="http://bms") as client:

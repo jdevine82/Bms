@@ -8,6 +8,7 @@ import { STATUS_TEXT, formatValue } from "../format";
 import { useLive } from "../live";
 import { HmiAlarms } from "./HmiAlarms";
 import { HmiSetpoints } from "./HmiSetpoints";
+import { HmiSchedules } from "./HmiSchedules";
 import { useAuth } from "../auth/AuthGate";
 import { Chart, toSamples, type Sample } from "../TrendPage";
 import "./hmi.css";
@@ -92,7 +93,8 @@ export function HmiApp() {
         {site && tab === "overview" && <Overview points={points} live={live} />}
         {site && tab === "trends" && <ShortTrends site={site} points={points} />}
         {site && tab === "setpoints" && <HmiSetpoints points={points} live={live} tz={site.ianaTz} />}
-        {site && (tab === "graphics" || tab === "schedules") && (
+        {site && tab === "schedules" && <HmiSchedules />}
+        {site && tab === "graphics" && (
           <ComingLater tab={TABS.find((t) => t.key === tab)!.label} />
         )}
       </main>

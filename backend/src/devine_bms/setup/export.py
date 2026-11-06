@@ -78,7 +78,7 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
                 "space": space_names.get(p.space_id), "device": device_names.get(p.device_id),
                 "type": p.point_type, "kind": p.kind, "unit": p.unit, "enum": p.enum, "tags": dict(p.tags),
                 "address": dict(p.address), "pollClass": p.poll_class, "staleAfterS": p.stale_after_s,
-                "his": p.his, "alarms": list(p.alarms) or None, "writeLimits": p.write_limits,
+                "his": p.his, "alarms": list(p.alarms) or None, "writeLimits": p.write_limits, "occupancy": p.occupancy,
             })
             for p in points
             if p.device_id in device_names  # points of a removed device are not part of the setup

@@ -3,6 +3,7 @@ import type { LiveValue, Point, Site } from "./api";
 import { getPoints, getSite } from "./api";
 import { useLive } from "./live";
 import { AlarmButton, AlarmsPage } from "./alarms/AlarmsPage";
+import { SchedulesPage } from "./schedules/SchedulesPage";
 import { AccountPage } from "./auth/AccountPage";
 import { useAuth } from "./auth/AuthGate";
 import { logout } from "./auth/authApi";
@@ -34,7 +35,8 @@ export function App() {
   const inSetup = hash.page === "setup" && can("admin");
   const inAccount = hash.page === "account";
   const inAlarms = hash.page === "alarms";
-  const elsewhere = inSetup || inAccount || inAlarms;
+  const inSchedules = hash.page === "schedules";
+  const elsewhere = inSetup || inAccount || inAlarms || inSchedules;
   const go = (p: Page) => {
     if (elsewhere) history.pushState(null, "", location.pathname + location.search);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -96,6 +98,9 @@ export function App() {
             Trends
           </button>
           <AlarmButton active={inAlarms} onClick={() => { location.hash = "#/alarms"; }} />
+          <button type="button" className={inSchedules ? "active" : ""} onClick={() => { location.hash = "#/schedules"; }}>
+            Schedules
+          </button>
           {can("admin") && (
             <button
               type="button"
@@ -134,9 +139,14 @@ export function App() {
           </select>
         </label>
       </header>
-      <main className={inSetup || inAlarms ? "wide" : ""}>
+      <main className={inSetup || inAlarms || inSchedules ? "wide" : ""}>
         {error && <p className="error">{error}</p>}
         {inSetup && <SetupApp />}
+        {inSchedules && (
+          <div className="setup plain">
+            <SchedulesPage />
+          </div>
+        )}
         {inAlarms && (
           <div className="setup plain">
             <AlarmsPage />

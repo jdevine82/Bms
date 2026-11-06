@@ -17,6 +17,31 @@ const FILTERS: { key: Flag | "all"; label: string; tone: "info" | "warn" | "bad"
   { key: "noLimits", label: "No write limits", tone: "bad" },
 ];
 
+/** One side of a point's occupancy map (milestone 7B); clearing either side removes the map. */
+function OccupancyInput({ point, which, onChange }: { point: Obj; which: "occupied" | "unoccupied"; onChange: (occ: Obj | undefined) => void }) {
+  const occ = point.occupancy ?? {};
+  const other = which === "occupied" ? "unoccupied" : "occupied";
+  const label = `${which === "occupied" ? "Occupied" : "Unoccupied"} value of ${point.name}`;
+  const update = (v: unknown) => {
+    if (v === "" || v === undefined) return onChange(undefined);
+    const next = { ...occ, [which]: v };
+    if (next[other] === undefined) next[other] = point.kind === "Bool" ? !v : v;
+    onChange(next);
+  };
+  const value = occ[which];
+  if (point.kind === "Bool" || point.kind === "Str") {
+    const options = point.kind === "Bool" ? [["true", "On"], ["false", "Off"]] : (point.enum ?? []).map((e: string) => [e, e]);
+    return (
+      <select aria-label={label} value={value === undefined ? "" : String(value)}
+        onChange={(e) => update(e.target.value === "" ? "" : point.kind === "Bool" ? e.target.value === "true" : e.target.value)}>
+        <option value="">–</option>
+        {options.map(([v, t]: string[]) => <option key={v} value={v}>{t}</option>)}
+      </select>
+    );
+  }
+  return <input className="narrow" type="number" step="any" aria-label={label} value={value ?? ""} onChange={(e) => update(e.target.value === "" ? "" : Number(e.target.value))} />;
+}
+
 function limitsFrom(min: unknown, max: unknown): Obj | undefined {
   const lo = min === "" || min == null ? null : Number(min);
   const hi = max === "" || max == null ? null : Number(max);
@@ -132,6 +157,7 @@ export function PointGrid({
               <th>Unit</th>
               <th>Scale</th>
               <th>Write limits</th>
+              <th>Schedule: occupied / unoccupied</th>
               {showDevice && <th>Device</th>}
               <th>Status</th>
             </tr>
@@ -238,6 +264,14 @@ export function PointGrid({
                           value={p.writeLimits?.min ?? ""} onChange={(e) => setPoint(i, { writeLimits: limitsFrom(e.target.value, p.writeLimits?.max) })} />
                         <input className="narrow" type="number" step="any" aria-label={`Highest write of ${p.name}`} placeholder="max"
                           value={p.writeLimits?.max ?? ""} onChange={(e) => setPoint(i, { writeLimits: limitsFrom(p.writeLimits?.min, e.target.value) })} />
+                      </span>
+                    ) : <span className="muted">–</span>}
+                  </td>
+                  <td className="nowrap">
+                    {(p.type === "sp" || p.type === "cmd") ? (
+                      <span className="limits">
+                        <OccupancyInput point={p} which="occupied" onChange={(occ) => setPoint(i, { occupancy: occ })} />
+                        <OccupancyInput point={p} which="unoccupied" onChange={(occ) => setPoint(i, { occupancy: occ })} />
                       </span>
                     ) : <span className="muted">–</span>}
                   </td>

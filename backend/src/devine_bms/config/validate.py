@@ -265,6 +265,19 @@ def writable(point) -> bool:
     return bool(a.command_topic)
 
 
+def _check_command_value(where: str, point, value, error) -> None:
+    """A value the BMS will write: the right kind, in the enum, inside the write limits."""
+    if point.kind == Kind.BOOL and not isinstance(value, bool):
+        error(where, "give true or false")
+    elif point.kind == Kind.STR and (not isinstance(value, str) or value not in (point.enum or [])):
+        error(where, f"give one of {list(point.enum or [])}")
+    elif point.kind == Kind.NUMBER:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            error(where, "give a number")
+        elif point.write_limits and not point.write_limits.min <= value <= point.write_limits.max:
+            error(where, f"{value} is outside the write limits {point.write_limits.min} to {point.write_limits.max}")
+
+
 def _check_writes(where: str, point, warning, error) -> None:
     if point.write_limits is not None and point.kind != Kind.NUMBER:
         error(where, "write limits are for Number points")
@@ -275,6 +288,11 @@ def _check_writes(where: str, point, warning, error) -> None:
             error(where, "the command topic cannot have wildcards")
         if point.type.value == "sensor":
             error(where, "a sensor has no command topic")
+    if point.occupancy is not None:
+        if not writable(point):
+            error(where, "only a writable setpoint or command can follow a schedule (occupancy)")
+        for state in ("occupied", "unoccupied"):
+            _check_command_value(f"{where}.occupancy.{state}", point, getattr(point.occupancy, state), error)
     if writable(point) and point.kind == Kind.NUMBER and point.write_limits is None:
         warning(where, "a writable Number point needs write limits before it can be commanded (main spec 5.6)")
 
@@ -317,6 +335,12 @@ def _check_equip_templates(config, error, warning) -> None:
             error(where, "role names must be unique")
         for r in t.roles:
             _check_alarms(f"{where}.roles.{r.role}", r.kind, r.enum, r.alarms, error)
+            if r.occupancy is not None:
+                if r.type.value not in ("sp", "cmd"):
+                    error(f"{where}.roles.{r.role}", "only a setpoint or command can follow a schedule (occupancy)")
+                for state in ("occupied", "unoccupied"):
+                    _check_command_value(f"{where}.roles.{r.role}.occupancy.{state}", r,
+                                         getattr(r.occupancy, state), error)
 
     points = {p.name: p for p in config.points}
     owners = [("equips", e, "equip") for e in config.equips] + [("spaces", s, "space") for s in config.spaces]

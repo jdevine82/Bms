@@ -7,6 +7,8 @@ A bacpypes3 device with:
     binary-input 1       Fan status, follows binary-output 1
     binary-output 1      Fan command, starts active
     multi-state-value 1  Mode: 1 Cool, 2 Heat, 3 Fan; starts at 2 (Heat)
+    schedule 1           Occupancy schedule: stores the weekly and exception schedules it is
+                         written (milestone 7B); it does not run them
 
 Faults the tests use: `set_fault(obj)` sets the fault status flag, `set_out_of_service(obj)`
 sets out-of-service, `no_rpm=True` refuses ReadPropertyMultiple, and `stop()` makes the
@@ -30,6 +32,15 @@ from bacpypes3.local.binary import BinaryInputObject, BinaryOutputObject
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.local.multistate import MultiStateValueObject
 from bacpypes3.pdu import IPv4Address
+from bacpypes3.basetypes import DailySchedule, DateRange, SpecialEvent
+from bacpypes3.constructeddata import ArrayOf
+from bacpypes3.local.object import Object as _LocalObject
+from bacpypes3.object import ScheduleObject as _ScheduleObject
+from bacpypes3.primitivedata import Date, Unsigned
+
+
+class StoredScheduleObject(_LocalObject, _ScheduleObject):
+    """A Schedule object that keeps what it is written, like a controller's, without running it."""
 
 log = logging.getLogger("bacnet_sim")
 OK_FLAGS = [0, 0, 0, 0]
@@ -76,7 +87,16 @@ class BacnetSimulator:
             objectIdentifier=("multiStateValue", 1), objectName="Mode", presentValue=2, numberOfStates=3,
             stateText=["Cool", "Heat", "Fan"], statusFlags=OK_FLAGS, eventState="normal", outOfService=False,
         )
-        self.objects = [self.room_temp, self.setpoint, self.fan_status, self.fan_command, self.mode]
+        self.schedule = StoredScheduleObject(
+            objectIdentifier=("schedule", 1), objectName="Occupancy", presentValue=Unsigned(0),
+            scheduleDefault=Unsigned(0),
+            weeklySchedule=ArrayOf(DailySchedule)([DailySchedule(daySchedule=[]) for _ in range(7)]),
+            exceptionSchedule=ArrayOf(SpecialEvent)([]),
+            effectivePeriod=DateRange(startDate=Date((255, 255, 255, 255)), endDate=Date((255, 255, 255, 255))),
+            listOfObjectPropertyReferences=[], priorityForWriting=16, statusFlags=OK_FLAGS,
+            reliability="noFaultDetected", outOfService=False,
+        )
+        self.objects = [self.room_temp, self.setpoint, self.fan_status, self.fan_command, self.mode, self.schedule]
 
     @property
     def endpoint(self) -> str:
