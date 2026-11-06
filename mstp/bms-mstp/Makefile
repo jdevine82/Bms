@@ -2,7 +2,7 @@
 # and the library (bacnet-stack exports them to every app folder).
 TARGET = bms-mstp
 BACNET_OBJECT_DIR = $(BACNET_SRC_DIR)/bacnet/basic/object
-SRC = main.c \
+SRC = main.c router.c \
 	$(BACNET_OBJECT_DIR)/client/device-client.c \
 	$(BACNET_OBJECT_DIR)/netport.c
 

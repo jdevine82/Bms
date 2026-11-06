@@ -18,7 +18,7 @@ export const BUS_SKELETONS: Record<string, Obj> = {
   modbus_rtu: { type: "modbus_rtu", port: "/dev/ttyBMS0", baudrate: 9600, parity: "N", dataBits: 8, stopBits: 1, timeoutS: 1, retries: 1 },
   modbus_rtu_over_tcp: { type: "modbus_rtu_over_tcp", host: "192.168.1.70", port: 502, timeoutS: 1, retries: 1 },
   modbus_tcp_gateway: { type: "modbus_tcp_gateway", host: "192.168.1.70", port: 502, timeoutS: 1, retries: 1 },
-  bacnet_mstp: { type: "bacnet_mstp", service: "127.0.0.1:47900", port: "/dev/ttyBMS1", baudrate: 38400, mac: 0, maxMaster: 127, maxInfoFrames: 1, deviceInstance: 3999100, timeoutS: 8 },
+  bacnet_mstp: { type: "bacnet_mstp", service: "127.0.0.1:47900", port: "/dev/ttyBMS1", baudrate: 38400, mac: 0, maxMaster: 127, maxInfoFrames: 1, deviceInstance: 3999100, timeoutS: 8, networkNumber: 101 },
   mqtt_broker: { type: "mqtt_broker", host: "127.0.0.1", port: 1883, username: "", passwordEnv: "BMS_MQTT_PASSWORD", tls: false },
 };
 

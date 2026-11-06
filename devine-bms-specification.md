@@ -154,7 +154,7 @@ Confidence in the stack: medium-high. Main risks: native MS/TP timing, the size 
   - Discover devices on the trunk (Who-Is / token-passing node scan), read objects and properties, write to writable objects with priority arrays, and support COV where devices allow.
   - Multiple MS/TP trunks per site, each on its own RS485 port.
   - Show trunk health: token passing, retries, CRC errors, devices offline.
-- **BACnet router (v1):** the BMS routes between MS/TP trunks and BACnet/IP, so other BACnet/IP tools on the device network can see MS/TP devices. Requires a documented BACnet network-number plan per site. `bacnet-stack` includes router support; prove it on the bench.
+- **BACnet router (v1):** the BMS routes between MS/TP trunks and BACnet/IP, so other BACnet/IP tools on the device network can see MS/TP devices. Requires a documented BACnet network-number plan per site. **Built in milestone 8 inside bms-mstp (decision 024): each routing trunk has its own labelled IP address on the device network; network numbers are site settings (BACnet/IP default 1, trunks 101 upwards), checked for uniqueness.** Prove it on the bench (test 6).
 - **Serial ports are never shared:** each RS485 bus (a Modbus RTU line or a BACnet MS/TP trunk) has its own dedicated adapter and port.
 - **Auto-discovery plus UI:** scan the network (BACnet Who-Is, Modbus range scan, MQTT topic discovery), list what is found, then the user confirms, names, scales and tags points in the browser. The Discover screen is described in 5.1.3.
 - Reusable **device templates** (for example a specific inverter or meter) applied per device. **[Assumed]** Reusable **equipment templates** (5.1.2) turn device points into equipment, with a shared graphic and settings.

@@ -53,6 +53,7 @@ Text request lines over TCP; one JSON answer line each, with the request's ID an
 | `STATS <id>` | trunk counters: frames sent and received, invalid frames, lost tokens, CRC errors, poll-for-master |
 | `WHOIS <id> <low> <high> <wait_ms>` | devices that answered: instance, MAC, max APDU, segmentation, vendor (`-1 -1` for all) |
 | `READ <id> <mac> <type>:<instance>:<property> ...` | one ReadPropertyMultiple; a value or an error for each property |
+| `ROUTER <id>` | routing on or off; the network numbers; packets from and to each side, rejects and clashes (version 0.3.0) |
 | `WRITE <id> <mac> <type>:<instance>:<property> <priority> <tag> <value>` | one WriteProperty (version 0.2.0, milestone 7A); `<tag>` is `real`, `enum`, `unsigned` or `null` (`null -` releases that priority); `{"ok": true}` on the device's acknowledgement |
 
 Object types and properties are BACnet numbers: `0:1:85` is analog-input 1 present-value, and `:111` is its
@@ -63,6 +64,46 @@ Try it by hand:
 ```bash
 printf 'PING p1\nSTATS s1\nWHOIS w1 -1 -1 3000\n' | nc -q 5 127.0.0.1 47900
 ```
+
+## BACnet router (milestone 8)
+
+Each trunk's bms-mstp can also route between the trunk and BACnet/IP, so other BACnet/IP tools on
+the device network (a commissioning laptop, another front end) can see and read the MS/TP devices.
+Decision 024 and `docs/specs/m8-bacnet-router.md` give the reasons.
+
+1. **Pick the network numbers** (they must be unique on the site, including other routers): the
+   BACnet/IP network (site setting `bacnet.networkNumber`, default 1) and one per trunk
+   (`networkNumber` on the trunk, suggested 101, 102, …).
+2. **Give the trunk its own address on the device-network port**, with a label, so its BACnet/IP side
+   can use port 47808 next to the BMS. For example, for trunk mstp1 on `eth1`:
+
+   ```bash
+   sudo ip addr add 192.168.10.21/24 dev eth1 label eth1:mstp1
+   ```
+
+   Make it permanent in the host's network configuration (on Proxmox, `/etc/network/interfaces`:
+   `post-up ip addr add 192.168.10.21/24 dev eth1 label eth1:mstp1`).
+3. **Turn routing on** in `/etc/devine-bms/mstp-mstp1.env` and restart the service:
+
+   ```bash
+   BMS_MSTP_ROUTE_ARGS=--route eth1:mstp1 --ip-net 1 --mstp-net 101
+   ```
+
+4. **Match the site configuration:** the trunk's `networkNumber` and
+   `router: {"interface": "eth1:mstp1", "address": "192.168.10.21"}`; the setup checks numbers and
+   addresses for clashes.
+
+The service announces itself as router to network 101 at start, answers Who-Is-Router-To-Network,
+and logs a warning if another router announces one of its numbers. `ROUTER <id>` on the local API
+gives the counters (packets each way, rejects, clashes); the BMS shows them with the trunk.
+
+Check it from a laptop on the device network with any BACnet tool, or with bacnet-stack's:
+
+```bash
+BACNET_IFACE=eth0 BACNET_IP_PORT=47809 ./build/bacrp 1234 device 1234 object-name --mac 192.168.10.21:47808 --dnet 101 --dadr 5
+```
+
+Not in milestone 8: BBMD and foreign-device registration (BACnet/IP across subnets).
 
 ## Test without hardware
 

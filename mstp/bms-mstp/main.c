@@ -18,6 +18,11 @@
  *   --apdu-timeout MS      wait per try for an answer (default 3000; bacnet-stack's own MS/TP
  *                          default of 60000 is far too long for polling)
  *   --apdu-retries N       extra tries after the first (default 1)
+ *   --route IFACE[:PORT]   also route between the trunk and BACnet/IP (milestone 8): the
+ *                          BACnet/IP side uses this network interface's address, normally
+ *                          the trunk's own labelled address such as eth1:mstp1, port 47808
+ *   --ip-net N             the BACnet/IP network number (with --route; default 1)
+ *   --mstp-net N           this trunk's network number (with --route; required)
  *
  * Requests (one per line; <id> is the caller's request ID, echoed back):
  *   PING <id>
@@ -30,6 +35,7 @@
  *        One WriteProperty. <priority> is 1 to 16 (0: none). <tag> is real, enum, unsigned
  *        or null; null (with any <value>, e.g. -) releases that priority. Answers
  *        {"ok":true} on the device's SimpleACK.
+ *   ROUTER <id>    routing on or off, the network numbers and packet counts (milestone 8)
  * Answers are one JSON object per line, always with "id" and "ok".
  *
  * @copyright Devine BMS. Proprietary. Links the bacnet-stack library
@@ -65,11 +71,14 @@
 #include "bacnet/basic/services.h"
 #include "bacnet/basic/tsm/tsm.h"
 #include "bacnet/datalink/datalink.h"
-#include "bacnet/datalink/dlenv.h"
+#include "bacnet/datalink/bip.h"
+#include "bacnet/datalink/bvlc.h"
+#include "bacnet/basic/bbmd/h_bbmd.h"
+#include "router.h"
 #include "bacnet/datalink/dlmstp.h"
 #include "bacport.h"
 
-#define SERVICE_VERSION "0.2.0"
+#define SERVICE_VERSION "0.3.0"
 #define MAX_CLIENTS 8
 #define LINE_MAX_LEN 4096
 #define OUT_MAX_LEN 65536
@@ -667,6 +676,23 @@ static void handle_stats(int fd, const char *id)
     send_line(fd, &o);
 }
 
+static void handle_router(int fd, const char *id)
+{
+    OUT o = { 0 };
+    out_raw(&o, "{\"id\":");
+    out_str(&o, id);
+    if (!router_enabled()) {
+        out_raw(&o, ",\"ok\":true,\"routing\":false}");
+    } else {
+        out_fmt(&o,
+            ",\"ok\":true,\"routing\":true,\"ipNet\":%u,\"mstpNet\":%u,\"fromIp\":%lu,\"fromMstp\":%lu,"
+            "\"toIp\":%lu,\"toMstp\":%lu,\"rejects\":%lu,\"clashes\":%lu}",
+            (unsigned)router_ip_net(), (unsigned)router_mstp_net(), Router_Stats.from_ip, Router_Stats.from_mstp,
+            Router_Stats.to_ip, Router_Stats.to_mstp, Router_Stats.rejects, Router_Stats.clashes);
+    }
+    send_line(fd, &o);
+}
+
 static void handle_line(int fd, char *line)
 {
     char *save = NULL;
@@ -697,8 +723,10 @@ static void handle_line(int fd, char *line)
         handle_read(fd, id, rest);
     } else if (strcmp(cmd, "WRITE") == 0) {
         handle_write(fd, id, rest);
+    } else if (strcmp(cmd, "ROUTER") == 0) {
+        handle_router(fd, id);
     } else {
-        answer_error(fd, id, "unknown request; use PING, STATS, WHOIS, READ or WRITE");
+        answer_error(fd, id, "unknown request; use PING, STATS, WHOIS, READ, WRITE or ROUTER");
     }
 }
 
@@ -783,6 +811,74 @@ static void check_timeouts(void)
     }
 }
 
+/* ---------- datalink (the library is built with both ports; see router.c) ---------- */
+
+bool datalink_init(const char *ifname)
+{
+    return dlmstp_init(ifname);
+}
+
+int datalink_send_pdu(BACNET_ADDRESS *dest, BACNET_NPDU_DATA *npdu_data, uint8_t *pdu, unsigned pdu_len)
+{
+    if (router_enabled()) {
+        return router_send_local(dest, npdu_data, pdu, pdu_len);
+    }
+    return dlmstp_send_pdu(dest, npdu_data, pdu, pdu_len);
+}
+
+uint16_t datalink_receive(BACNET_ADDRESS *src, uint8_t *pdu, uint16_t max_pdu, unsigned timeout)
+{
+    return dlmstp_receive(src, pdu, max_pdu, timeout);
+}
+
+void datalink_cleanup(void)
+{
+    router_cleanup();
+    dlmstp_cleanup();
+}
+
+void datalink_get_broadcast_address(BACNET_ADDRESS *dest)
+{
+    dlmstp_get_broadcast_address(dest);
+}
+
+void datalink_get_my_address(BACNET_ADDRESS *my_address)
+{
+    dlmstp_get_my_address(my_address);
+}
+
+void datalink_set_interface(const char *ifname)
+{
+    (void)ifname;
+}
+
+void datalink_set(const char *datalink_string)
+{
+    (void)datalink_string;
+}
+
+void datalink_maintenance_timer(uint16_t seconds)
+{
+    if (router_enabled()) {
+        bvlc_maintenance_timer(seconds);
+    }
+}
+
+/* The trunk from bacnet-stack's environment variables (as dlenv did for an MS/TP-only build). */
+static bool mstp_init_from_env(void)
+{
+    const char *env;
+    env = getenv("BACNET_MAX_INFO_FRAMES");
+    dlmstp_set_max_info_frames(env ? (uint8_t)strtol(env, NULL, 0) : 1);
+    env = getenv("BACNET_MAX_MASTER");
+    dlmstp_set_max_master(env ? (uint8_t)strtol(env, NULL, 0) : 127);
+    env = getenv("BACNET_MSTP_BAUD");
+    dlmstp_set_baud_rate(env ? (uint32_t)strtol(env, NULL, 0) : 38400);
+    env = getenv("BACNET_MSTP_MAC");
+    dlmstp_set_mac_address(env ? (uint8_t)strtol(env, NULL, 0) : 127);
+    return datalink_init(getenv("BACNET_IFACE"));
+}
+
 static int open_listener(const char *listen_at)
 {
     char host[64] = "127.0.0.1";
@@ -816,6 +912,9 @@ static int open_listener(const char *listen_at)
 int main(int argc, char *argv[])
 {
     const char *listen_at = "127.0.0.1:47900";
+    const char *route_iface = NULL;
+    long ip_net = 1, mstp_net = 0;
+    char iface_buf[64];
     long apdu_timeout_ms = 3000;
     long apdu_retries = 1;
     BACNET_ADDRESS src = { 0 };
@@ -832,6 +931,12 @@ int main(int argc, char *argv[])
             apdu_timeout_ms = strtol(argv[++i], NULL, 10);
         } else if (strcmp(argv[i], "--apdu-retries") == 0 && i + 1 < argc) {
             apdu_retries = strtol(argv[++i], NULL, 10);
+        } else if (strcmp(argv[i], "--route") == 0 && i + 1 < argc) {
+            route_iface = argv[++i];
+        } else if (strcmp(argv[i], "--ip-net") == 0 && i + 1 < argc) {
+            ip_net = strtol(argv[++i], NULL, 10);
+        } else if (strcmp(argv[i], "--mstp-net") == 0 && i + 1 < argc) {
+            mstp_net = strtol(argv[++i], NULL, 10);
         } else if (strcmp(argv[i], "--version") == 0) {
             printf("bms-mstp %s (bacnet-stack %s)\n", SERVICE_VERSION, BACNET_VERSION_TEXT);
             return 0;
@@ -853,6 +958,10 @@ int main(int argc, char *argv[])
     }
     env = getenv("BACNET_MSTP_MAC");
     My_Mac = env ? strtol(env, NULL, 10) : 127;
+    if (route_iface && (mstp_net < 1 || mstp_net > 65534 || ip_net < 1 || ip_net > 65534 || ip_net == mstp_net)) {
+        fprintf(stderr, "bms-mstp: --route needs --mstp-net and --ip-net, 1 to 65534 and different\n");
+        return 2;
+    }
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         Clients[i].fd = -1;
@@ -866,8 +975,28 @@ int main(int argc, char *argv[])
 
     address_init();
     init_service_handlers();
-    dlenv_init();
+    if (!mstp_init_from_env()) {
+        fprintf(stderr, "bms-mstp: cannot open the MS/TP port %s\n", getenv("BACNET_IFACE") ? getenv("BACNET_IFACE") : "");
+        return 1;
+    }
     atexit(datalink_cleanup);
+    if (route_iface) {
+        const char *colon = strrchr(route_iface, ':');
+        /* IFACE:PORT, unless the colon is part of an alias label such as eth1:mstp1 */
+        snprintf(iface_buf, sizeof(iface_buf), "%s", route_iface);
+        if (colon && strspn(colon + 1, "0123456789") == strlen(colon + 1) && strlen(colon + 1) > 0) {
+            iface_buf[colon - route_iface] = 0;
+            bip_set_port((uint16_t)strtol(colon + 1, NULL, 10));
+        } else {
+            bip_set_port(0xBAC0U);
+        }
+        if (!router_start(iface_buf, (uint16_t)ip_net, (uint16_t)mstp_net)) {
+            fprintf(stderr, "bms-mstp: cannot open BACnet/IP on %s for routing\n", iface_buf);
+            return 1;
+        }
+        fprintf(stderr, "bms-mstp: routing between MS/TP network %ld and BACnet/IP network %ld on %s port %u\n",
+            mstp_net, ip_net, iface_buf, (unsigned)bip_get_port());
+    }
     /* after dlenv_init, which sets its own MS/TP defaults */
     apdu_timeout_set((uint16_t)apdu_timeout_ms);
     apdu_retries_set((uint8_t)apdu_retries);
@@ -934,8 +1063,13 @@ int main(int argc, char *argv[])
         /* waits up to 5 ms for a frame; the MS/TP state machine runs in its own thread */
         pdu_len = datalink_receive(&src, &Rx_Buf[0], MAX_MPDU, 5);
         if (pdu_len) {
-            npdu_handler(&src, &Rx_Buf[0], pdu_len);
+            if (router_enabled()) {
+                router_mstp_received(&src, &Rx_Buf[0], pdu_len);
+            } else {
+                npdu_handler(&src, &Rx_Buf[0], pdu_len);
+            }
         }
+        router_poll();
     }
     fprintf(stderr, "bms-mstp: stopping\n");
     close(listener);

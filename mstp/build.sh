@@ -2,7 +2,8 @@
 # Build bms-mstp against the pinned bacnet-stack release (milestone 4c).
 #
 #   ./build.sh                     build into ./build
-#   ./build.sh --with-test-tools   also build bacnet-stack's MS/TP test server (bacserv)
+#   ./build.sh --with-test-tools   also build bacnet-stack's MS/TP test server (bacserv) and
+#                                  BACnet/IP tools for router tests (bacrp, bacwir)
 #   sudo ./build.sh --install      build, then install /usr/local/bin/bms-mstp
 #
 # Needs git, make and a C compiler (Debian: sudo apt install git build-essential).
@@ -38,19 +39,28 @@ if [ "$ACTUAL" != "$BACNET_STACK_COMMIT" ]; then
     exit 1
 fi
 
-echo "==> Building the bacnet-stack library for MS/TP"
-make -s BACDL=mstp -C "$SRC/apps" lib
+echo "==> Building the bacnet-stack library for MS/TP and BACnet/IP (bms-mstp routes, milestone 8)"
+# BACDL_NONE: bms-mstp supplies the datalink functions itself and routes between the two ports.
+make -s -B BACDL=bip-mstp BACDL_DEFINE=-DBACDL_NONE=1 -C "$SRC/apps" lib
 
 echo "==> Building bms-mstp"
 rm -rf "$SRC/apps/bms-mstp"
 cp -r "$HERE/bms-mstp" "$SRC/apps/bms-mstp"
-make -s BACDL=mstp -C "$SRC/apps" -f Makefile -f "$HERE/bms-mstp.mk" bms-mstp
+make -s BACDL=bip-mstp BACDL_DEFINE=-DBACDL_NONE=1 -C "$SRC/apps" -f Makefile -f "$HERE/bms-mstp.mk" bms-mstp
 install -m 0755 "$SRC/apps/bms-mstp/bms-mstp" "$BUILD/bms-mstp"
 
 if [ "$TEST_TOOLS" -eq 1 ]; then
+    # Each test tool has one datalink, so the library is rebuilt for it.
     echo "==> Building bacnet-stack's MS/TP test server (bacserv)"
-    make -s BACDL=mstp -C "$SRC/apps" server
+    make -s -B BACDL=mstp -C "$SRC/apps" lib
+    make -s -B BACDL=mstp -C "$SRC/apps" server
     install -m 0755 "$SRC/apps/server/bacserv" "$BUILD/bacserv"
+    echo "==> Building bacnet-stack's BACnet/IP tools for router tests (bacrp, bacwir)"
+    make -s -B BACDL=bip -C "$SRC/apps" lib
+    make -s -B BACDL=bip -C "$SRC/apps" readprop
+    make -s BACDL=bip -C "$SRC/apps" -f Makefile -f "$HERE/bms-mstp.mk" whoisrouter-tool
+    install -m 0755 "$SRC/apps/readprop/bacrp" "$BUILD/bacrp"
+    install -m 0755 "$SRC/apps/whoisrouter/bacwir" "$BUILD/bacwir"
 fi
 
 "$BUILD/bms-mstp" --version

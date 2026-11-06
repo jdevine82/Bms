@@ -44,6 +44,8 @@ class MstpServiceStandIn:
         self.mac = mac
         self.instance = instance
         self.requests = 0
+        # Set to a dict such as {"ipNet": 1, "mstpNet": 101, "fromIp": 0, ...} to answer ROUTER as a router.
+        self.routing: dict | None = None
         self._server: asyncio.base_events.Server | None = None
         self._writers: set[asyncio.StreamWriter] = set()
 
@@ -97,7 +99,11 @@ class MstpServiceStandIn:
             return await self._read(request_id, args)
         if command == "WRITE":
             return await self._write(request_id, args)
-        return {"id": request_id, "ok": False, "error": "unknown request; use PING, STATS, WHOIS, READ or WRITE"}
+        if command == "ROUTER":  # milestone 8: the stand-in can pretend to route
+            if self.routing is None:
+                return {"id": request_id, "ok": True, "routing": False}
+            return {"id": request_id, "ok": True, "routing": True, **self.routing}
+        return {"id": request_id, "ok": False, "error": "unknown request; use PING, STATS, WHOIS, READ, WRITE or ROUTER"}
 
     async def _write(self, request_id: str, args: list[str]) -> dict:
         """WRITE <mac> <type>:<instance>:<property> <priority> <tag> <value>, as the real service."""

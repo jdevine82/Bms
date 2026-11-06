@@ -104,6 +104,10 @@ class MstpServiceClient:
     async def stats(self) -> dict[str, Any]:
         return await self.request("STATS")
 
+    async def router(self) -> dict[str, Any]:
+        """Routing on or off, the network numbers and packet counts (bms-mstp 0.3.0, milestone 8)."""
+        return await self.request("ROUTER")
+
     async def whois(self, low: int = -1, high: int = -1, wait_ms: int = 3000) -> list[dict[str, Any]]:
         answer = await self.request("WHOIS", f"{low} {high} {wait_ms}", wait_s=wait_ms / 1000 + self.timeout_s)
         if not answer.get("ok"):

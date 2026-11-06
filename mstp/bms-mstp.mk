@@ -2,3 +2,8 @@
 .PHONY: bms-mstp
 bms-mstp: $(BACNET_LIB_TARGET)
 	$(MAKE) -B -C $@
+
+# bacnet-stack's Who-Is-Router-To-Network tool, for the router tests (milestone 8)
+.PHONY: whoisrouter-tool
+whoisrouter-tool: $(BACNET_LIB_TARGET)
+	$(MAKE) -B -C whoisrouter

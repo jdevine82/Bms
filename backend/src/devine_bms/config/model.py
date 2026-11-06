@@ -184,6 +184,19 @@ class BacnetMstpTrunk(_BusBase):
     max_info_frames: int = Field(default=1, ge=1, le=255)
     device_instance: int = Field(ge=0, le=4194302, description="The service node's own instance")
     timeout_s: float = Field(default=8.0, gt=0, le=120)  # longer than the service's own timeout x tries
+    # This trunk's BACnet network number (milestone 8), unique on the site; suggested 101, 102, …
+    network_number: int | None = Field(default=None, ge=1, le=65534)
+    router: MstpRouter | None = None
+
+
+class MstpRouter(_Model):
+    """bms-mstp routes this trunk to BACnet/IP (milestone 8): its BACnet/IP side uses `interface`,
+    a labelled address on the device-network port such as eth1:mstp1 with `address`, port 47808.
+    The same settings go in the service's env file (BMS_MSTP_ROUTE_ARGS)."""
+
+    enabled: bool = True
+    interface: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,15}$")
+    address: str = Field(pattern=r"^[0-9]{1,3}(\.[0-9]{1,3}){3}$")
 
 
 class MqttBroker(_BusBase):
@@ -421,6 +434,8 @@ class BacnetSettings(_Model):
     # Unique on the BACnet network. Every site must pick its own.
     device_instance: int = Field(ge=0, le=4194302)
     device_name: str = "Devine BMS"
+    # The BACnet/IP network's number on this site (milestone 8), used by the MS/TP routers.
+    network_number: int = Field(default=1, ge=1, le=65534)
 
 
 class Point(_Model):
