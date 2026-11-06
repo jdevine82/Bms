@@ -360,6 +360,76 @@
       "title": "ByteOrder",
       "type": "string"
     },
+    "CustomSymbol": {
+      "additionalProperties": false,
+      "description": "A site's own symbol (main spec 6.4, milestone 9B): drawn in the editor or imported.\n\n`svg` is cleaned (graphics/sanitize.py) and has `state-off` and `state-on` groups.",
+      "properties": {
+        "id": {
+          "maxLength": 60,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "category": {
+          "default": "Site symbols",
+          "title": "Category",
+          "type": "string"
+        },
+        "kind": {
+          "default": "state",
+          "enum": [
+            "state",
+            "position",
+            "level",
+            "value"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "animation": {
+          "default": "none",
+          "enum": [
+            "none",
+            "spin",
+            "flash"
+          ],
+          "title": "Animation",
+          "type": "string"
+        },
+        "svg": {
+          "maxLength": 65536,
+          "title": "Svg",
+          "type": "string"
+        },
+        "shapes": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SymbolShape"
+              },
+              "maxItems": 300,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shapes"
+        }
+      },
+      "required": [
+        "id",
+        "dis",
+        "svg"
+      ],
+      "title": "CustomSymbol",
+      "type": "object"
+    },
     "DataType": {
       "enum": [
         "bit",
@@ -838,6 +908,17 @@
           ],
           "default": null
         },
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GraphicBackground"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "items": {
           "default": [],
           "items": {
@@ -881,6 +962,51 @@
         "kind"
       ],
       "title": "Graphic",
+      "type": "object"
+    },
+    "GraphicBackground": {
+      "additionalProperties": false,
+      "description": "An imported SVG drawn under everything else (milestone 9B), for example a floor plan.",
+      "properties": {
+        "svg": {
+          "maxLength": 1048576,
+          "title": "Svg",
+          "type": "string"
+        },
+        "x": {
+          "default": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0,
+          "title": "Y",
+          "type": "number"
+        },
+        "w": {
+          "exclusiveMinimum": 0,
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "exclusiveMinimum": 0,
+          "title": "H",
+          "type": "number"
+        },
+        "opacity": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0.05,
+          "title": "Opacity",
+          "type": "number"
+        }
+      },
+      "required": [
+        "svg",
+        "w",
+        "h"
+      ],
+      "title": "GraphicBackground",
       "type": "object"
     },
     "GraphicTab": {
@@ -2312,6 +2438,100 @@
       "title": "SymbolItem",
       "type": "object"
     },
+    "SymbolShape": {
+      "additionalProperties": false,
+      "description": "A shape of a symbol drawn in the editor, on the 64 x 64 grid (milestone 9B).",
+      "properties": {
+        "type": {
+          "enum": [
+            "line",
+            "polyline",
+            "rect",
+            "circle",
+            "text"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "layer": {
+          "default": "both",
+          "enum": [
+            "off",
+            "on",
+            "both"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "points": {
+          "default": [],
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 200,
+          "title": "Points",
+          "type": "array"
+        },
+        "x": {
+          "default": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0,
+          "title": "Y",
+          "type": "number"
+        },
+        "w": {
+          "default": 0,
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "default": 0,
+          "title": "H",
+          "type": "number"
+        },
+        "r": {
+          "default": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "text": {
+          "default": "",
+          "maxLength": 40,
+          "title": "Text",
+          "type": "string"
+        },
+        "size": {
+          "default": 12,
+          "exclusiveMinimum": 0,
+          "maximum": 64,
+          "title": "Size",
+          "type": "number"
+        },
+        "fill": {
+          "default": false,
+          "title": "Fill",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SymbolShape",
+      "type": "object"
+    },
     "TemplateLink": {
       "additionalProperties": false,
       "description": "Equipment (or a room) made from an equipment template (main spec 5.1.2, milestone 5A).\n\n`bindings` names the point that fills each role. Overrides are not stored: a point field\nthat differs from what the template's role gives it is an override, and a template update\nleaves it alone (an override always wins).",
@@ -2794,6 +3014,14 @@
         "$ref": "#/$defs/Graphic"
       },
       "title": "Graphics",
+      "type": "array"
+    },
+    "symbols": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CustomSymbol"
+      },
+      "title": "Symbols",
       "type": "array"
     }
   },

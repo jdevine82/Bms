@@ -468,6 +468,20 @@ def _check_graphics(config, error, warning) -> None:
     """Graphics (milestone 9A): names unique, bound points exist, commands writable, rooms exist,
     tab orders unique."""
     from devine_bms.graphics.library import symbol_ids
+    from devine_bms.graphics.sanitize import is_clean
+
+    seen_symbols: set[str] = set()
+    for sym in config.symbols:
+        where = f"symbols.{sym.id}"
+        if sym.id in symbol_ids():
+            error(where, f"'{sym.id}' is a library symbol; give the site's symbol another ID")
+        if sym.id in seen_symbols:
+            error(where, "symbol IDs must be unique")
+        seen_symbols.add(sym.id)
+        problem = is_clean(sym.svg, "symbol", sym.id)
+        if problem:
+            error(where, f"the symbol's SVG is refused: {problem}")
+    known_symbols = symbol_ids() | seen_symbols
 
     points = {p.name: p for p in config.points}
     spaces = {s.name for s in config.spaces}
@@ -480,6 +494,10 @@ def _check_graphics(config, error, warning) -> None:
         names.add(g.name)
         if g.space and g.space not in spaces:
             error(where, f"space '{g.space}' does not exist")
+        if g.background is not None:
+            problem = is_clean(g.background.svg, "background", f"bg-{g.name}")
+            if problem:
+                error(f"{where}.background", f"the background is refused: {problem}")
         if g.tab is not None:
             if g.tab.order in tabs:
                 error(where, f"tab order {g.tab.order} is also used by '{tabs[g.tab.order]}'")
@@ -512,7 +530,7 @@ def _check_graphics(config, error, warning) -> None:
         for item in g.items:
             at = f"{where}.items.{item.id}"
             if item.type == "symbol":
-                if item.symbol not in symbol_ids():
+                if item.symbol not in known_symbols:
                     error(at, f"no symbol '{item.symbol}' in the library")
                 point(at, item.bind.run)
                 point(at, item.bind.value)
