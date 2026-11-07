@@ -15,11 +15,13 @@
     "test:commands": "node tests/commands.mjs",
     "test:schedules": "node tests/schedules.mjs",
     "test:graphics": "node tests/graphics.mjs",
-    "test:graphics-editor": "node tests/graphics-editor.mjs"
+    "test:graphics-editor": "node tests/graphics-editor.mjs",
+    "test:logic": "node tests/logic.mjs"
   },
   "author": "Jason Devine",
   "license": "UNLICENSED",
   "dependencies": {
+    "@xyflow/react": "12.12.0",
     "qrcode": "1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

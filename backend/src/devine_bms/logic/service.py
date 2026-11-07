@@ -79,7 +79,8 @@ class LogicService:
 
     def check(self, name: str, body: dict) -> dict:
         p, issues = plan(body, self.engine.site_view(exclude=name))
-        return {"ok": p is not None and not errors(issues), "issues": [i.as_dict() for i in issues]}
+        # `ok` is that the request worked; `valid` is whether the diagram passes the checks.
+        return {"ok": True, "valid": p is not None and not errors(issues), "issues": [i.as_dict() for i in issues]}
 
     # ---------- changing ----------
 
@@ -112,7 +113,7 @@ class LogicService:
             row = await self._row(session, name)
             body = row.draft
         result = self.check(name, body)
-        if not result["ok"]:
+        if not result["valid"]:
             raise LogicError("the diagram fails the publish checks", issues=result["issues"])
         if not confirm_failsafe and any(b.get("type") == "point_write" for b in body.get("blocks", [])):
             raise LogicError("confirm each output's fail-safe before publishing (confirmFailsafe)", 409)
@@ -188,14 +189,19 @@ class LogicService:
         # Errors in the diagram itself block the import; what does not match this site (points,
         # variables, schedules, another writer) is a warning to fix in the draft (main spec 5.3.2).
         _p, structural = plan(diagram, None)
-        if errors(structural):
-            raise LogicError("the import has errors; nothing was created",
-                             issues=[i.as_dict() for i in structural])
-        full = self.check(name, diagram)["issues"]
-        result = {"issues": [{**i, "level": "warning"} for i in full]}
+        blocking = [i.as_dict() for i in errors(structural)]
+        seen = {(i["block"], i["message"]) for i in blocking if "block" in i} | {(None, i["message"]) for i in blocking}
+        full = [] if blocking else self.check(name, diagram)["issues"]
+        warnings = [{**i, "level": "warning"} for i in full if (i.get("block"), i["message"]) not in seen]
         async with self.sessions() as session:
             exists = await session.scalar(select(db.LogicDiagram).where(
                 db.LogicDiagram.site_id == await self._site_id(session), db.LogicDiagram.name == name))
+        if body.get("check"):  # the import dialog's check: nothing is created
+            return {"ok": True, "valid": not blocking, "name": name, "exists": exists is not None,
+                    "issues": blocking + warnings}
+        if blocking:
+            raise LogicError("the import has errors; nothing was created", issues=blocking)
+        result = {"issues": warnings}
         if exists is not None and not body.get("replace"):
             raise LogicError(f"there is already a diagram '{name}'; give a new name or replace its draft", 409)
         await self.save_draft(actor, name, diagram)

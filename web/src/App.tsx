@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import type { LiveValue, Point, Site } from "./api";
 import { getPoints, getSite } from "./api";
 import { useLive } from "./live";
@@ -14,6 +14,8 @@ import { SetupApp } from "./setup/SetupApp";
 import { TrendPage } from "./TrendPage";
 
 type Page = "points" | "trends";
+// The logic editor (React Flow) loads only when opened, so the main page and the HMI stay small.
+const LogicPage = lazy(() => import("./logic/LogicPage").then((m) => ({ default: m.LogicPage })));
 type Theme = "light" | "dark" | "system";
 
 function readTheme(): Theme {
@@ -38,7 +40,8 @@ export function App() {
   const inAlarms = hash.page === "alarms";
   const inSchedules = hash.page === "schedules";
   const inGraphics = hash.page === "graphics";
-  const elsewhere = inSetup || inAccount || inAlarms || inSchedules || inGraphics;
+  const inLogic = hash.page === "logic";
+  const elsewhere = inSetup || inAccount || inAlarms || inSchedules || inGraphics || inLogic;
   const go = (p: Page) => {
     if (elsewhere) history.pushState(null, "", location.pathname + location.search);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -106,6 +109,9 @@ export function App() {
           <button type="button" className={inSchedules ? "active" : ""} onClick={() => { location.hash = "#/schedules"; }}>
             Schedules
           </button>
+          <button type="button" className={inLogic ? "active" : ""} onClick={() => { location.hash = "#/logic"; }}>
+            Logic
+          </button>
           {can("admin") && (
             <button
               type="button"
@@ -144,7 +150,7 @@ export function App() {
           </select>
         </label>
       </header>
-      <main className={inSetup || inAlarms || inSchedules || inGraphics ? "wide" : ""}>
+      <main className={inSetup || inAlarms || inSchedules || inGraphics || inLogic ? "wide" : ""}>
         {error && <p className="error">{error}</p>}
         {inSetup && <SetupApp />}
         {inSchedules && (
@@ -162,6 +168,11 @@ export function App() {
             <GraphicsPage site={site} points={points} live={live} selected={hash.section}
                           onSelect={(name) => { location.hash = `#/graphics/${encodeURIComponent(name)}`; }} />
           </div>
+        )}
+        {inLogic && (
+          <Suspense fallback={<p className="muted">Loading…</p>}>
+            <LogicPage open={hash.section ? decodeURIComponent(hash.section) : null} />
+          </Suspense>
         )}
         {inAccount && (
           <div className="setup plain">
