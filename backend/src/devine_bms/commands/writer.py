@@ -75,6 +75,8 @@ def bacnet_value(point: RuntimePoint, value: Any) -> tuple[str, Any]:
 
 
 async def write_point(runtime, point: RuntimePoint, value: Any, priority: int = MANUAL_PRIORITY) -> None:
+    if getattr(runtime, "held", False) and not isinstance(point.address, VariableAddress):
+        raise WriteError(getattr(runtime, "held_why", None) or "this BMS is not driving the buses now")
     device = _device(runtime, point)
     a = point.address
     try:

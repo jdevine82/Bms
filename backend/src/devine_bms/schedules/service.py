@@ -94,7 +94,8 @@ class ScheduleService:
     async def _loop(self) -> None:
         while True:
             try:
-                await self.run_once()
+                if not getattr(self.runtime, "held", False):  # milestone 11: an HMI drives the buses
+                    await self.run_once()
             except Exception:
                 log.exception("schedule pass failed")
             await asyncio.sleep(self.tick_s)

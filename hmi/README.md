@@ -2,6 +2,7 @@
 
 Milestone 3 spec: `../docs/specs/m3-hmi-kiosk.md`. Full mode: the Pi shows the HMI served by the site server at `/hmi`.
 **Standalone mode** (the Pi is the whole system, milestone 11a): see "Standalone mode" below and `../docs/specs/m11a-standalone.md`.
+**Standby** (the Pi takes over when the server is down, milestone 11): see "Standby takeover" below and `../docs/specs/m11-hmi-takeover.md`.
 
 ## What you need
 
@@ -47,6 +48,29 @@ Both are **[Assumed]** until the screen is chosen and checked on the bench.
 - Kiosk logs: `journalctl -u bms-kiosk -b`
 - Switch to a text console: Ctrl+Alt+F2 (with a USB keyboard); back to the HMI: Ctrl+Alt+F1.
 - Server address in use: `cat /etc/devine-bms/hmi.env`
+
+## Standby takeover (the Pi takes over when the server is down)
+
+Milestone 11, main spec 9. The Pi also runs the backend (as in standalone: PostgreSQL in RAM, the `BMSCONF`
+partition, a read-only root) in **standby**: it keeps a copy of the server's setup, polls nothing and sends nothing on
+any bus, and listens to its serial lines. When the server has not answered for 30 seconds and every serial line is
+quiet, it takes over (**direct mode**): the screen moves to the Pi's own HMI with a red banner and a Critical alarm, and
+people can view and command with their PIN. When the server is back and has been healthy for 5 minutes, an operator
+taps **Hand control back** on the Server screen; the Pi releases its hand modes, stops, and sends its log to the server.
+
+```bash
+openssl rand -base64 32    # on the server: the standby token; put it in the server's environment as BMS_STANDBY_TOKEN
+```
+
+```bash
+sudo ./provision.sh --server http://<server>:8000 --standby --name hmi-plant --ports "rs485_1=/dev/ttyBMS-rs485-1"
+```
+
+The token is asked for (it is kept only in `/etc/devine-bms/standalone.env`, readable by root and the `bms` user).
+Then on the server set `BMS_HMI_URLS=http://<this Pi's address>` and restart it. Check with
+`curl http://<pi>/api/standby/state`: `"mode": "standby"`, `"serverOk": true` and a `cacheRevision`.
+With MS/TP trunks, the Pi needs its own `bms-mstp` as MAC 1 (`../mstp/README.md`), started and stopped through
+`BMS_MSTP_START_CMD` and `BMS_MSTP_STOP_CMD`. More in `../docs/specs/m11-hmi-takeover.md`, "How to set up".
 
 ## Standalone mode (the Pi is the whole system)
 

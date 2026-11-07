@@ -408,3 +408,17 @@
 .hmi-log-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .hmi-usb { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 16px; }
 .hmi-usb span.bad { color: var(--bad); font-weight: 600; }
+
+/* HMI takeover (milestone 11) */
+.hmi-direct-chip { white-space: nowrap; font-size: 14px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--bad); color: #1a0b0a; }
+.hmi-direct-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hmi-direct-banner button { min-height: 44px; padding: 0 16px; font: inherit; font-size: 16px; border-radius: 10px; border: 0; background: #1a0b0a; color: #fff; }
+.hmi-standby-banner { background: var(--warn); }
+.hmi-banner-note { font-weight: 400; }
+.hmi-handback { display: flex; flex-direction: column; gap: 10px; max-width: 640px; font-size: 18px; }
+.hmi-handback h2 { margin: 0; font-size: 22px; }
+.hmi-handback p { margin: 0; }
+.hmi-handback .hmi-button { align-self: flex-start; }
+.hmi-handback .hmi-button:disabled { opacity: 0.45; }
+.hmi-handback-bad { color: var(--bad); font-weight: 600; }
+.hmi-handback-ok { color: var(--ok, #7bd88f); font-weight: 600; }

@@ -12,6 +12,7 @@ import { PointsPage } from "./PointsPage";
 import { useHash } from "./setup/nav";
 import { SetupApp } from "./setup/SetupApp";
 import { TrendPage } from "./TrendPage";
+import { HeldBanner } from "./hmi/HmiStandby";
 
 type Page = "points" | "trends";
 // The logic editor (React Flow) loads only when opened, so the main page and the HMI stay small.
@@ -150,6 +151,7 @@ export function App() {
           </select>
         </label>
       </header>
+      <HeldBanner />
       <main className={inSetup || inAlarms || inSchedules || inGraphics || inLogic ? "wide" : ""}>
         {error && <p className="error">{error}</p>}
         {inSetup && <SetupApp />}

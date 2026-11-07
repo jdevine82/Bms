@@ -94,6 +94,16 @@ class AlarmEngine:
         self.lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
         self._site_id: uuid.UUID | None = None
+        # System alarms raised and cleared by code (milestone 11: direct mode, a bus not clear).
+        self.system: dict[str, dict] = {}  # key -> {level, message, source, sourceDis, active}
+
+    def set_system(self, key: str, active: bool, level: str = "warning", message: str = "",
+                   source: str = "system", source_dis: str = "BMS") -> None:
+        """Raise (active) or clear a system alarm; the next tick acts on it."""
+        if not active and key not in self.system:
+            return
+        self.system[key] = {"level": level, "message": message or self.system.get(key, {}).get("message", key),
+                            "source": source, "sourceDis": source_dis, "active": active}
 
     # ---------- life ----------
 
@@ -159,11 +169,17 @@ class AlarmEngine:
             out[key] = Definition(key, "offline", off.level.value, off.delay_s,
                                   off.message or default_message("offline", d.dis or d.name, None),
                                   d.name, d.dis or d.name, device_id=d.id)
+        for key, s in self.system.items():
+            out[f"system:{key}"] = Definition(f"system:{key}", "system", s["level"], 0, s["message"], s["source"],
+                                              s["sourceDis"])
         return out
 
     def _condition(self, defn: Definition, active: bool) -> tuple[bool | None, dict]:
         """True: in alarm; False: normal; None: cannot tell (Bad or not read yet)."""
         cache = self.runtime.cache
+        if defn.kind == "system":
+            s = self.system.get(defn.key.removeprefix("system:"))
+            return (bool(s and s["active"]), {})
         if defn.kind == "offline":
             statuses = [cache.get(p.id).status if cache.get(p.id) else Status.UNKNOWN
                         for p in self.runtime.config.points if p.device_id == defn.device_id]
@@ -205,6 +221,9 @@ class AlarmEngine:
     async def evaluate(self) -> None:
         async with self.lock:
             defs = self.definitions()
+            held = bool(getattr(self.runtime, "held", False))
+            if held:  # milestone 11: nothing is read while held; only system alarms can be judged
+                defs = {k: d for k, d in defs.items() if d.kind == "system"}
             now = time.monotonic()
             for key, defn in defs.items():
                 row = self.open.get(key)
@@ -222,7 +241,7 @@ class AlarmEngine:
             for key in [k for k in self.pending if k not in defs]:
                 self.pending.pop(key, None)
             for key, row in list(self.open.items()):
-                if key not in defs and row.active:
+                if key not in defs and row.active and not (held and not key.startswith("system:")):
                     await self._return(row, "the alarm was removed from the setup, or its point or device disabled")
 
     async def _raise(self, defn: Definition, detail: dict) -> None:

@@ -1,5 +1,7 @@
 #!/bin/bash
 # Standalone mode on a Pi (milestone 11a): called by ../provision.sh --mode standalone.
+# Also an HMI in standby (milestone 11, PI_MODE=standby): called by ../provision.sh --standby; the
+# same backend and PostgreSQL in RAM, with the site from the server's cache.
 # Installs the backend and web app from this repository, PostgreSQL in RAM, the helpers the
 # backend may run as root, the config partition, the first-boot network and the read-only root.
 set -euo pipefail
@@ -7,6 +9,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 SKIP_PACKAGES="${SKIP_PACKAGES:-0}"
 READONLY="${READONLY:-1}"
+PI_MODE="${PI_MODE:-standalone}"
 step() { echo "==> $*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -44,7 +47,7 @@ if [ ! -f /etc/devine-bms/standalone.env ]; then
     PW="$(head -c 24 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 24)"
     SUPER="$(head -c 24 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 24)"
     cat > /etc/devine-bms/standalone.env <<ENV
-BMS_MODE=standalone
+BMS_MODE=$PI_MODE
 BMS_PG_PASSWORD=$PW
 BMS_PG_SUPER_PASSWORD=$SUPER
 BMS_DATABASE_URL=postgresql+asyncpg://bms:$PW@localhost:5432/bms
@@ -60,6 +63,21 @@ BMS_USB_MOUNT_CMD=sudo -n /usr/local/sbin/bms-usb mount
 BMS_USB_UMOUNT_CMD=sudo -n /usr/local/sbin/bms-usb umount
 BMS_NET_CMD=sudo -n /usr/local/sbin/bms-net
 ENV
+fi
+if [ "$PI_MODE" = standby ]; then
+    # Rewritten each time: the server, this HMI's name, its ports and the token may change.
+    sed -i '/^BMS_MODE=/d;/^BMS_SERVER_URL=/d;/^BMS_HMI_NAME=/d;/^BMS_PI_PORTS=/d;/^BMS_STANDBY_TOKEN=/d;/^BMS_STANDBY_CACHE=/d' \
+        /etc/devine-bms/standalone.env
+    {
+        echo "BMS_MODE=standby"
+        echo "BMS_SERVER_URL=$SERVER"
+        echo "BMS_HMI_NAME=$HMI_NAME"
+        echo "BMS_PI_PORTS=$PI_PORTS"
+        echo "BMS_STANDBY_CACHE=/var/lib/devine-bms/config/standby-cache.json"
+        echo "BMS_STANDBY_TOKEN=$BMS_STANDBY_TOKEN"
+        echo "# With MS/TP trunks: start and stop the Pi's own bms-mstp (MAC 1) on takeover and failback, e.g."
+        echo "# BMS_MSTP_START_CMD=sudo -n /usr/bin/systemctl start bms-mstp@trunk1"
+    } >> /etc/devine-bms/standalone.env
 fi
 chown root:bms /etc/devine-bms/standalone.env
 chmod 0640 /etc/devine-bms/standalone.env
@@ -86,12 +104,14 @@ else
     sed -i '/^BMS_STATE_R[WO]_CMD=/d' /etc/devine-bms/standalone.env
 fi
 
+if [ "$PI_MODE" = standalone ]; then
 step "First-boot network: DHCP, plus the fallback address 192.168.50.10"
 IFACE="$(nmcli -t -f DEVICE,TYPE device | awk -F: '$2=="ethernet"{print $1; exit}')"
 if [ -n "$IFACE" ] && ! nmcli -t connection show bms-wired >/dev/null 2>&1; then
     nmcli connection add type ethernet ifname "$IFACE" con-name bms-wired ipv4.method auto \
         ipv4.addresses 192.168.50.10/24 ipv4.dhcp-timeout 30 ipv4.may-fail yes connection.autoconnect yes >/dev/null
 fi
+fi  # standby: the Pi keeps the network it has as the server's HMI
 
 step "Logs in RAM"
 install -d -m 0755 /etc/systemd/journald.conf.d

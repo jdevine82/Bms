@@ -125,7 +125,8 @@ class LogicEngine:
         while True:
             started = time.monotonic()
             try:
-                await self.cycle()
+                if not getattr(self.runtime, "held", False):  # milestone 11: an HMI drives the buses
+                    await self.cycle()
             except Exception:
                 log.exception("logic cycle failed")
             await asyncio.sleep(max(0.05, self.tick_s - (time.monotonic() - started)))

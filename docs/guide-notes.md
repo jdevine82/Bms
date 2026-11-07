@@ -27,6 +27,14 @@ milestone adds to it.
 - What survives a power cut (the state file) and what does not (the log, alarms, hand modes return to Auto); the USB export and its files; Download CSV; Setup → Standalone (network, log window, export interval, Save now).
 - Updating the software (turning the overlay off and on); upgrading to full mode by importing the state file on the server (Setup → Site → Import takes it as it is).
 
+## HMI standby takeover (milestone 11)
+
+- What it is for: the Pi HMI keeps the plant visible and commandable when the site server is down. What it does not do: no logic, schedules, MQTT or vendor APIs, and the history stays on the Pi.
+- Installing: the shared standby token (`BMS_STANDBY_TOKEN` on both, made with `openssl rand -base64 32`), `provision.sh --standby --name --ports`, `BMS_HMI_URLS` on the server, MS/TP on the Pi as MAC 1 (`docs/specs/m11-hmi-takeover.md`, "How to set up").
+- The operator's view: the Direct mode banner and Critical alarm; what works in direct mode; the Server screen; why Hand control back waits 5 minutes; that hand modes set during direct mode return to Auto; the web app banner while the HMI holds the site.
+- Bench test: stop the server, watch the takeover (30 s plus the bus quiet time), command on the HMI, start the server, hand back, check the audit log (entries marked "[HMI …, direct mode]").
+- Troubleshooting: "bus not clear" (something still polls a serial line: another master, or the server still running), "the server refused the cache" (the tokens differ), `serverOk: false` (address or firewall).
+
 ## Users and logins
 
 - First admin on the first-run page, from a browser on the server itself only.
