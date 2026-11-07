@@ -129,6 +129,14 @@ class ScheduleService:
         occupied, _ = state_at(s, self.calendars, self.now_local())
         return point.occupancy["occupied" if occupied else "unoccupied"]
 
+    def occupied(self, name: str) -> bool | None:
+        """Whether a schedule is Occupied now (logic's schedule block); None if there is no such
+        enabled schedule."""
+        s = self.schedules.get(name)
+        if s is None or not s.enabled:
+            return None
+        return state_at(s, self.calendars, self.now_local())[0]
+
     # ---------- running ----------
 
     async def run_once(self) -> None:

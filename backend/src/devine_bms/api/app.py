@@ -27,16 +27,19 @@ from devine_bms.alarms.engine import AlarmEngine
 from devine_bms.api.alarms_api import build_alarms_router
 from devine_bms.api.auth_api import COOKIE, build_auth_router, client_ip, install_guard
 from devine_bms.api.commands_api import build_commands_router
-from devine_bms.api.schedules_api import build_schedules_router
-from devine_bms.schedules.service import ScheduleService
-from devine_bms.commands.service import CommandService
-from devine_bms.api.history import history_csv, row_json, thin
 from devine_bms.api.graphics_api import build_graphics_router
+from devine_bms.api.history import history_csv, row_json, thin
+from devine_bms.api.logic_api import build_logic_router
+from devine_bms.api.schedules_api import build_schedules_router
 from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.auth.service import AuthService
+from devine_bms.commands.service import CommandService
+from devine_bms.logic.engine import LogicEngine
+from devine_bms.logic.service import LogicService
 from devine_bms.runtime import Runtime
 from devine_bms.runtime_model import RuntimeConfig, RuntimePoint
+from devine_bms.schedules.service import ScheduleService
 from devine_bms.setup.discover import DiscoverManager
 from devine_bms.setup.service import SetupService
 from devine_bms.values import LiveValue, Status
@@ -82,7 +85,8 @@ def live_json(live: LiveValue | None) -> dict:
 
 
 def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path | None = None,
-               alarm_tick_s: float = 1.0, override_check_s: float = 5.0, schedule_tick_s: float = 15.0) -> FastAPI:
+               alarm_tick_s: float = 1.0, override_check_s: float = 5.0, schedule_tick_s: float = 15.0,
+               logic_tick_s: float = 1.0) -> FastAPI:
     state: dict = {}
 
     @asynccontextmanager
@@ -92,7 +96,12 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         state["runtime"] = runtime
         sessions = getattr(runtime.storage, "sessionmaker", None)
         if sessions is not None:  # setup and logins need the database
-            state["setup"] = SetupService(sessions, runtime.site_name, runtime.reload)
+            async def reload_all() -> None:  # a setup change: the runtime, then logic's view of it
+                await runtime.reload()
+                if state.get("logic") is not None:
+                    await state["logic"].reload()
+
+            state["setup"] = SetupService(sessions, runtime.site_name, reload_all)
             state["discover"] = DiscoverManager(runtime, state["setup"])
             state["auth"] = AuthService(sessions, runtime.site_name)
             state["delivery"] = Delivery(sessions, runtime.site_name, iana_zone(runtime.config.site_tz).key)
@@ -106,15 +115,21 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             state["schedules"] = ScheduleService(runtime, sessions, runtime.site_name,
                                                  iana_zone(runtime.config.site_tz).key, state["auth"].record,
                                                  lambda: state["commands"].overrides, tick_s=schedule_tick_s)
-            state["commands"].schedule_value = state["schedules"].value_for  # hand mode ends at the schedule's value
             await state["schedules"].start()
+            state["logic"] = LogicEngine(runtime, sessions, runtime.site_name, lambda: state["commands"].overrides,
+                                         state["schedules"], state["auth"].record, tick_s=logic_tick_s)
+            # Hand mode ends at logic's value, else the schedule's, else the value before (decision 027).
+            state["commands"].schedule_value = lambda p: (
+                state["logic"].value_for(p) if state["logic"].owns(p) else state["schedules"].value_for(p))
+            await state["logic"].start()
+            state["logic_service"] = LogicService(state["logic"], sessions, state["auth"].record)
             state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
             yield
         finally:
             if state.get("prune") is not None:
                 state["prune"].cancel()
-            for name in ("schedules", "commands", "alarms", "delivery"):
+            for name in ("logic", "schedules", "commands", "alarms", "delivery"):
                 if state.get(name) is not None:
                     await state[name].stop()
             if state.get("discover") is not None:
@@ -130,6 +145,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     app.include_router(build_alarms_router(lambda: state.get("alarms"), lambda: state.get("delivery"),
                                            lambda: state.get("auth")))
     app.include_router(build_graphics_router(lambda: state.get("setup")))
+    app.include_router(build_logic_router(lambda: state.get("logic_service")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 

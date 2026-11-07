@@ -1,0 +1,1040 @@
+{
+  "$defs": {
+    "Block": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,40}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": true,
+          "default": {},
+          "title": "Settings",
+          "type": "object"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/XY"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "Block",
+      "type": "object"
+    },
+    "End": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "title": "Block",
+          "type": "string"
+        },
+        "port": {
+          "title": "Port",
+          "type": "string"
+        }
+      },
+      "required": [
+        "block",
+        "port"
+      ],
+      "title": "End",
+      "type": "object"
+    },
+    "VariableDef": {
+      "additionalProperties": false,
+      "description": "A variable private to the diagram (scope `diagram`); site variables are kept apart.",
+      "properties": {
+        "name": {
+          "maxLength": 60,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dis"
+        },
+        "type": {
+          "default": "number",
+          "enum": [
+            "bool",
+            "number",
+            "text"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "kind": {
+          "default": "constant",
+          "enum": [
+            "constant",
+            "memory"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "VariableDef",
+      "type": "object"
+    },
+    "Wire": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/End"
+        },
+        "to": {
+          "$ref": "#/$defs/End"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "Wire",
+      "type": "object"
+    },
+    "XY": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "XY",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "devine-bms-logic/1",
+      "default": "devine-bms-logic/1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 100,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Name",
+      "type": "string"
+    },
+    "dis": {
+      "default": "",
+      "title": "Dis",
+      "type": "string"
+    },
+    "scope": {
+      "default": "site",
+      "enum": [
+        "equipment",
+        "site"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "equip": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Equip"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "variables": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/VariableDef"
+      },
+      "maxItems": 200,
+      "title": "Variables",
+      "type": "array"
+    },
+    "blocks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Block"
+      },
+      "maxItems": 500,
+      "title": "Blocks",
+      "type": "array"
+    },
+    "wires": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Wire"
+      },
+      "maxItems": 2000,
+      "title": "Wires",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "Devine BMS logic diagram",
+  "type": "object",
+  "$id": "devine-bms-logic/1",
+  "blockSettings": {
+    "point_read": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "point": {
+          "default": "",
+          "title": "Point",
+          "type": "string"
+        },
+        "onBad": {
+          "default": "fallback",
+          "enum": [
+            "fallback",
+            "failsafe"
+          ],
+          "title": "Onbad",
+          "type": "string"
+        },
+        "fallback": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fallback"
+        }
+      },
+      "title": "PointReadSettings",
+      "type": "object"
+    },
+    "point_write": {
+      "$defs": {
+        "Failsafe": {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "default": "release",
+              "enum": [
+                "release",
+                "hold",
+                "value"
+              ],
+              "title": "Mode",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            }
+          },
+          "title": "Failsafe",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "point": {
+          "default": "",
+          "title": "Point",
+          "type": "string"
+        },
+        "failsafe": {
+          "$ref": "#/$defs/Failsafe",
+          "default": {
+            "mode": "release",
+            "value": null
+          }
+        }
+      },
+      "title": "PointWriteSettings",
+      "type": "object"
+    },
+    "variable_read": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "variable": {
+          "default": "",
+          "title": "Variable",
+          "type": "string"
+        }
+      },
+      "title": "VariableSettings",
+      "type": "object"
+    },
+    "variable_write": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "variable": {
+          "default": "",
+          "title": "Variable",
+          "type": "string"
+        }
+      },
+      "title": "VariableSettings",
+      "type": "object"
+    },
+    "schedule": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "schedule": {
+          "default": "",
+          "title": "Schedule",
+          "type": "string"
+        }
+      },
+      "title": "ScheduleSettings",
+      "type": "object"
+    },
+    "and": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "count": {
+          "default": 2,
+          "maximum": 8,
+          "minimum": 2,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "title": "GateSettings",
+      "type": "object"
+    },
+    "or": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "count": {
+          "default": 2,
+          "maximum": 8,
+          "minimum": 2,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "title": "GateSettings",
+      "type": "object"
+    },
+    "not": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        }
+      },
+      "title": "NoSettings",
+      "type": "object"
+    },
+    "compare": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "op": {
+          "default": ">",
+          "enum": [
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "==",
+            "!="
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "deadband": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Deadband",
+          "type": "number"
+        }
+      },
+      "title": "CompareSettings",
+      "type": "object"
+    },
+    "limit": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate"
+        }
+      },
+      "title": "LimitSettings",
+      "type": "object"
+    },
+    "scale": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "inMin": {
+          "default": 0,
+          "title": "Inmin",
+          "type": "number"
+        },
+        "inMax": {
+          "default": 100,
+          "title": "Inmax",
+          "type": "number"
+        },
+        "outMin": {
+          "default": 0,
+          "title": "Outmin",
+          "type": "number"
+        },
+        "outMax": {
+          "default": 100,
+          "title": "Outmax",
+          "type": "number"
+        },
+        "clamp": {
+          "default": true,
+          "title": "Clamp",
+          "type": "boolean"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "title": "ScaleSettings",
+      "type": "object"
+    },
+    "delay_on": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        }
+      },
+      "title": "NoSettings",
+      "type": "object"
+    },
+    "delay_off": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        }
+      },
+      "title": "NoSettings",
+      "type": "object"
+    },
+    "min_on_off": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        }
+      },
+      "title": "NoSettings",
+      "type": "object"
+    },
+    "astro": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "active": {
+          "default": "night",
+          "enum": [
+            "night",
+            "day"
+          ],
+          "title": "Active",
+          "type": "string"
+        },
+        "sunsetOffset": {
+          "default": 0,
+          "maximum": 240,
+          "minimum": -240,
+          "title": "Sunsetoffset",
+          "type": "integer"
+        },
+        "sunriseOffset": {
+          "default": 0,
+          "maximum": 240,
+          "minimum": -240,
+          "title": "Sunriseoffset",
+          "type": "integer"
+        }
+      },
+      "title": "AstroSettings",
+      "type": "object"
+    },
+    "pid": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "kp": {
+          "default": 1.0,
+          "minimum": 0,
+          "title": "Kp",
+          "type": "number"
+        },
+        "ti": {
+          "default": 60.0,
+          "minimum": 0,
+          "title": "Ti",
+          "type": "number"
+        },
+        "td": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Td",
+          "type": "number"
+        },
+        "outMin": {
+          "default": 0,
+          "title": "Outmin",
+          "type": "number"
+        },
+        "outMax": {
+          "default": 100,
+          "title": "Outmax",
+          "type": "number"
+        },
+        "action": {
+          "default": "reverse",
+          "enum": [
+            "direct",
+            "reverse"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "sample": {
+          "default": 1.0,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Sample",
+          "type": "number"
+        }
+      },
+      "title": "PidSettings",
+      "type": "object"
+    },
+    "manual_auto": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Inputs",
+          "type": "object"
+        },
+        "valueType": {
+          "default": "number",
+          "enum": [
+            "number",
+            "bool"
+          ],
+          "title": "Valuetype",
+          "type": "string"
+        }
+      },
+      "title": "ManualAutoSettings",
+      "type": "object"
+    }
+  }
+}
