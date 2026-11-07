@@ -297,3 +297,19 @@ async def test_standalone_alarms_offer_no_sms(tmp_path):
         got["channels"]["critical"] = ["ntfy", "sms"]
         r = await c.put("/api/alarm-settings", json=got)
         assert r.status_code == 422 and "standalone" in r.json()["error"]
+
+
+async def test_a_state_file_imports_into_a_full_mode_server(tmp_path):
+    """The upgrade path (main spec 3.1): the state file's setup imports like an export."""
+    from helpers import example_data
+    from setup_helpers import running_stack
+
+    data = example_data(5099)
+    async for s in standalone_stack(tmp_path, data):
+        await s["client"].put("/api/setup/spaces/office", json={"name": "office", "dis": "Office"})
+        await s["client"].post("/api/standalone/save")
+    state = json.loads((tmp_path / "config" / "site-state.json").read_text())
+    async for s in running_stack(data):
+        r = (await s["client"].put("/api/setup/config", json=state)).json()
+        assert r["applied"], r
+        assert "office" in {x["name"] for x in (await s["client"].get("/api/setup/spaces")).json()}

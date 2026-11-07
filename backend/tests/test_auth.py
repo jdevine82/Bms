@@ -55,7 +55,7 @@ async def test_first_run_page_state(stack):
         await session.commit()
     async with client_from(stack["app"], "10.0.0.5") as lan:
         state = (await lan.get("/api/auth/state")).json()
-        assert state == {"firstRun": True, "firstRunHere": False, "user": None}
+        assert state == {"firstRun": True, "firstRunHere": False, "setupCode": False, "user": None}
         assert (await lan.post("/api/auth/first-admin", json=ADMIN)).status_code == 403
     async with client_from(stack["app"], "127.0.0.1") as local:
         assert (await local.get("/api/auth/state")).json()["firstRunHere"] is True

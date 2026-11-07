@@ -82,6 +82,8 @@ class SetupService:
                             summary: str = "imported a whole site setup", action: str = "import") -> dict:
         """Replace the whole setup. With `revision`, refuse when the saved setup has changed since
         the editor read it (the mapping table and the wizard's go-live send the setup they edited)."""
+        if data.get("schema") == "devine-bms-state/1" and isinstance(data.get("config"), dict):
+            data = data["config"]  # a standalone Pi's state file: its setup (the upgrade path, milestone 11a)
         if isinstance(data.get("site"), dict) and data["site"].get("name") != self.site_name:
             raise SetupError(f"the file is for site '{data['site'].get('name')}', not '{self.site_name}'; "
                              "the site name cannot change")

@@ -17,7 +17,8 @@
     "test:graphics": "node tests/graphics.mjs",
     "test:graphics-editor": "node tests/graphics-editor.mjs",
     "test:logic": "node tests/logic.mjs",
-    "test:logic-templates": "node tests/logic-templates.mjs"
+    "test:logic-templates": "node tests/logic-templates.mjs",
+    "test:standalone": "node tests/standalone.mjs"
   },
   "author": "Jason Devine",
   "license": "UNLICENSED",

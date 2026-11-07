@@ -1,6 +1,6 @@
 # Milestone 11a: Standalone mode (Pi only)
 
-Status: **in progress** (7 Nov 2026). Main spec: 3.1 (deployment modes), 6.5 (standalone tabs and bottom bar), 5.10 (counters), 7 (accounts), 16 (bench tests 16 and 19), 18 (milestone 11a), 19 open items 14 to 16.
+Status: **built**, bench tests 16 and 19 to do (7 Nov 2026). Main spec: 3.1 (deployment modes), 6.5 (standalone tabs and bottom bar), 5.10 (counters), 7 (accounts), 16 (bench tests 16 and 19), 18 (milestone 11a), 19 open items 14 to 16.
 
 ## Decisions
 
@@ -23,7 +23,7 @@ Status: **in progress** (7 Nov 2026). Main spec: 3.1 (deployment modes), 6.5 (st
 
 - **Slow** points are polled every 10 minutes instead of 5 (main spec 5.1.4).
 - **The log:** the history table holds the last 72 hours (setting), pruned every 10 minutes; a point is logged at most once a minute (and on every quality change). Trends and CSV downloads read it as usual.
-- **Point limit:** about 50 points (open item 14): the setup checks warn above 50.
+- **Point limit:** about 50 points (open item 14): Setup → Standalone shows the count against it and warns above 50.
 - **Alarms:** on-screen, ntfy and email; SMS is not offered.
 - **After a power loss** hand-mode overrides return to Auto: nothing remembers them, and at start-up the BMS releases its operator priority (8) on writable BACnet points.
 
@@ -55,3 +55,25 @@ Status: **in progress** (7 Nov 2026). Main spec: 3.1 (deployment modes), 6.5 (st
 - **Read-only root** (Raspberry Pi OS overlay file system) with system logs in RAM; the state file on a partition labelled `BMSCONF`, mounted read-only and remounted writable only to save.
 - **First-boot network:** DHCP for 30 seconds, then the fixed fallback 192.168.50.10/24.
 - Optional Tailscale is not set up by the script (later).
+
+## What was built
+
+- **Backend** (`backend/src/devine_bms/standalone/`): `state.py` (the state file: dump, atomic write with the remount commands, restore into an empty database, and the keeper that saves 2 seconds after a change to a kept table, once a day and on stop; failed-login counters and logic memory values do not trigger a save), `boot.py` (at start-up: restore, else import the config file, else an empty site; the light profile: Slow every 10 minutes, the log one sample a minute), `service.py` (settings, the log window pruned every 10 minutes, the USB export, the CSV table, the setup code, the network helper), `api/standalone_api.py`.
+- **Settings** (`BMS_MODE=standalone`, `BMS_STATE_FILE`, `BMS_STATE_RW_CMD`, `BMS_STATE_RO_CMD`, `BMS_USB_PATH`, `BMS_USB_MOUNT_CMD`, `BMS_USB_UMOUNT_CMD`, `BMS_NET_CMD`).
+- **API:** `GET /api/mode` (public); `GET /api/standalone/setup-info` (the Pi itself only, while there are no accounts); `GET /api/standalone/status`; `PUT /api/standalone/settings`; `POST /api/standalone/export`; `POST /api/standalone/save`; `GET /api/standalone/log.csv?hours=`; `GET` and `PUT /api/standalone/network`. `POST /api/auth/first-admin` takes `setupCode` (away from the Pi); `/api/auth/state` says when it is needed.
+- **Other changes:** the history writer can log a point at most once per interval (and every quality change); the Pi's own screen is a kiosk in standalone; alarm delivery offers no SMS in standalone (the defaults drop it, a save with it is refused); after start-up the operator priority (8) is released on writable BACnet points (hand modes return to Auto).
+- **Web app:** the first-run page takes the setup code; **Setup → Standalone** (points against the limit, log window, USB export with Export now and Download, the state file's last save with Save now, the network); the delivery settings hide SMS.
+- **HMI:** the first-boot **setup page** (addresses, QR code, the code; it moves on once the admin exists); in standalone the status strip (Standalone, the USB export status, the alarm count, the lock) and the bottom bar **Graphics, Overrides, Schedules, Log**.
+- **Pi install** (`hmi/provision.sh --mode standalone [--no-readonly]`, `hmi/standalone/`): PostgreSQL made in RAM at every boot (`bms-pgram`), the backend on port 80 (`bms-backend.service`, migrations before start), the root helpers allowed through sudo (`bms-state-rw`, `bms-usb`, `bms-net`), the settings file, the `BMSCONF` partition mounted read-only, the NetworkManager profile, logs in RAM and the overlay root. `hmi/README.md` has the steps and the bench checks.
+
+### Differences from the main spec
+
+- **First-boot network:** the fallback 192.168.50.10/24 is a second address alongside DHCP from the start, rather than only after 30 seconds without DHCP; it is dropped when the network is set in Setup → Standalone. It is simpler and the installer can always reach the Pi there; a site whose LAN already uses 192.168.50.10 should set the network first.
+- **The web app is on port 80** in standalone (`http://<pi address>/`), so the address shown is short.
+- **Tailscale on the Pi** is not set up by the install yet.
+
+## Tests
+
+- Backend (`tests/test_standalone.py`): a state file importing into a full-mode server (the upgrade path: Setup → Site → Import accepts it); the state file saved after changes (setup, a user, a schedule, a variable, a logic draft) with the config as an export and without the log, alarms, audit log, sessions or overrides; a failed login does not write; standalone settings kept; a power cut (an empty database) restores the site, accounts, schedules, logic, constants and settings; an empty Pi gets an empty site and a setup code (only the Pi is given it; wrong and missing codes refused; it stops once used); the log thinned to one sample a minute but keeping quality changes; the window pruned; the USB export (monthly file, header, one row a minute, only new rows next time, a second file when the points change, a missing stick reported); the CSV download; the network helper (show, a refused gateway, static, DHCP); full mode answers `mode: full` and has no standalone API; no SMS in standalone.
+- Browser (`web/tests/standalone.mjs`, against a standalone backend): the Pi's setup page with code and QR code; a wrong code refused and the right one making the admin from a laptop; the Pi's screen moving on to the standalone bottom bar and status strip; Overrides with the hand mode, Back to Auto after the PIN; Log with Export now and Download CSV; Setup → Standalone (settings, Save now, network); no SMS; a power cut (the database emptied and restarted) bringing back the account, the point and the settings, with nothing in hand mode.
+- Not tested here: the Pi install itself (`provision.sh`, the overlay, the partition, NetworkManager, USB mounting) and bench tests 16 and 19; the scripts pass ShellCheck.
