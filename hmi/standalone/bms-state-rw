@@ -1,0 +1,9 @@
+#!/bin/sh
+# Make the config partition writable for a state file save, then read-only again (milestone 11a).
+# The backend runs it through sudo (see /etc/sudoers.d/devine-bms).
+set -eu
+case "${1:-}" in
+rw) mount -o remount,rw /var/lib/devine-bms/config ;;
+ro) sync; mount -o remount,ro /var/lib/devine-bms/config ;;
+*) echo "usage: $0 rw|ro" >&2; exit 2 ;;
+esac

@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { AuthState, Me, Role } from "./authApi";
 import { authState } from "./authApi";
 import { FirstRunPage, LoginPage } from "./LoginPage";
+import { StandaloneSetupScreen } from "../hmi/StandaloneSetup";
 
 interface Auth {
   user: Me;
@@ -67,8 +68,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (error) return <p className="error gate-error">{error}</p>;
   if (!state) return null;
+  // Standalone first boot: the Pi's own screen (a kiosk) shows where to set it up, with the code (11a).
+  if (state.firstRun && state.firstRunHere && location.pathname.startsWith("/hmi")) {
+    return <StandaloneSetupScreen fallback={<FirstRunPage here onDone={refresh} />} onDone={refresh} />;
+  }
   if (!state.user) {
-    if (state.firstRun) return <FirstRunPage here={state.firstRunHere} onDone={refresh} />;
+    if (state.firstRun) {
+      return <FirstRunPage here={state.firstRunHere} needsCode={!!state.setupCode} onDone={refresh} />;
+    }
     return <LoginPage onDone={refresh} />;
   }
   const user = state.user;

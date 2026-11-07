@@ -15,8 +15,12 @@ MAX_PENDING = 100_000  # rows kept in memory while storage is unavailable
 
 
 class HistoryWriter:
-    def __init__(self, storage: Storage, flush_interval_s: float = 1.0, batch_size: int = 500) -> None:
+    def __init__(self, storage: Storage, flush_interval_s: float = 1.0, batch_size: int = 500,
+                 min_interval_s: float = 0.0) -> None:
         self.storage = storage
+        # Standalone mode (milestone 11a): log a point at most this often, and on every quality change.
+        self.min_interval_s = min_interval_s
+        self._last: dict = {}  # point id -> (ts, status) last logged
         self.flush_interval_s = flush_interval_s
         self.batch_size = batch_size
         self.pending: deque[HisRow] = deque(maxlen=MAX_PENDING)
@@ -24,6 +28,11 @@ class HistoryWriter:
         self._storage_ok = True
 
     def add(self, row: HisRow) -> None:
+        if self.min_interval_s > 0:
+            last = self._last.get(row.point_id)
+            if last is not None and last[1] == row.status and (row.ts - last[0]).total_seconds() < self.min_interval_s:
+                return
+            self._last[row.point_id] = (row.ts, row.status)
         if len(self.pending) == MAX_PENDING:
             log.error("history buffer full; dropping the oldest row")
         self.pending.append(row)

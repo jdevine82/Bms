@@ -22,7 +22,7 @@ from devine_bms.auth.service import RANK, Actor, AuthError, AuthService
 from devine_bms.db import models as db
 
 COOKIE = "bms_session"
-PUBLIC = {"/api/health", "/api/auth/state", "/api/auth/login", "/api/auth/first-admin", "/api/auth/pin-users",
+PUBLIC = {"/api/health", "/api/mode", "/api/standalone/setup-info", "/api/auth/state", "/api/auth/login", "/api/auth/first-admin", "/api/auth/pin-users",
           "/api/auth/pin"}
 
 
@@ -119,13 +119,16 @@ def build_auth_router(get_auth: Callable[[], AuthService | None]) -> APIRouter:
         has_users = await svc.has_users()
         client = request_client(request)
         return {"firstRun": not has_users, "firstRunHere": not has_users and svc.is_loopback(client),
+                # Standalone mode: away from the Pi, the first admin needs the code on its screen.
+                "setupCode": not has_users and not svc.is_loopback(client) and svc.setup_code is not None,
                 "user": await svc.me(actor) if actor else None}
 
     @router.post("/api/auth/first-admin")
     async def first_admin(request: Request, body: dict = Body(...), svc: AuthService = Depends(auth)) -> Any:
         try:
             user, token = await svc.create_first_admin(request_client(request), body.get("username", ""),
-                                                       body.get("dis", ""), body.get("password", ""))
+                                                       body.get("dis", ""), body.get("password", ""),
+                                                       body.get("setupCode"))
         except AuthError as exc:
             return JSONResponse(exc.as_dict(), status_code=exc.status)
         return with_cookie(request, {"ok": True, "user": user}, token)

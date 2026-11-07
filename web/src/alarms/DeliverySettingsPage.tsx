@@ -8,10 +8,15 @@ import type { AlarmSettings, Level, Recipient } from "./alarmsApi";
 import { getAlarmSettings, LEVEL_SHAPE, LEVEL_TEXT, putAlarmSettings, sendTest } from "./alarmsApi";
 
 const LEVELS: Level[] = ["info", "warning", "critical"];
-const CH = ["email", "ntfy", "sms"] as const;
+const ALL_CH = ["email", "ntfy", "sms"] as const;
 const CH_TEXT = { email: "Email", ntfy: "ntfy push", sms: "SMS" };
 
 export function DeliverySettingsPage() {
+  const [standalone, setStandalone] = useState(false); // standalone: on-screen, ntfy and email (milestone 11a)
+  useEffect(() => {
+    fetch("/api/mode").then((r) => r.json()).then((m: { mode: string }) => setStandalone(m.mode === "standalone")).catch(() => undefined);
+  }, []);
+  const CH = standalone ? ALL_CH.filter((c) => c !== "sms") : ALL_CH;
   const [s, setS] = useState<AlarmSettings | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -64,12 +69,12 @@ export function DeliverySettingsPage() {
           {text("User name", s.email.username, (v) => setS({ ...s, email: { ...s.email, username: v } }))}
           {text("Password variable on the server", s.email.passwordEnv, (v) => setS({ ...s, email: { ...s.email, passwordEnv: v } }), { placeholder: "BMS_SMTP_PASSWORD" })}
         </fieldset>
-        <fieldset>
+        {!standalone && <fieldset>
           <legend>SMS (ClickSend)</legend>
           {text("ClickSend user name", s.sms.username, (v) => setS({ ...s, sms: { ...s.sms, username: v } }))}
           {text("API key variable on the server", s.sms.apiKeyEnv, (v) => setS({ ...s, sms: { ...s.sms, apiKeyEnv: v } }), { placeholder: "BMS_CLICKSEND_API_KEY" })}
           {text("Sender name or number (optional)", s.sms.from, (v) => setS({ ...s, sms: { ...s.sms, from: v } }))}
-        </fieldset>
+        </fieldset>}
         <fieldset>
           <legend>ntfy push</legend>
           {text("ntfy server", s.ntfy.server, (v) => setS({ ...s, ntfy: { ...s.ntfy, server: v } }))}

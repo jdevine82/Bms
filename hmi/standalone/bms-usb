@@ -1,0 +1,24 @@
+#!/bin/sh
+# Mount the USB stick only for an export, so pulling it out between exports is safe (milestone 11a).
+# The first partition of the first USB disk (or one labelled BMSLOG) is used.
+set -eu
+MNT=/run/devine-bms/usb
+case "${1:-}" in
+mount)
+    DEV=""
+    [ -e /dev/disk/by-label/BMSLOG ] && DEV=/dev/disk/by-label/BMSLOG
+    if [ -z "$DEV" ]; then
+        for d in /dev/disk/by-id/usb-*-part1; do [ -e "$d" ] && DEV="$d" && break; done
+    fi
+    [ -n "$DEV" ] || { echo "no USB stick" >&2; exit 1; }
+    install -d -m 0755 "$MNT"
+    mountpoint -q "$MNT" || mount -o uid="$(id -u bms)",gid="$(id -g bms)",noatime,sync "$DEV" "$MNT" 2>/dev/null \
+        || mount -o noatime "$DEV" "$MNT"
+    chown bms:bms "$MNT" 2>/dev/null || true
+    ;;
+umount)
+    sync
+    mountpoint -q "$MNT" && umount "$MNT" || true
+    ;;
+*) echo "usage: $0 mount|umount" >&2; exit 2 ;;
+esac

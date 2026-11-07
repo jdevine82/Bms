@@ -1,0 +1,28 @@
+#!/bin/bash
+# The Pi's wired network for standalone mode (milestone 11a), through NetworkManager.
+#   bms-net show                         JSON: mode, address, gateway, dns
+#   bms-net dhcp                         automatic address (and no fallback address)
+#   bms-net static ADDR/PREFIX GW DNS    a fixed address
+# First boot uses the profile made by provision.sh: DHCP plus the fallback 192.168.50.10/24.
+set -euo pipefail
+CON=bms-wired
+case "${1:-}" in
+show)
+    method="$(nmcli -g ipv4.method connection show "$CON")"
+    addr="$(nmcli -g IP4.ADDRESS device show "$(nmcli -g connection.interface-name connection show "$CON")" | head -1 | cut -d'|' -f1)"
+    gw="$(nmcli -g IP4.GATEWAY device show "$(nmcli -g connection.interface-name connection show "$CON")" | head -1)"
+    dns="$(nmcli -g ipv4.dns connection show "$CON" | tr ',' ' ' | xargs | tr ' ' ',')"
+    printf '{"mode": "%s", "address": "%s", "gateway": "%s", "dns": "%s"}\n' \
+        "$([ "$method" = manual ] && echo static || echo dhcp)" "$addr" "$gw" "$dns"
+    ;;
+dhcp)
+    nmcli connection modify "$CON" ipv4.method auto ipv4.addresses "" ipv4.gateway "" ipv4.dns ""
+    nmcli connection up "$CON" >/dev/null
+    ;;
+static)
+    [ $# -eq 4 ] || { echo "usage: $0 static ADDR/PREFIX GATEWAY DNS[,DNS]" >&2; exit 2; }
+    nmcli connection modify "$CON" ipv4.method manual ipv4.addresses "$2" ipv4.gateway "$3" ipv4.dns "${4//,/ }"
+    nmcli connection up "$CON" >/dev/null
+    ;;
+*) echo "usage: $0 show|dhcp|static ADDR/PREFIX GW DNS" >&2; exit 2 ;;
+esac

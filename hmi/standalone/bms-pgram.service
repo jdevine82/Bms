@@ -1,0 +1,14 @@
+# PostgreSQL in RAM for Devine BMS standalone mode (milestone 11a).
+[Unit]
+Description=Devine BMS database in RAM
+After=local-fs.target
+Before=bms-backend.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/bms-pgram start
+ExecStop=/usr/local/sbin/bms-pgram stop
+
+[Install]
+WantedBy=multi-user.target

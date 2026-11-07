@@ -18,6 +18,7 @@ export interface Me {
 export interface AuthState {
   firstRun: boolean;
   firstRunHere: boolean;
+  setupCode?: boolean; // standalone first boot: the code on the Pi's screen is needed here (11a)
   user: Me | null;
 }
 
@@ -59,8 +60,8 @@ export interface AuditRow {
 export const authState = (touch = true) => get<AuthState>(`/api/auth/state${touch ? "" : "?touch=0"}`);
 export const login = (username: string, password: string, code?: string) =>
   post<{ ok: boolean; user: Me }>("/api/auth/login", { username, password, code: code || null });
-export const firstAdmin = (username: string, dis: string, password: string) =>
-  post<{ ok: boolean; user: Me }>("/api/auth/first-admin", { username, dis, password });
+export const firstAdmin = (username: string, dis: string, password: string, setupCode?: string) =>
+  post<{ ok: boolean; user: Me }>("/api/auth/first-admin", { username, dis, password, ...(setupCode ? { setupCode } : {}) });
 export const logout = (everywhere = false) => post<{ ok: boolean }>("/api/auth/logout", { everywhere });
 export const changeOwnPassword = (current: string, password: string) =>
   post<{ ok: boolean }>("/api/auth/me/password", { current, password });

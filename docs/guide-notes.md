@@ -20,6 +20,13 @@ milestone adds to it.
 - Alarm delivery settings (Setup → Alarm delivery): channels per level, SMTP (`BMS_SMTP_PASSWORD`), ClickSend (`BMS_CLICKSEND_API_KEY`), ntfy server and token, recipients and quiet hours, test messages (`docs/specs/m6-logins-alarms.md`, "Setting up delivery on a site").
 - Alarm definitions: point alarms (high, low, state, stale; deadband, delay, level, message), device offline alarms (only where set), template defaults.
 
+## Standalone mode (milestone 11a)
+
+- What standalone is and is not (main spec 3.1): the Pi is the whole system, about 50 points, no standby, memory-only log.
+- Installing: the `BMSCONF` partition, `provision.sh --mode standalone`, first boot with the setup code and QR code, the fallback address 192.168.50.10 (`hmi/README.md`, `docs/specs/m11a-standalone.md`).
+- What survives a power cut (the state file) and what does not (the log, alarms, hand modes return to Auto); the USB export and its files; Download CSV; Setup → Standalone (network, log window, export interval, Save now).
+- Updating the software (turning the overlay off and on); upgrading to full mode by importing the state file on the server (Setup → Site → Import takes it as it is).
+
 ## Users and logins
 
 - First admin on the first-run page, from a browser on the server itself only.

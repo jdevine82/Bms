@@ -12,6 +12,7 @@ export type Section =
   | "rooms"
   | "equipment"
   | "site"
+  | "standalone"
   | "changes"
   | "users"
   | "security"

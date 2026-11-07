@@ -264,11 +264,18 @@ class Delivery:
 
     async def settings(self) -> dict:
         async with self.sessions() as session:
-            return merged((await self._site(session)).alarm_settings)
+            s = merged((await self._site(session)).alarm_settings)
+        if not self.sms_allowed:  # standalone: the default Critical channels without SMS
+            s["channels"] = {level: [c for c in chans if c != "sms"] for level, chans in s["channels"].items()}
+        return s
+
+    sms_allowed = True  # standalone mode offers on-screen, ntfy and email only (main spec 3.1)
 
     async def save_settings(self, data: dict) -> tuple[dict, list[str]]:
         s = merged(data)
         warnings = check_settings(s)
+        if not self.sms_allowed and any("sms" in v for v in s["channels"].values()):
+            raise SettingsError("SMS is not offered in standalone mode; use ntfy or email")
         for r in s["recipients"]:
             r.setdefault("enabled", True)
             r.setdefault("levels", {"info": False, "warning": False, "critical": False})
