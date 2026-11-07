@@ -383,3 +383,28 @@
 .hmi-sp-value.occupied {
   color: #5fd08a;
 }
+
+/* Standalone first boot (milestone 11a): fits 1024 x 600 and 1280 x 720 */
+.standalone-setup { padding: 20px 28px; justify-content: center; gap: 6px; font-size: 18px; overflow: hidden; }
+.standalone-setup h1 { margin: 0 0 4px; font-size: 26px; }
+.standalone-setup p { margin: 4px 0; }
+.setup-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: center; }
+.setup-urls { list-style: none; padding: 0; margin: 4px 0 10px; font-size: 22px; }
+.setup-code { font-size: 52px; font-weight: 700; letter-spacing: 0.2em; margin: 2px 0 8px; font-variant-numeric: tabular-nums; }
+.setup-qr { background: #fff; padding: 8px; border-radius: 12px; width: 200px; height: 200px; }
+
+/* Standalone HMI (milestone 11a) */
+.hmi-standalone { white-space: nowrap; font-size: 14px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-text); }
+.hmi-usb-chip, .hmi-alarm-chip { white-space: nowrap; font-size: 14px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); }
+.hmi-usb-chip.bad, .hmi-alarm-chip.bad { color: var(--bad); border-color: var(--bad); font-weight: 600; }
+.hmi-overrides { display: flex; flex-direction: column; gap: 14px; }
+.hmi-overrides h2 { font-size: 20px; margin: 0 0 8px; }
+.hmi-hands ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.hmi-hands li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--warn); border-radius: 10px; font-size: 17px; }
+.hmi-hands button, .hmi-usb button, .hmi-button { min-height: 48px; padding: 0 18px; font: inherit; font-size: 17px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; text-decoration: none; }
+.hmi-log { display: flex; flex-direction: column; gap: 10px; }
+.hmi-log-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.hmi-usb { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 16px; }
+.hmi-usb span.bad { color: var(--bad); font-weight: 600; }

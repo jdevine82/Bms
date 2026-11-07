@@ -1,6 +1,7 @@
 # Devine BMS Pi HMI kiosk
 
 Milestone 3 spec: `../docs/specs/m3-hmi-kiosk.md`. Full mode: the Pi shows the HMI served by the site server at `/hmi`.
+**Standalone mode** (the Pi is the whole system, milestone 11a): see "Standalone mode" below and `../docs/specs/m11a-standalone.md`.
 
 ## What you need
 
@@ -46,3 +47,88 @@ Both are **[Assumed]** until the screen is chosen and checked on the bench.
 - Kiosk logs: `journalctl -u bms-kiosk -b`
 - Switch to a text console: Ctrl+Alt+F2 (with a USB keyboard); back to the HMI: Ctrl+Alt+F1.
 - Server address in use: `cat /etc/devine-bms/hmi.env`
+
+## Standalone mode (the Pi is the whole system)
+
+Milestone 11a, main spec 3.1. The Pi runs the backend, PostgreSQL in RAM and the touch screen. Nothing is written to
+the SD card in normal running: the site is kept in one state file on a small partition labelled `BMSCONF`, which is
+read-only except while a change is saved. The log (72 hours, one sample a minute) is in RAM and can be exported to a
+USB stick every hour.
+
+### What you need
+
+- A Raspberry Pi 5 (proposed) with **Raspberry Pi OS Lite (64-bit)**, current release (Python 3.12 or newer), and the
+  touch screen.
+- A copy of this repository with the web app built (on a computer: `cd web && npm ci && npm run build`).
+- For MS/TP: a USB RS485 adapter and `mstp/build.sh --install` on the Pi (see `../mstp/README.md`).
+- Optional: a USB stick (FAT or ext4; label it `BMSLOG` if more than one USB disk is plugged in).
+
+### Make the config partition
+
+The state file lives on its own small ext4 partition labelled `BMSCONF`. After flashing the card with Raspberry Pi
+Imager, and **before** the first boot, on a Linux computer (the card is `/dev/sdX` here; check with `lsblk`):
+
+```bash
+sudo parted /dev/sdX --script print
+```
+
+Shrink the root partition (the second one) by about 64 MB with GParted, then in the free space at the end make an
+ext4 partition labelled `BMSCONF`:
+
+```bash
+sudo parted /dev/sdX --script mkpart primary ext4 -64MiB 100%
+sudo mkfs.ext4 -L BMSCONF /dev/sdX3
+```
+
+(For a bench Pi you can skip this and run `provision.sh` with `--no-readonly`: the state file is then on the root
+file system, which stays writable.)
+
+### Install
+
+```bash
+scp -r devine-bms pi@<pi address>:
+ssh pi@<pi address>
+cd devine-bms/hmi
+sudo ./provision.sh --mode standalone
+sudo reboot
+```
+
+It installs PostgreSQL (in RAM at every boot, `bms-pgram.service`), the backend (`bms-backend.service`, port 80), the
+kiosk on `http://localhost/hmi`, helpers the backend may run as root through `sudo` (`/usr/local/sbin/bms-state-rw`,
+`bms-usb`, `bms-net`; nothing else), a NetworkManager profile `bms-wired` (DHCP plus the fallback address
+`192.168.50.10/24`), logs in RAM, and the read-only root file system (overlay).
+
+### First boot
+
+The screen shows **Set up this BMS** with the address, a QR code and a **setup code**. On a laptop or phone on the same
+network open that address (no DHCP? set the laptop to 192.168.50.20/24 and open `http://192.168.50.10/`), enter the
+setup code and make the first admin account. The screen then shows the site. Then, in the web app:
+
+- **Setup → Site:** the site's name and time zone.
+- **Setup → Standalone:** the network (DHCP or a fixed address; this also drops the fallback address), the log window
+  and the USB export.
+- Add devices (**Setup → Commission a device** or **Discover**) as in full mode, up to about 50 points.
+
+### Changing the software or the read-only root
+
+```bash
+sudo raspi-config nonint disable_overlayfs && sudo reboot   # make the root writable
+# ... update, run provision.sh --mode standalone again ...
+sudo raspi-config nonint enable_overlayfs && sudo reboot
+```
+
+### Checks on the bench (main spec 16, tests 16 and 19)
+
+1. First boot shows the setup page with a code; a laptop makes the admin with it; a wrong code is refused.
+2. Make a change (a room), wait 3 seconds, cut the power: after boot the change is there; a hand mode is not (Auto).
+3. `findmnt /` shows the overlay; `findmnt /var/lib/devine-bms/config` shows `ro` except during a save.
+4. Leave a USB stick in: a monthly CSV grows every hour; pull it out: the HMI's status strip warns; put it back: the
+   next export catches up.
+5. Seven days with about 50 points and some logic (with PID): RAM use steady (`free -m`), no writes to the card
+   (`cat /sys/block/mmcblk0/stat` before and after), polling and the web app stay responsive.
+
+### Troubleshooting
+
+- `journalctl -u bms-backend -u bms-pgram -b`
+- The state file: `/var/lib/devine-bms/config/site-state.json` (the setup as an export under `config`, so it can be
+  imported into a full-mode server: the upgrade path).

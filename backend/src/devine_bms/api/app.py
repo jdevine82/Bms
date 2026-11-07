@@ -158,6 +158,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
 
                 state["standalone"] = StandaloneService(runtime, sessions, runtime.site_name, runtime.settings, keeper,
                                                         iana_zone(runtime.config.site_tz).key, state["auth"].record)
+                state["auth"].extra_kiosks = {"127.0.0.1", "::1"}  # the Pi's own touch screen
                 state["delivery"].sms_allowed = False  # standalone: on-screen, ntfy and email (main spec 3.1)
                 keeper.start()
                 await state["standalone"].start()

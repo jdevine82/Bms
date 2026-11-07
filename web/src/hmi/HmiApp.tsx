@@ -7,6 +7,8 @@ import { getHistory, getPoints, getSite } from "../api";
 import { STATUS_TEXT, formatValue } from "../format";
 import { useLive } from "../live";
 import { GraphicsPage } from "../graphics/GraphicsPage";
+import { useOpenAlarms } from "../alarms/useAlarms";
+import { HmiLog, HmiOverrides, useStandaloneStatus, usbText } from "./HmiStandalone";
 import { HmiAlarms } from "./HmiAlarms";
 import { HmiSetpoints } from "./HmiSetpoints";
 import { HmiSchedules } from "./HmiSchedules";
@@ -14,7 +16,14 @@ import { useAuth } from "../auth/AuthGate";
 import { Chart, toSamples, type Sample } from "../TrendPage";
 import "./hmi.css";
 
-type Tab = "overview" | "graphics" | "setpoints" | "schedules" | "trends";
+type Tab = "overview" | "graphics" | "setpoints" | "schedules" | "trends" | "overrides" | "log";
+// Standalone mode (milestone 11a; main spec 6.5): Graphics, Overrides, Schedules, Log.
+const STANDALONE_TABS: { key: Tab; label: string }[] = [
+  { key: "graphics", label: "Graphics" },
+  { key: "overrides", label: "Overrides" },
+  { key: "schedules", label: "Schedules" },
+  { key: "log", label: "Log" },
+];
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "graphics", label: "Graphics" },
@@ -31,6 +40,18 @@ export function HmiApp() {
   const [live, setLive] = useState<Record<string, LiveValue>>({});
   const [tab, setTab] = useState<Tab>("overview");
   const [loadError, setLoadError] = useState(false);
+  const [standalone, setStandalone] = useState(false);
+  const { status: saStatus, refresh: refreshSa } = useStandaloneStatus(standalone);
+  const { summary: alarmSummary } = useOpenAlarms();
+  useEffect(() => {
+    fetch("/api/mode").then((r) => r.json()).then((m: { mode: string }) => {
+      if (m.mode === "standalone") {
+        setStandalone(true);
+        setTab((t) => (t === "overview" ? "graphics" : t));
+      }
+    }).catch(() => undefined);
+  }, []);
+  const tabs = standalone ? STANDALONE_TABS : TABS;
 
   useEffect(() => {
     document.documentElement.dataset.theme = "dark";
@@ -74,6 +95,16 @@ export function HmiApp() {
     <div className={`hmi ${offline ? "hmi-offline" : ""}`}>
       <header className="hmi-top">
         <span className="hmi-site">{site?.dis ?? "Devine BMS"}</span>
+        {standalone && <span className="hmi-standalone">Standalone</span>}
+        {standalone && site && (() => {
+          const u = usbText(saStatus?.usb, site.ianaTz);
+          return <span className={`hmi-usb-chip${u.bad ? " bad" : ""}`}>{u.text}</span>;
+        })()}
+        {standalone && alarmSummary && (
+          <span className={`hmi-alarm-chip${alarmSummary.active ? " bad" : ""}`}>
+            {alarmSummary.active ? `${alarmSummary.active} alarm${alarmSummary.active > 1 ? "s" : ""}` : "No alarms"}
+          </span>
+        )}
         <span className={`hmi-conn ${offline || loadError ? "bad" : "ok"}`}>
           {offline || loadError ? "Server not reachable" : "Connected"}
         </span>
@@ -96,10 +127,12 @@ export function HmiApp() {
         {site && tab === "setpoints" && <HmiSetpoints points={points} live={live} tz={site.ianaTz} />}
         {site && tab === "schedules" && <HmiSchedules />}
         {site && tab === "graphics" && <GraphicsPage site={site} points={points} live={live} hmi />}
+        {site && tab === "overrides" && <HmiOverrides points={points} live={live} tz={site.ianaTz} />}
+        {site && tab === "log" && <HmiLog site={site} points={points} status={saStatus} onExported={refreshSa} />}
       </main>
 
       <nav className="hmi-tabs" aria-label="HMI screens">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             type="button"

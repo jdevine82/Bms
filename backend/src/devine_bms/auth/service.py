@@ -115,6 +115,7 @@ class AuthService:
         self._attempts: dict[str, deque[float]] = defaultdict(deque)
         self._security: dict | None = None  # cached; reloaded when changed
         self.setup_code: str | None = None  # standalone first boot (milestone 11a); RAM only
+        self.extra_kiosks: set[str] = set()  # standalone: the Pi's own screen is a kiosk
         self._setup_fails = 0
         self._setup_failed_at = 0.0
 
@@ -386,7 +387,7 @@ class AuthService:
                             row.last_seen = now
                         return Actor(client=client, role=user.role, user_id=user.id, username=user.username,
                                      dis=user.dis, session_id=row.id, pin=row.kind == "pin")
-        if client in {str(a) for a in rules["kioskAddresses"]}:
+        if client in {str(a) for a in rules["kioskAddresses"]} or client in self.extra_kiosks:
             return Actor(client=client, role="viewer", kiosk=True)
         return None
 

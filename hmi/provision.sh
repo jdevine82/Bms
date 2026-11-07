@@ -1,8 +1,10 @@
 #!/bin/bash
-# Set up a Raspberry Pi as a Devine BMS HMI kiosk (milestone 3 spec 5).
+# Set up a Raspberry Pi as a Devine BMS HMI kiosk (milestone 3 spec 5), or as a standalone BMS
+# (the Pi is the whole system; milestone 11a, main spec 3.1).
 #
 # Run once as root on a fresh Raspberry Pi OS Lite (64-bit), from this folder:
-#   sudo ./provision.sh --server http://<site server address>:8000
+#   sudo ./provision.sh --server http://<site server address>:8000     (full mode: HMI of a site server)
+#   sudo ./provision.sh --mode standalone [--no-readonly]              (standalone: from a copy of the repository)
 #
 # Safe to run again: it rewrites the same files. Remove with ./uninstall.sh.
 set -euo pipefail
@@ -10,15 +12,20 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER=""
 SKIP_PACKAGES=0
+MODE=full
+READONLY=1
 
 usage() {
     echo "Usage: sudo $0 --server http://<site server address>:8000 [--skip-packages]"
+    echo "       sudo $0 --mode standalone [--no-readonly] [--skip-packages]"
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --server) SERVER="${2:-}"; shift 2 ;;
         --skip-packages) SKIP_PACKAGES=1; shift ;;
+        --mode) MODE="${2:-}"; shift 2 ;;
+        --no-readonly) READONLY=0; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -28,6 +35,11 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 step() { echo "==> $*"; }
 
 [ "$(id -u)" -eq 0 ] || fail "run as root (sudo)."
+case "$MODE" in
+    full) ;;
+    standalone) SERVER="${SERVER:-http://localhost}" ;;  # the backend runs on the Pi itself
+    *) fail "--mode is full or standalone" ;;
+esac
 [[ "$SERVER" =~ ^https?://[^[:space:]/]+(:[0-9]+)?/?$ ]] \
     || fail "give the site server address, for example --server http://192.168.10.5:8000"
 SERVER="${SERVER%/}"
@@ -97,6 +109,11 @@ if [ -n "$CMDLINE" ] && ! grep -q 'consoleblank=0' "$CMDLINE"; then
     sed -i '1 s/$/ consoleblank=0/' "$CMDLINE"
 fi
 
+if [ "$MODE" = standalone ]; then
+    step "Standalone mode: the backend, PostgreSQL in RAM, the config partition"
+    SKIP_PACKAGES="$SKIP_PACKAGES" READONLY="$READONLY" "$HERE/standalone/setup-standalone.sh"
+fi
+
 step "Starting the kiosk at boot"
 systemctl daemon-reload
 systemctl set-default graphical.target
@@ -104,5 +121,9 @@ systemctl enable bms-kiosk.service
 systemctl disable getty@tty1.service >/dev/null 2>&1 || true
 
 echo
+if [ "$MODE" = standalone ]; then
+    echo "Done. After a reboot the screen shows the setup page: open the address it shows from a laptop"
+    echo "or phone on the same network and enter the setup code. (Fallback address: http://192.168.50.10/)"
+fi
 echo "Done. The HMI will open $SERVER/hmi at every boot."
 echo "Reboot now to start it:  sudo reboot"

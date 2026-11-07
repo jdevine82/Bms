@@ -62,14 +62,15 @@ export function LoginPage({ onDone }: { onDone: () => Promise<void> }) {
   );
 }
 
-export function FirstRunPage({ here, onDone }: { here: boolean; onDone: () => Promise<void> }) {
+export function FirstRunPage({ here, needsCode = false, onDone }: { here: boolean; needsCode?: boolean; onDone: () => Promise<void> }) {
+  const [code, setCode] = useState("");
   const [username, setUsername] = useState("");
   const [dis, setDis] = useState("");
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (!here) {
+  if (!here && !needsCode) {
     return (
       <main className="auth-page">
         <div className="auth-card">
@@ -91,7 +92,7 @@ export function FirstRunPage({ here, onDone }: { here: boolean; onDone: () => Pr
         onSubmit={async (e) => {
           e.preventDefault();
           try {
-            await firstAdmin(username, dis, password);
+            await firstAdmin(username, dis, password, needsCode ? code.trim() : undefined);
             await onDone();
           } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
@@ -104,9 +105,15 @@ export function FirstRunPage({ here, onDone }: { here: boolean; onDone: () => Pr
           This site has no accounts yet. The admin you create here can add everyone else. There are no default
           passwords.
         </p>
+        {needsCode && (
+          <label>
+            Setup code (on the Pi's screen)
+            <input autoFocus inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
+          </label>
+        )}
         <label>
           Your name
-          <input autoFocus value={dis} onChange={(e) => setDis(e.target.value)} placeholder="Jason Devine" />
+          <input autoFocus={!needsCode} value={dis} onChange={(e) => setDis(e.target.value)} placeholder="Jason Devine" />
         </label>
         <label>
           User name
@@ -122,7 +129,7 @@ export function FirstRunPage({ here, onDone }: { here: boolean; onDone: () => Pr
         </label>
         {mismatch && <p className="auth-error">The passwords do not match.</p>}
         {error && <p className="auth-error" role="alert">{error}</p>}
-        <button type="submit" className="btn primary" disabled={!username || !dis || password.length < 10 || again !== password}>
+        <button type="submit" className="btn primary" disabled={!username || !dis || password.length < 10 || again !== password || (needsCode && code.trim().length !== 6)}>
           Create the admin account
         </button>
       </form>

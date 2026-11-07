@@ -1,5 +1,6 @@
 // The setup area of the web app (milestone 5B). Changes are accepted only on the server
 // itself until logins exist (milestone 6).
+import { useEffect, useState } from "react";
 import { AlarmDefinitionsPage } from "../alarms/AlarmDefinitionsPage";
 import { DeliverySettingsPage } from "../alarms/DeliverySettingsPage";
 import { AuditPage } from "../auth/AuditPage";
@@ -15,6 +16,7 @@ import { MappingPage } from "./MappingPage";
 import type { Section } from "./nav";
 import { navigate, useHash } from "./nav";
 import { SitePage } from "./SitePage";
+import { StandalonePage } from "./StandalonePage";
 import "./setup.css";
 import { WizardPage } from "./Wizard";
 
@@ -32,6 +34,7 @@ const SECTIONS: { key: Section; label: string; group: string }[] = [
   { key: "alarm-definitions", label: "Alarm definitions", group: "Alarms" },
   { key: "alarm-delivery", label: "Alarm delivery", group: "Alarms" },
   { key: "site", label: "Site and setup file", group: "Site" },
+  { key: "standalone", label: "Standalone", group: "Site" },
   { key: "users", label: "Users", group: "Site" },
   { key: "security", label: "Security", group: "Site" },
   { key: "audit", label: "Audit log", group: "Site" },
@@ -39,8 +42,13 @@ const SECTIONS: { key: Section; label: string; group: string }[] = [
 
 export function SetupApp() {
   const hash = useHash();
+  const [standalone, setStandalone] = useState(false);
+  useEffect(() => {
+    fetch("/api/mode").then((r) => r.json()).then((m: { mode: string }) => setStandalone(m.mode === "standalone")).catch(() => undefined);
+  }, []);
   const section = (SECTIONS.find((s) => s.key === hash.section)?.key ?? "commission") as Section;
-  const groups = [...new Set(SECTIONS.map((s) => s.group))];
+  const sections = SECTIONS.filter((s) => s.key !== "standalone" || standalone);
+  const groups = [...new Set(sections.map((s) => s.group))];
   // The graphics editor takes the whole width (#/setup/graphics/<name>, or +new for a new one).
   if (section === "graphics" && hash.rest[0]) {
     const name = decodeURIComponent(hash.rest[0]);
@@ -52,7 +60,7 @@ export function SetupApp() {
         {groups.map((g) => (
           <div key={g}>
             <h3>{g}</h3>
-            {SECTIONS.filter((s) => s.group === g).map((s) => (
+            {sections.filter((s) => s.group === g).map((s) => (
               <a
                 key={s.key}
                 href={`#/setup/${s.key}`}
@@ -81,6 +89,7 @@ export function SetupApp() {
         {section === "equip-templates" && <EquipTemplatesPage />}
         {section === "graphics" && <GraphicsSetupPage />}
         {section === "site" && <SitePage />}
+        {section === "standalone" && <StandalonePage />}
         {section === "alarm-definitions" && <AlarmDefinitionsPage />}
         {section === "alarm-delivery" && <DeliverySettingsPage />}
         {section === "users" && <UsersPage />}
