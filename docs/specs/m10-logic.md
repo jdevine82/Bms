@@ -1,6 +1,6 @@
 # Milestone 10: control logic
 
-Status: **10A built** (6 Nov 2026); 10B and 10C planned. Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
+Status: **10A built** (6 Nov 2026); **10B in progress** (7 Nov 2026); 10C planned. Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
 
 ## Decisions
 
@@ -9,6 +9,7 @@ Status: **10A built** (6 Nov 2026); 10B and 10C planned. Main spec: 5.3 (control
 | 1 | How it is split | **Three parts.** **10A:** the logic format (`devine-bms-logic/1`), every v1 block, the checks, the runtime (1 s cycle, fail-safes, variables), drafts, publishing and versions, the API, and a test run against simulated inputs, all usable as JSON. **10B:** the React Flow editor (palette, wiring, undo, copy and paste, Live mode, test strip, import dialog with mapping). **10C:** template logic and roll-out, the equipment panel's list of diagrams, variables published as points (HMI changes with the PIN), snippets. |
 | 2 | Logic's BACnet write priority | **10**: below operator hand mode (8), so a hand override always beats logic, and above schedules (16). Release to device relinquishes priority 10. |
 | 3 | Who writes a point (proposed in 10A) | **One writer per point.** A point written by a published diagram cannot also have a schedule occupancy map or be written by another diagram; the publish checks refuse it. |
+| 5 | Where the editor lives (10B) | **Its own Logic page** in the top bar: everyone signed in sees the diagrams and Live mode; admins also get Edit mode, publishing, import and variables. |
 | 4 | Modbus and MQTT outputs (proposed in 10A) | These protocols have no priorities: logic writes the value when it changes (and again every 10 minutes); while a point is in operator hand mode logic does not write it; when hand mode ends the point gets logic's value. Release to device means logic stops writing. |
 
 ## 10A: format, blocks, runtime and API
@@ -113,3 +114,20 @@ Status: **10A built** (6 Nov 2026); 10B and 10C planned. Main spec: 5.3 (control
 
 - Backend (`tests/test_logic.py`): the block set; a good diagram and its order; every check (unknown type, bad settings, duplicate IDs, wired twice, types, unwired inputs, unwritable points, schedule and diagram writers, missing points, schedules and variables, constants written by logic, a missing fallback, astro without a location, loops with and without a timing block); compare with deadband and delay on with a clock; fallback and fail-safe on a bad input; limit with rate, scale with clamp and inversion; delay off and minimum on/off; AND, NOT, manual/auto and schedules; PID (direction, anti-windup, bumpless tracking); astro in Sydney; variable writes and a failing block. With the database and the simulated RS485 line: drafts and publish checks, the fail-safe confirmation, the outputs written (the limit clamped to its write limits), a variable change followed, hand mode winning and ending at logic's value, one writer per point, disable and enable with the fail-safes, a memory variable saved, versions and restore, test runs that write nothing, import (errors, warnings, name clash), removal and the audit log.
 - Astro times checked against published times for Sydney (summer and winter) and London; polar day and night handled.
+
+## 10B: the editor (web app)
+
+Main spec 5.3.1 Layout, Editing blocks, Edit and Live modes, and 5.3.2. Built with React Flow (`@xyflow/react` 12.12.0, MIT).
+
+- **Logic page** (`#/logic`): the diagrams with their state (draft, running, disabled, error), published version, what they write; **New diagram** and **Import** for admins. A diagram opens at `#/logic/<name>`.
+- **Top bar:** name and display name, status (draft or published version N, running or not, unpublished changes), enabled switch, Edit and Live, Undo and Redo, Check, Publish, Versions, Export.
+- **Palette (left):** the v1 blocks in their groups, searchable; drag a block onto the canvas or click it to add it in the middle.
+- **Canvas:** blocks flow left to right, inputs on the left of a block and outputs on the right. Port shape and colour show the type (true/false round, number square, text diamond), and a wire only joins the same type; a new wire into a used input replaces the old one. Snap to grid, minimap, fit to screen. Blocks without positions are laid out by their order.
+- **Selecting and editing:** click, Shift-click or drag a box; **Delete** or **Backspace**, the Delete button, or right-click → Delete. Deleting an output block, or a block that feeds one, asks first (its output falls to the fail-safe once published). A variable still used by a block cannot be removed. Undo and redo (Ctrl+Z, Ctrl+Y) for the session; cut, copy, paste and duplicate (Ctrl+X, Ctrl+C, Ctrl+V, Ctrl+D) in the import format, so blocks move between diagrams and browser tabs.
+- **Drafts save automatically** a second after each change.
+- **Properties (right):** the selected block's settings (points, variables and schedules picked from lists; values for unwired inputs; the fail-safe of an output); with nothing selected, the diagram's display name, scope, equipment, description and its own variables. The check results are listed here, each naming its block (click to select it).
+- **Publish** shows each output's fail-safe and asks to confirm them, and takes a note.
+- **Live mode** (published version): every wire shows its value, blue when true and grey when false; blocks show bad inputs, errors, time left on timers, clamping, PID mode and the next astro switch; outputs show written, hand mode or fail-safe. The variables list shows values; admins can set constants.
+- **Test strip (below the canvas, Edit mode):** a value, switch or Offline for each point the diagram reads and each schedule; steps and step length; **Run** shows the outputs at each step. Nothing is written.
+- **Import dialog:** paste text or choose a `.bmslogic.json` file; **Import as new diagram** or **Paste into this diagram**. Errors are listed per block, with **Remove the failing blocks and continue**. Unresolved points, variables and schedules are listed in a **mapping table** with suggestions; clashing block IDs are renumbered; blocks without positions are laid out.
+- **Export:** the whole diagram or the selection, copied or saved as `<name>.bmslogic.json`.
