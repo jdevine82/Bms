@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Standalone mode (milestone 11a): the Pi is the whole system; PostgreSQL runs in RAM and
     # the state file on the config partition keeps the site through a power cut.
-    mode: str = "full"  # full or standalone
+    mode: str = "full"  # full, standalone, or standby (an HMI that can take over, milestone 11)
     state_file: str = "/var/lib/devine-bms/config/site-state.json"
     state_rw_cmd: str = ""  # for example: sudo mount -o remount,rw /var/lib/devine-bms/config
     state_ro_cmd: str = ""
@@ -35,6 +35,22 @@ class Settings(BaseSettings):
     usb_mount_cmd: str = ""  # for example: sudo /usr/local/sbin/bms-usb mount
     usb_umount_cmd: str = ""
     net_cmd: str = ""  # the Pi's network helper: show | dhcp | static ADDRESS/PREFIX GATEWAY DNS
+
+    # HMI standby takeover (milestone 11). Both: the shared token (an environment variable only).
+    standby_token: str = ""
+    # Server: the HMIs that can take over, for example http://192.168.10.30:8000 (comma-separated).
+    hmi_urls: str = ""
+    # Pi (mode standby): the site server, this HMI's name, the cached setup, and the timings.
+    server_url: str = ""
+    hmi_name: str = "hmi"
+    standby_cache: str = "/var/lib/devine-bms/config/standby-cache.json"
+    heartbeat_s: float = 5.0  # both: how often the HMI asks the server, and the server the HMIs
+    takeover_after_s: float = 30.0
+    bus_quiet_s: float = 60.0
+    failback_after_s: float = 300.0
+    mstp_start_cmd: str = ""  # for example: sudo systemctl start bms-mstp@trunk1
+    mstp_stop_cmd: str = ""
+    pi_ports: str = ""  # the Pi's own adapters, for example: rs485_1=/dev/ttyBMS-rs485-1,trunk1=/dev/ttyBMS-trunk1
 
 
 @lru_cache(maxsize=1)

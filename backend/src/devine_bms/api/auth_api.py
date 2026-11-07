@@ -23,7 +23,7 @@ from devine_bms.db import models as db
 
 COOKIE = "bms_session"
 PUBLIC = {"/api/health", "/api/mode", "/api/standalone/setup-info", "/api/auth/state", "/api/auth/login", "/api/auth/first-admin", "/api/auth/pin-users",
-          "/api/auth/pin"}
+          "/api/auth/pin", "/api/standby/state", "/api/standby/cache", "/api/standby/audit"}
 
 
 def client_ip(peer: str | None, forwarded: str | None) -> str:

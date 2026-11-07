@@ -33,6 +33,7 @@ from devine_bms.api.logic_api import build_logic_router
 from devine_bms.api.schedules_api import build_schedules_router
 from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.standalone_api import build_standalone_router
+from devine_bms.api.standby_api import build_standby_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.auth.service import AuthService
 from devine_bms.commands.service import CommandService
@@ -78,8 +79,18 @@ async def default_runtime() -> tuple[Runtime, Callable[[], Awaitable[None]]]:
         runtime.keeper = make_keeper(sessions, site_name, settings, standalone)
         runtime.settings = settings
         return runtime, engine.dispose
+    if settings.mode == "standby":  # milestone 11: an HMI that can take over; the site from its cache
+        from devine_bms.standalone.boot import LOG_EVERY_S, STANDALONE_INTERVALS
+        from devine_bms.standby.boot import prepare_standby
+
+        site_name = await prepare_standby(sessions, settings)
+        runtime = Runtime(PostgresStorage(sessions), site_name, intervals=STANDALONE_INTERVALS,
+                          history_min_interval_s=LOG_EVERY_S)
+        runtime.settings, runtime.standby = settings, True
+        return runtime, engine.dispose
     site_name = await prepare_site(sessions, settings)
     runtime = Runtime(PostgresStorage(sessions), site_name)
+    runtime.settings = settings
     return runtime, engine.dispose
 
 
@@ -121,9 +132,24 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         runtime, cleanup = await runtime_factory()
-        await runtime.start()
+        settings = getattr(runtime, "settings", None)
+        standby = bool(getattr(runtime, "standby", False))
+        if standby:  # milestone 11: the HMI in standby polls nothing and sends nothing
+            from devine_bms.standby.boot import HELD_WHY
+
+            await runtime.start(held=True, why=HELD_WHY)
+        else:
+            if settings is not None and getattr(settings, "hmi_urls", ""):
+                from devine_bms.standby.server import HmiGate
+
+                # Before polling starts: an HMI in direct mode still drives the buses (milestone 11).
+                state["gate"] = HmiGate(runtime, settings.hmi_urls.split(","), settings.standby_token,
+                                        every_s=settings.heartbeat_s)
+                await state["gate"].check()
+            await runtime.start(held=runtime.held, why=runtime.held_why)
         state["runtime"] = runtime
         sessions = getattr(runtime.storage, "sessionmaker", None)
+        state["sessions"] = sessions
         if sessions is not None:  # setup and logins need the database
             async def reload_all() -> None:  # a setup change: the runtime, then logic's view of it
                 await runtime.reload()
@@ -144,14 +170,32 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             state["schedules"] = ScheduleService(runtime, sessions, runtime.site_name,
                                                  iana_zone(runtime.config.site_tz).key, state["auth"].record,
                                                  lambda: state["commands"].overrides, tick_s=schedule_tick_s)
-            await state["schedules"].start()
+            if standby:  # no schedules or logic on an HMI, in standby or in direct mode (main spec 9)
+                await state["schedules"].load()
+            else:
+                await state["schedules"].start()
             state["logic"] = LogicEngine(runtime, sessions, runtime.site_name, lambda: state["commands"].overrides,
                                          state["schedules"], state["auth"].record, tick_s=logic_tick_s)
             # Hand mode ends at logic's value, else the schedule's, else the value before (decision 027).
             state["commands"].schedule_value = lambda p: (
                 state["logic"].value_for(p) if state["logic"].owns(p) else state["schedules"].value_for(p))
             runtime.logic_write = state["logic"].write_variable_point  # variables published as points
-            await state["logic"].start()
+            if standby:
+                await state["logic"].reload()
+            else:
+                await state["logic"].start()
+            if standby:
+                from devine_bms.standby.hmi import StandbyService
+
+                state["standby"] = StandbyService(runtime, sessions, runtime.site_name, settings, state["auth"],
+                                                  state["commands"], state["alarms"], state["auth"].record,
+                                                  heartbeat_s=settings.heartbeat_s)
+                state["auth"].extra_kiosks = {"127.0.0.1", "::1"}  # the Pi's own touch screen
+                state["delivery"].sms_allowed = False  # the Pi has no modem
+                await state["standby"].start()
+            if state.get("gate") is not None:
+                state["gate"].record = state["auth"].record
+                await state["gate"].start()
             keeper = getattr(runtime, "keeper", None)
             if keeper is not None:  # standalone mode (milestone 11a)
                 from devine_bms.standalone.service import StandaloneService
@@ -173,10 +217,15 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 state["prune"].cancel()
             if state.get("release") is not None:
                 state["release"].cancel()
+            for name in ("standby", "gate"):
+                if state.get(name) is not None:
+                    await state[name].stop()
             if state.get("standalone") is not None:
                 await state["standalone"].stop()
                 await state["standalone"].keeper.stop()  # the last save
             for name in ("logic", "schedules", "commands", "alarms", "delivery"):
+                if name == "logic" and state.get("standby") is not None:
+                    continue  # an HMI runs no logic, so it has no outputs to put to their fail-safe
                 if state.get(name) is not None:
                     await state[name].stop()
             if state.get("discover") is not None:
@@ -194,7 +243,12 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                                            lambda: state.get("auth")))
     app.include_router(build_graphics_router(lambda: state.get("setup")))
     app.include_router(build_logic_router(lambda: state.get("logic_service")))
-    app.include_router(build_standalone_router(lambda: state.get("standalone"), lambda: state.get("auth")))
+    app.include_router(build_standalone_router(lambda: state.get("standalone"), lambda: state.get("auth"),
+                                               lambda: "standby" if state.get("standby") is not None else ""))
+    app.include_router(build_standby_router(
+        lambda: state.get("sessions"), lambda: state["runtime"].site_name,
+        lambda: getattr(getattr(state.get("runtime"), "settings", None), "standby_token", ""),
+        lambda: state.get("gate"), lambda: state.get("standby")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 
@@ -268,6 +322,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 for b in rt.buses
             ],
             "history": {"written": rt.history.written, "pending": len(rt.history.pending)},
+            "held": rt.held_why,  # milestone 11: why nothing is polled (an HMI in direct mode, or standby)
         }
 
     @app.get("/api/site")

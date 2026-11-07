@@ -15,7 +15,8 @@ from devine_bms.auth.service import Actor
 from devine_bms.standalone.service import StandaloneError, StandaloneService
 
 
-def build_standalone_router(get_svc: Callable[[], StandaloneService | None], get_auth: Callable[[], Any]) -> APIRouter:
+def build_standalone_router(get_svc: Callable[[], StandaloneService | None], get_auth: Callable[[], Any],
+                            get_mode: Callable[[], str] | None = None) -> APIRouter:
     router = APIRouter()
 
     def svc() -> StandaloneService:
@@ -32,6 +33,8 @@ def build_standalone_router(get_svc: Callable[[], StandaloneService | None], get
 
     @router.get("/api/mode")
     async def mode() -> Any:
+        if get_mode is not None and get_mode() == "standby":  # milestone 11: an HMI in standby
+            return {"mode": "standby"}
         return {"mode": "standalone" if get_svc() is not None else "full"}
 
     @router.get("/api/standalone/setup-info")

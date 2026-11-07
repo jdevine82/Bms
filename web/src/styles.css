@@ -435,3 +435,8 @@ a.button {
     flex: 1 1 100%;
   }
 }
+
+/* An HMI holds the site (milestone 11): the server polls nothing until control is handed back. */
+.held-banner { padding: 8px 16px; background: var(--bad); color: #fff; font-weight: 600; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .held-banner { color: #1a0b0a; } }
+:root[data-theme="dark"] .held-banner { color: #1a0b0a; }

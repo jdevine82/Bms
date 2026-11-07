@@ -5,6 +5,10 @@
 # Run once as root on a fresh Raspberry Pi OS Lite (64-bit), from this folder:
 #   sudo ./provision.sh --server http://<site server address>:8000     (full mode: HMI of a site server)
 #   sudo ./provision.sh --mode standalone [--no-readonly]              (standalone: from a copy of the repository)
+#   sudo ./provision.sh --server http://<server>:8000 --standby [--name hmi-plant] [--ports "rs485_1=/dev/ttyBMS-rs485-1"]
+#                                                                      (full mode, and the Pi can take over: milestone 11)
+#   With --standby the shared standby token is asked for (or give it as BMS_STANDBY_TOKEN=... before ./provision.sh);
+#   it is kept only in /etc/devine-bms/standalone.env on the Pi and in the server's environment.
 #
 # Safe to run again: it rewrites the same files. Remove with ./uninstall.sh.
 set -euo pipefail
@@ -14,10 +18,14 @@ SERVER=""
 SKIP_PACKAGES=0
 MODE=full
 READONLY=1
+STANDBY=0
+HMI_NAME="$(hostname)"
+PI_PORTS=""
 
 usage() {
     echo "Usage: sudo $0 --server http://<site server address>:8000 [--skip-packages]"
     echo "       sudo $0 --mode standalone [--no-readonly] [--skip-packages]"
+    echo "       sudo $0 --server http://<site server address>:8000 --standby [--name <hmi name>] [--ports bus=port,...] [--no-readonly]"
 }
 
 while [ $# -gt 0 ]; do
@@ -26,6 +34,9 @@ while [ $# -gt 0 ]; do
         --skip-packages) SKIP_PACKAGES=1; shift ;;
         --mode) MODE="${2:-}"; shift 2 ;;
         --no-readonly) READONLY=0; shift ;;
+        --standby) STANDBY=1; shift ;;
+        --name) HMI_NAME="${2:-}"; shift 2 ;;
+        --ports) PI_PORTS="${2:-}"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -43,6 +54,14 @@ esac
 [[ "$SERVER" =~ ^https?://[^[:space:]/]+(:[0-9]+)?/?$ ]] \
     || fail "give the site server address, for example --server http://192.168.10.5:8000"
 SERVER="${SERVER%/}"
+if [ "$STANDBY" -eq 1 ]; then
+    [ "$MODE" = full ] || fail "--standby is for an HMI of a site server (full mode)"
+    [[ "$HMI_NAME" =~ ^[A-Za-z0-9_.-]{1,40}$ ]] || fail "--name: letters, digits, - _ . (at most 40)"
+    if [ -z "${BMS_STANDBY_TOKEN:-}" ]; then
+        read -rsp "The standby token (the same as BMS_STANDBY_TOKEN on the server): " BMS_STANDBY_TOKEN; echo
+    fi
+    [ "${#BMS_STANDBY_TOKEN}" -ge 20 ] || fail "the standby token must be at least 20 characters"
+fi
 
 # 64-bit only (decision 013): the kernel and the userland must both be 64-bit.
 ARCH="$(uname -m)"
@@ -76,6 +95,8 @@ done
 step "Writing settings"
 install -d -m 0755 /etc/devine-bms /opt/devine-bms/hmi
 printf 'BMS_SERVER_URL=%s\n' "$SERVER" > /etc/devine-bms/hmi.env
+# Milestone 11: the Pi's own backend, which takes over when the server is down.
+if [ "$STANDBY" -eq 1 ]; then printf 'BMS_STANDBY_URL=http://localhost\n' >> /etc/devine-bms/hmi.env; fi
 chmod 0644 /etc/devine-bms/hmi.env
 
 step "Installing the waiting page and kiosk launcher"
@@ -113,6 +134,11 @@ if [ "$MODE" = standalone ]; then
     step "Standalone mode: the backend, PostgreSQL in RAM, the config partition"
     SKIP_PACKAGES="$SKIP_PACKAGES" READONLY="$READONLY" "$HERE/standalone/setup-standalone.sh"
 fi
+if [ "$STANDBY" -eq 1 ]; then
+    step "Standby: the Pi's own backend, which takes over when the server is down"
+    SKIP_PACKAGES="$SKIP_PACKAGES" READONLY="$READONLY" PI_MODE=standby SERVER="$SERVER" HMI_NAME="$HMI_NAME" \
+        PI_PORTS="$PI_PORTS" BMS_STANDBY_TOKEN="$BMS_STANDBY_TOKEN" "$HERE/standalone/setup-standalone.sh"
+fi
 
 step "Starting the kiosk at boot"
 systemctl daemon-reload
@@ -124,6 +150,10 @@ echo
 if [ "$MODE" = standalone ]; then
     echo "Done. After a reboot the screen shows the setup page: open the address it shows from a laptop"
     echo "or phone on the same network and enter the setup code. (Fallback address: http://192.168.50.10/)"
+fi
+if [ "$STANDBY" -eq 1 ]; then
+    echo "Standby is set up. On the server, add this HMI: BMS_HMI_URLS=http://<this Pi's address>"
+    echo "and the same BMS_STANDBY_TOKEN, then restart the server."
 fi
 echo "Done. The HMI will open $SERVER/hmi at every boot."
 echo "Reboot now to start it:  sudo reboot"
