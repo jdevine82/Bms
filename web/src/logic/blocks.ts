@@ -22,9 +22,9 @@ const num = (...names: string[]) => () => names.map((n) => P(n, "number"));
 const out = (type: VType) => () => [P("out", type)];
 
 export const BLOCKS: Record<string, Spec> = {
-  point_read: { group: "Read and write", dis: "Point read", inputs: () => [], outputs: (s, t) => [P("out", t.pointType(s.point ?? ""))],
+  point_read: { group: "Read and write", dis: "Point read", inputs: () => [], outputs: (s, t) => [P("out", t.pointType(s.role || s.point || ""))],
     defaults: { point: "", onBad: "fallback", fallback: null }, help: "A point's live value; when it is not Good, a fallback value or the fail-safe." },
-  point_write: { group: "Read and write", dis: "Point write", inputs: (s, t) => [P("in", t.pointType(s.point ?? ""))], outputs: () => [],
+  point_write: { group: "Read and write", dis: "Point write", inputs: (s, t) => [P("in", t.pointType(s.role || s.point || ""))], outputs: () => [],
     defaults: { point: "", failsafe: { mode: "release" } }, help: "Writes a point at priority 10. Its fail-safe applies when the input is bad or logic stops." },
   variable_read: { group: "Read and write", dis: "Variable read", inputs: () => [], outputs: (s, t) => [P("out", t.variableType(s.variable ?? ""))],
     defaults: { variable: "" }, help: "A variable's value." },

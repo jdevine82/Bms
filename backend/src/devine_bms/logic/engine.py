@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
-from devine_bms.config.model import BacnetAddress, Kind
+from devine_bms.config.model import BacnetAddress, Kind, VariableAddress
 from devine_bms.db import models as db
 from devine_bms.logic.check import Site, SitePoint, SiteVariable, errors, plan
 from devine_bms.logic.evaluate import Evaluator, Place, Step
@@ -38,7 +38,7 @@ RETRY_S = 10.0
 @dataclass
 class Running:
     name: str
-    version: int
+    version: int | str
     plan: Plan
     evaluator: Evaluator
     last: Step | None = None
@@ -99,6 +99,9 @@ class LogicEngine:
         self._task: asyncio.Task | None = None
         self._writes: dict[str, asyncio.Task] = {}
         self._last_flush = 0.0
+        self._pushed: dict = {}  # variable point id -> (value, when)
+        self.instances: dict[str, dict] = {}  # template logic instances: name -> equip, template, version
+        self.writes: dict[str, list[str]] = {}  # every diagram that may run -> the points it writes
         self.lock = asyncio.Lock()
 
     # ---------- life ----------
@@ -130,8 +133,10 @@ class LogicEngine:
     # ---------- loading ----------
 
     async def reload(self) -> None:
-        """Load the published, enabled diagrams; outputs that no running diagram writes any more go
-        to their fail-safe."""
+        """Load the published, enabled diagrams and the template logic instances; outputs that
+        no running diagram writes any more go to their fail-safe."""
+        from devine_bms.setup.export import export_dict
+
         async with self.lock:
             async with self.sessions() as session:
                 site = await session.scalar(select(db.Site).where(db.Site.name == self.site_name))
@@ -145,34 +150,68 @@ class LogicEngine:
                             db.LogicVersion.diagram_id == r.id, db.LogicVersion.version == r.published_version)))
                 var_rows = (await session.scalars(select(db.LogicVariable).where(
                     db.LogicVariable.site_id == site.id))).all()
+                switches = {i.name: i.enabled for i in (await session.scalars(select(db.LogicInstance).where(
+                    db.LogicInstance.site_id == site.id))).all()}
+                setup = await export_dict(session, self.site_name)
             for v in var_rows:
                 key = (v.scope, v.owner, v.name)
                 if key not in self.vars or not self.vars[key].dirty:
                     self.vars[key] = Var(v.scope, v.owner, v.name, v.type, v.kind, (v.value or {}).get("v"), v.unit,
                                          v.dis, v.min, v.max)
 
-            status: dict[str, dict] = {r.name: {"state": "draft" if r.published_version is None else "disabled",
-                                                "issues": []} for r in rows}
-            running: dict[str, Running] = {}
+            status: dict[str, dict] = {}
+            # What may run: published diagrams (not a template's own logic, which runs as instances)...
+            candidates: dict[str, dict] = {}
+            for r in rows:
+                scope = (r.draft or {}).get("scope")
+                status[r.name] = {"state": "template" if scope == "template" else
+                                  "draft" if r.published_version is None else "disabled", "issues": []}
             for name, (row, version) in versions.items():
-                if not row.enabled or version is None:
+                if version is None or version.body.get("scope") == "template":
+                    continue
+                candidates[name] = {"body": version.body, "version": version.version, "enabled": row.enabled}
+            # ...and every instance of a template version that has logic (milestone 10C).
+            overridden = {c["body"].get("equip") for c in candidates.values()
+                          if c["enabled"] and c["body"].get("scope") == "equipment"}
+            self.instances = {}
+            for name, meta, body, missing in template_instances(setup):
+                meta["enabled"] = switches.get(name, True)
+                self.instances[name] = meta
+                if meta["equip"] in overridden:
+                    status[name] = {"state": "overridden", "issues": [{"level": "warning", "message":
+                                    f"an equipment diagram for {meta['equip']} replaces the template's logic"}]}
+                elif missing:
+                    status[name] = {"state": "error", "issues": [{"level": "error", "message":
+                                    f"roles not bound on {meta['equip']}: {', '.join(missing)}"}]}
+                else:
+                    status[name] = {"state": "disabled", "issues": []}
+                    candidates[name] = {"body": body, "version": f"{meta['template']}@{meta['templateVersion']}",
+                                        "enabled": meta["enabled"]}
+
+            enabled = {n: c["body"] for n, c in candidates.items() if c["enabled"]}
+            running: dict[str, Running] = {}
+            for name, c in candidates.items():
+                if not c["enabled"]:
                     continue
                 old = self.running.get(name)
-                p, issues = plan(version.body, self.site_view(exclude=name, published=versions))
+                p, issues = plan(c["body"], self.site_view(exclude=name, published=enabled))
                 if p is None or errors(issues):
                     status[name] = {"state": "error", "issues": [i.as_dict() for i in errors(issues)]}
-                    log.warning("logic %s v%s cannot run: %s", name, version.version,
+                    log.warning("logic %s (%s) cannot run: %s", name, c["version"],
                                 "; ".join(i.message for i in errors(issues)))
                     continue
                 self._ensure_diagram_vars(p.diagram)
-                if old is not None and old.version == version.version:
+                if old is not None and old.version == c["version"]:
                     old.plan = p  # same version: keep its timers and PID state
                     old.evaluator.plan = p
                     running[name] = old
                 else:
-                    running[name] = Running(name, version.version, p, Evaluator(p, self.place))
+                    running[name] = Running(name, c["version"], p, Evaluator(p, self.place))
                 running[name].evaluator.place = self.place
                 status[name] = {"state": "running", "issues": []}
+            self.writes = {n: [b["settings"]["point"] for b in body.get("blocks", [])
+                               if b.get("type") == "point_write" and (b.get("settings") or {}).get("point")]
+                           for n, body in {**{n: c["body"] for n, c in candidates.items()}}.items()}
 
             # Outputs no running diagram writes any more go to their fail-safe.
             still = {o.settings_point: name for name, r in running.items() for o in _writes(r.plan)}
@@ -204,10 +243,10 @@ class LogicEngine:
                     for w in _writes(r.plan):
                         writers[w.settings_point] = name
         else:
-            for name, (row, version) in published.items():
-                if name == exclude or version is None or not row.enabled:
+            for name, body in published.items():  # name -> body of each enabled candidate
+                if name == exclude:
                     continue
-                for b in version.body.get("blocks", []):
+                for b in body.get("blocks", []):
                     if b.get("type") == "point_write" and (b.get("settings") or {}).get("point"):
                         writers[b["settings"]["point"]] = name
         variables = {v.name: SiteVariable(v.name, v.type, v.kind) for (scope, _o, _n), v in self.vars.items()
@@ -242,6 +281,7 @@ class LogicEngine:
                         o.wanted = out.value
                         o.failsafe = out.failsafe
                         self._drive(o)
+        self.push_points()
         await self.flush_variables()
 
     def _point(self, name: str):
@@ -332,6 +372,59 @@ class LogicEngine:
 
     def owns(self, point) -> bool:
         return point.name in self.outputs
+
+    # ---------- variables published as points (milestone 10C) ----------
+
+    def _point_var(self, point) -> Var | None:
+        a = point.address
+        return self.vars.get(("diagram", a.diagram, a.variable)) if a.diagram else self.vars.get(("site", "", a.variable))
+
+    async def write_variable_point(self, point, value: Any) -> None:
+        """A command to a variable's point sets the variable (within its limits)."""
+        from devine_bms.commands.writer import WriteError
+
+        v = self._point_var(point)
+        if v is None:
+            raise WriteError(f"there is no logic variable '{point.address.variable}'")
+        if value is None:
+            raise WriteError("a logic variable has no priorities to release")
+        if v.type == "number":
+            value = float(value)
+            if (v.min is not None and value < v.min) or (v.max is not None and value > v.max):
+                raise WriteError(f"the variable allows {v.min} to {v.max}")
+        elif v.type == "bool":
+            value = bool(value)
+        else:
+            value = str(value)
+        v.value, v.dirty = value, True
+        await self.flush_variables(force=True)
+        self.push_points(force=True)
+
+    def push_points(self, force: bool = False) -> None:
+        """Give each variable's point its value: on a change, and at least every 10 seconds so it
+        does not go Stale."""
+        tracker = getattr(self.runtime, "tracker", None)
+        if tracker is None:
+            return
+        mono = time.monotonic()
+        for p in self.runtime.config.points:
+            if not isinstance(p.address, VariableAddress):
+                continue
+            v = self._point_var(p)
+            value = None if v is None else v.value
+            last = self._pushed.get(p.id)
+            if not force and last is not None and last[0] == value and mono - last[1] < 10:
+                continue
+            self._pushed[p.id] = (value, mono)
+            if v is None:
+                tracker.bad(p, Status.FAULT, f"no logic variable '{p.address.variable}'")
+            elif value is None:
+                tracker.bad(p, Status.FAULT, "the variable has no value yet")
+            else:
+                try:
+                    tracker.good(p, _coerce(p, value) if p.kind != Kind.NUMBER else float(value))
+                except (TypeError, ValueError) as exc:
+                    tracker.bad(p, Status.FAULT, str(exc))
 
     # ---------- variables ----------
 
@@ -504,3 +597,45 @@ def _zone(tz: str) -> ZoneInfo:
 
     return iana_zone(tz)
 
+
+
+INSTANCE_SUFFIX = "__tpl"
+
+
+def template_instances(setup: dict) -> list[tuple[str, dict, dict, list[str]]]:
+    """Each equipment or room on a template version with logic: (diagram name, meta, the
+    diagram with roles mapped to the instance's bound points, roles it uses that are not bound)."""
+    import copy
+
+    templates = {(t["id"], t["version"]): t for t in setup.get("equipTemplates") or []}
+    from devine_bms.templates.equip import builtin_equip_templates
+
+    for t in builtin_equip_templates().values():
+        templates.setdefault((t.id, t.version), t.model_dump(mode="json", by_alias=True))
+    out = []
+    for kind, items in (("equip", setup.get("equips") or []), ("space", setup.get("spaces") or [])):
+        for item in items:
+            link = item.get("template")
+            t = templates.get((link["id"], link["version"])) if link else None
+            if not t or not t.get("logic"):
+                continue
+            name = f"{item['name']}{INSTANCE_SUFFIX}"
+            bindings = link.get("bindings") or {}
+            body = copy.deepcopy(t["logic"])
+            missing = []
+            for b in body.get("blocks", []):
+                s = b.get("settings") or {}
+                if b.get("type") in ("point_read", "point_write") and s.get("role"):
+                    role = s.pop("role")
+                    if role in bindings:
+                        s["point"] = bindings[role]
+                    elif role not in missing:
+                        missing.append(role)
+                    b["settings"] = s
+            body.update({"name": name, "dis": f"{item.get('dis', item['name'])}: {t.get('dis', t['id'])}",
+                         "scope": "equipment" if kind == "equip" else "site",
+                         "equip": item["name"] if kind == "equip" else None, "template": None})
+            meta = {"equip": item["name"], "dis": item.get("dis", item["name"]), "kind": kind, "template": t["id"],
+                    "templateVersion": t["version"]}
+            out.append((name, meta, body, missing))
+    return out

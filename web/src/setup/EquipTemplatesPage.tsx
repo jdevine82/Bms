@@ -10,6 +10,7 @@ import {
   getConfig,
   getEquipTemplate,
   getInstance,
+  post,
   listEquipTemplates,
   resetOverride,
   rollout,
@@ -150,6 +151,16 @@ export function EquipTemplatesPage() {
                 >
                   Copy template
                 </button>
+                {!builtin && !editing && (
+                  <button type="button" className="btn" onClick={async () => {
+                    try {
+                      const r = await post<{ name: string }>(`/api/logic/template-draft/${encodeURIComponent(t.id)}`, {});
+                      location.hash = `#/logic/${encodeURIComponent(r.name)}`;
+                    } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
+                  }}>
+                    Logic{detail.template.logic ? "" : " (none yet)"}
+                  </button>
+                )}
                 {!builtin && !editing && (
                   <button type="button" className="btn primary" onClick={() => { setEdit({ ...structuredClone(detail.template), version: nextVersion(detail.versions) }); setTab("points"); }}>
                     Edit as a new version

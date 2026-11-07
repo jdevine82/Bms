@@ -53,6 +53,36 @@ def build_logic_router(get_logic: Callable[[], LogicService | None]) -> APIRoute
                            svc: LogicService = Depends(logic)) -> Any:
         return await run(svc.put_site_variable(actor, name, body))
 
+    @router.post("/api/logic-variables/publish")
+    async def publish_variable(body: dict = Body(...), actor: Actor = Depends(require("admin")),
+                               svc: LogicService = Depends(logic)) -> Any:
+        return await run(svc.publish_variable(actor, body))
+
+    @router.post("/api/logic/template-draft/{template_id}")
+    async def template_draft(template_id: str, actor: Actor = Depends(require("admin")),
+                             svc: LogicService = Depends(logic)) -> Any:
+        """Open an equipment template's logic in the editor (role mode): its draft's name and roles."""
+        return await run(svc.template_draft(actor, template_id))
+
+    @router.get("/api/logic/by-equip")
+    async def by_equip(_: Actor = Depends(viewer), svc: LogicService = Depends(logic)) -> Any:
+        """For each piece of equipment: the diagrams that write its points, and BMS- or device-controlled."""
+        return svc.by_equip()
+
+    @router.get("/api/logic-snippets")
+    async def snippets(_: Actor = Depends(viewer), svc: LogicService = Depends(logic)) -> Any:
+        return await run(svc.snippets())
+
+    @router.put("/api/logic-snippets/{name}")
+    async def put_snippet(name: str, body: dict = Body(...), actor: Actor = Depends(require("admin")),
+                          svc: LogicService = Depends(logic)) -> Any:
+        return await run(svc.put_snippet(actor, name, body))
+
+    @router.delete("/api/logic-snippets/{name}")
+    async def delete_snippet(name: str, actor: Actor = Depends(require("admin")),
+                             svc: LogicService = Depends(logic)) -> Any:
+        return await run(svc.delete_snippet(actor, name))
+
     @router.post("/api/logic/import")
     async def import_logic(body: dict = Body(...), actor: Actor = Depends(require("admin")),
                            svc: LogicService = Depends(logic)) -> Any:
@@ -79,7 +109,9 @@ def build_logic_router(get_logic: Callable[[], LogicService | None]) -> APIRoute
             if isinstance(body, JSONResponse):
                 return body
             body = body["draft"]
-        return svc.check(name, body)
+        # A template's logic is checked against the template's roles.
+        setup = await svc.setup.export() if body.get("scope") == "template" and svc.setup is not None else None
+        return svc.check(name, body, setup)
 
     @router.post("/api/logic/{name}/test")
     async def test(name: str, body: dict = Body(...), _: Actor = Depends(require("admin")),
@@ -104,7 +136,8 @@ def build_logic_router(get_logic: Callable[[], LogicService | None]) -> APIRoute
     @router.post("/api/logic/{name}/publish")
     async def publish(name: str, body: dict = Body(default={}), actor: Actor = Depends(require("admin")),
                       svc: LogicService = Depends(logic)) -> Any:
-        return await run(svc.publish(actor, name, bool(body.get("confirmFailsafe")), body.get("note")))
+        return await run(svc.publish(actor, name, bool(body.get("confirmFailsafe")), body.get("note"),
+                                     body.get("templateVersion")))
 
     @router.post("/api/logic/{name}/restore")
     async def restore(name: str, body: dict = Body(...), actor: Actor = Depends(require("admin")),

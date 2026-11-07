@@ -2,7 +2,7 @@
 // diagram or paste it into the open one. It is checked first: errors are listed per block (with
 // "Remove the failing blocks and continue"), unresolved points, variables and schedules are
 // mapped in a table with suggestions, and clashing block IDs are renumbered.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Point } from "../api";
 import { post } from "../setup/api";
 import { SetupError } from "../setup/api";
@@ -25,8 +25,9 @@ function similarity(a: string, b: string): number {
   return shared / Math.max(ta.size, tb.size, 1) + last;
 }
 
-export function ImportDialog({ current, points, variables, schedules, onClose, onPaste, onCreated }: {
+export function ImportDialog({ current, points, variables, schedules, onClose, onPaste, onCreated, initialText }: {
   current?: Diagram;
+  initialText?: string; // a snippet to map before inserting
   points: Point[];
   variables: SiteVariable[];
   schedules: { name: string; dis: string }[];
@@ -34,7 +35,7 @@ export function ImportDialog({ current, points, variables, schedules, onClose, o
   onPaste?: (d: Diagram, added: string[]) => void;
   onCreated?: (name: string) => void;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText ?? "");
   const [parsed, setParsed] = useState<Fragment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [how, setHow] = useState<"new" | "paste">(current ? "paste" : "new");
@@ -42,6 +43,8 @@ export function ImportDialog({ current, points, variables, schedules, onClose, o
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => { if (initialText) read(initialText); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const read = (source: string) => {
     setIssues(null);

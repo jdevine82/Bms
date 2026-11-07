@@ -1,5 +1,6 @@
 // Devices, buses, rooms and equipment: a list and an editor (main spec 5.1).
 import { useMemo, useState } from "react";
+import { EquipLogicPanel } from "../logic/EquipLogicPanel";
 import type { Health, Kind, Obj } from "./api";
 import { getHealth, listItems } from "./api";
 import { ItemEditor } from "./ItemEditor";
@@ -157,6 +158,7 @@ export function ItemsPage({ kind }: { kind: Kind }) {
               </div>
             )}
             {kind === "buses" && !adding && <BusHealth health={health.data} name={item.name} />}
+            {kind === "equips" && !adding && <EquipLogicPanel equip={item.name} />}
           </>
         ) : (
           <p className="muted">Pick one from the list, or add one.</p>

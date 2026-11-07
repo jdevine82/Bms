@@ -14,7 +14,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from devine_bms.config.model import BacnetAddress, Kind, ModbusAddress, MqttAddress, ObjectType
+from devine_bms.config.model import (
+    BacnetAddress,
+    Kind,
+    ModbusAddress,
+    MqttAddress,
+    ObjectType,
+    VariableAddress,
+)
 from devine_bms.drivers.errors import DeviceDown, DeviceFault
 from devine_bms.drivers.modbus.codec import DecodeError, encode_registers
 from devine_bms.runtime_model import RuntimeDevice, RuntimePoint
@@ -91,6 +98,12 @@ async def write_point(runtime, point: RuntimePoint, value: Any, priority: int = 
             await _bacnet_ip(runtime, device, point, value, priority)
         elif isinstance(a, MqttAddress):
             await _mqtt(runtime, device, point, value)
+        elif isinstance(a, VariableAddress):
+            # A logic variable published as a point (milestone 10C): the logic runtime sets it.
+            setter = getattr(runtime, "logic_write", None)
+            if setter is None:
+                raise WriteError("logic is not running")
+            await setter(point, value)
         else:
             raise WriteError("this point's address cannot be written")
     except (DeviceDown, DeviceFault) as exc:

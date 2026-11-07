@@ -2,8 +2,14 @@
 // click it to add it in the middle.
 import { useState } from "react";
 import { BLOCKS, GROUPS } from "./blocks";
+import type { Snippet } from "./logicApi";
 
-export function Palette({ onAdd }: { onAdd: (type: string) => void }) {
+export function Palette({ onAdd, snippets = [], onSnippet, onRemoveSnippet }: {
+  onAdd: (type: string) => void;
+  snippets?: Snippet[];
+  onSnippet?: (s: Snippet) => void;
+  onRemoveSnippet?: (s: Snippet) => void;
+}) {
   const [q, setQ] = useState("");
   const match = (type: string) => {
     const s = q.trim().toLowerCase();
@@ -28,6 +34,19 @@ export function Palette({ onAdd }: { onAdd: (type: string) => void }) {
           </section>
         );
       })}
+      {snippets.filter((sn) => !q.trim() || sn.dis.toLowerCase().includes(q.trim().toLowerCase())).length > 0 && (
+        <section aria-label="Snippets">
+          <h3>Snippets</h3>
+          {snippets.filter((sn) => !q.trim() || sn.dis.toLowerCase().includes(q.trim().toLowerCase())).map((sn) => (
+            <div key={sn.name} className="snippet-row">
+              <button type="button" aria-label={`Insert snippet ${sn.dis}`} title={`${sn.fragment.blocks.length} blocks`}
+                      onClick={() => onSnippet?.(sn)}>{sn.dis}</button>
+              {onRemoveSnippet && <button type="button" className="snippet-remove" aria-label={`Remove snippet ${sn.dis}`}
+                                          onClick={() => onRemoveSnippet(sn)}>×</button>}
+            </div>
+          ))}
+        </section>
+      )}
     </aside>
   );
 }

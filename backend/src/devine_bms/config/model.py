@@ -250,6 +250,10 @@ class BacnetMstpConnection(_Model):
     block_size: int = Field(default=10, ge=1, le=50)
 
 
+class LogicConnection(_Model):
+    """The built-in BMS logic device (milestone 10C): no wire, nothing to set."""
+
+
 class MqttConnection(_Model):
     """An MQTT device: the broker it publishes to, and its optional availability topic.
 
@@ -350,9 +354,11 @@ class Device(_Model):
     # bacnet_ip: a BACnet/IP device.
     # bacnet_mstp: a BACnet MS/TP device on a trunk from `buses`.
     # mqtt: a device that publishes to an MQTT broker from `buses`.
-    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip", "bacnet_mstp", "mqtt"]
+    # logic: the built-in BMS logic device; its points are logic variables (milestone 10C).
+    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip", "bacnet_mstp", "mqtt", "logic"]
     connection: (
         ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection | MqttConnection
+        | LogicConnection
     )
     enabled: bool = True
     offline_alarm: OfflineAlarm | None = None
@@ -365,6 +371,7 @@ class Device(_Model):
             "bacnet_ip": BacnetIpConnection,
             "bacnet_mstp": BacnetMstpConnection,
             "mqtt": MqttConnection,
+            "logic": LogicConnection,
         }[self.protocol]
         if not isinstance(self.connection, wanted):
             raise ValueError(f"protocol '{self.protocol}' needs a {wanted.__name__} connection")
@@ -399,6 +406,14 @@ class BacnetAddress(_Model):
     object_type: BacnetObjectType
     instance: int = Field(ge=0, le=4194302)
     property: Literal["presentValue"] = "presentValue"
+
+
+class VariableAddress(_Model):
+    """A point on the BMS logic device: a logic variable published as a point (milestone 10C).
+    A site variable by name, or a diagram's own variable with `diagram`."""
+
+    variable: Name
+    diagram: Name | None = None
 
 
 class MqttAddress(_Model):
@@ -449,7 +464,7 @@ class Point(_Model):
     unit: str | None = None
     enum: list[str] | None = None
     tags: Tags = {}
-    address: ModbusAddress | BacnetAddress | MqttAddress
+    address: ModbusAddress | BacnetAddress | MqttAddress | VariableAddress
     poll_class: PollClass = PollClass.NORMAL
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True
@@ -488,7 +503,9 @@ class EquipTemplate(_Model):
     roles: list[TemplateRole]
     parameters: dict[str, str | int | float | bool] = {}  # defaults, for example a setpoint range
     graphic: str | None = None  # a graphic reference, once graphics exist (milestone 9)
-    logic: str | None = None  # a logic reference, once logic exists (milestone 10)
+    # Control logic for every instance (milestone 10C): a devine-bms-logic/1 diagram whose point
+    # blocks name roles; it is checked against the roles when it is published.
+    logic: dict[str, Any] | None = None
     notes: list[str] = []
 
 
@@ -656,6 +673,14 @@ class Graphic(_Model):
     items: list[GraphicItem] = Field(default=[], max_length=2000)
 
 
+class LogicSnippet(_Model):
+    """A saved set of logic blocks to reuse (main spec 5.3.2 Snippets; milestone 10C)."""
+
+    name: Name
+    dis: str
+    fragment: dict[str, Any]  # devine-bms-logic/1 blocks, wires and variables
+
+
 class SiteConfig(_Model):
     schema_: Literal["devine-bms-config/0"] = Field(alias="schema")
     site: Site
@@ -670,6 +695,7 @@ class SiteConfig(_Model):
     points: list[Point] = []
     graphics: list[Graphic] = []  # milestone 9
     symbols: list[CustomSymbol] = []  # the site's own symbols (milestone 9B)
+    logic_snippets: list[LogicSnippet] = []  # milestone 10C
 
 
 def json_schema() -> dict[str, Any]:

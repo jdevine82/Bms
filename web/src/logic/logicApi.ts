@@ -28,8 +28,9 @@ export interface Diagram {
   schema?: string;
   name: string;
   dis: string;
-  scope: "site" | "equipment";
+  scope: "site" | "equipment" | "template";
   equip?: string | null;
+  template?: string | null; // scope template: the equipment template (milestone 10C)
   description?: string;
   variables: VariableDef[];
   blocks: Block[];
@@ -48,6 +49,9 @@ export interface Summary {
   draftAt: string;
   draftBy: string | null;
   writes: string[];
+  template?: string | null;
+  instance?: boolean; // a template logic instance (read-only; its own switch)
+  templateVersion?: string;
 }
 export interface Detail extends Summary {
   draft: Diagram;
@@ -96,8 +100,9 @@ export const getLive = (name: string) => get<Live>(`/api/logic/${enc(name)}/live
 export const saveDraft = (name: string, d: Diagram) =>
   put<{ ok: boolean; created: boolean; valid: boolean; issues: Issue[] }>(`/api/logic/${enc(name)}/draft`, d);
 export const checkDraft = (name: string, d: Diagram) => post<{ ok: boolean; valid: boolean; issues: Issue[] }>(`/api/logic/${enc(name)}/check`, d);
-export const publish = (name: string, note: string) =>
-  post<{ ok: boolean; version: number; issues: Issue[] }>(`/api/logic/${enc(name)}/publish`, { confirmFailsafe: true, note });
+export const publish = (name: string, note: string, templateVersion?: string) =>
+  post<{ ok: boolean; version: number; issues: Issue[]; templateVersion?: string }>(`/api/logic/${enc(name)}/publish`,
+    { confirmFailsafe: true, note, ...(templateVersion ? { templateVersion } : {}) });
 export const restore = (name: string, version: number) => post(`/api/logic/${enc(name)}/restore`, { version });
 export const setEnabled = (name: string, enabled: boolean) => post(`/api/logic/${enc(name)}/enable`, { enabled });
 export const deleteLogic = (name: string) => del(`/api/logic/${enc(name)}`);
@@ -110,3 +115,14 @@ export const listVariables = () => get<SiteVariable[]>("/api/logic-variables");
 export const putSiteVariable = (name: string, body: Partial<SiteVariable>) => put(`/api/logic-variables/${enc(name)}`, body);
 export const setDiagramVariable = (diagram: string, name: string, value: Value) =>
   put(`/api/logic/${enc(diagram)}/variables/${enc(name)}`, { value });
+
+// Milestone 10C
+export interface Role { role: string; dis: string; kind: "Number" | "Bool" | "Str"; type: string; unit: string | null }
+export interface Snippet { name: string; dis: string; fragment: { blocks: Block[]; wires?: Wire[]; variables?: VariableDef[] } }
+export const templateDraft = (templateId: string) =>
+  post<{ ok: boolean; name: string; roles: Role[] }>(`/api/logic/template-draft/${enc(templateId)}`, {});
+export const listSnippets = () => get<Snippet[]>("/api/logic-snippets");
+export const putSnippet = (name: string, dis: string, fragment: unknown) => put(`/api/logic-snippets/${enc(name)}`, { dis, fragment });
+export const deleteSnippet = (name: string) => del(`/api/logic-snippets/${enc(name)}`);
+export const publishVariable = (body: { variable: string; diagram?: string; point: string; dis?: string; equip?: string; space?: string }) =>
+  post<{ ok: boolean; point: string }>("/api/logic-variables/publish", body);

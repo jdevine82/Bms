@@ -1,6 +1,6 @@
 # Milestone 10: control logic
 
-Status: **10A built** (6 Nov 2026); **10B built** (7 Nov 2026); **10C in progress** (7 Nov 2026). Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
+Status: **10A built** (6 Nov 2026); **10B built** (7 Nov 2026); **10C built** (7 Nov 2026). Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
 
 ## Decisions
 
@@ -182,3 +182,21 @@ Keys: Delete or Backspace, Ctrl+Z, Ctrl+Y, Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+D, Ctrl+
 ### Snippets (decision 8; main spec 5.3.2)
 
 - In the editor, **Save as snippet** stores the selection under a name (`logicSnippets` in the setup); the palette's **Snippets** group inserts one where you click, through the same mapping as a paste. Snippets can be removed from the Logic page.
+
+### What 10C built
+
+- **Config:** device protocol `logic` with an empty connection; point address `{variable, diagram?}`; a template's `logic` is a diagram (checked in the setup: readable, and every role it names is in the template); `logicSnippets`. Migration 0014: `logic_instance` (each template instance's switch). The published config schema and logic schema include them.
+- **Runtime:** variable points are never polled; the engine gives them their values (on a change and every 10 seconds) and commands to them set the variable (BMS logic device; `runtime.logic_write`). Template instances are worked out from the setup on every reload: one per equipment or room on a template version with logic, named `<instance>__tpl`, roles mapped to that instance's bindings, its own variables; a published equipment diagram for the same equipment replaces it (state "overridden"), and the publish check lets an equipment diagram take over points its template's instance writes.
+- **API:** `POST /api/logic-variables/publish` (variable, optional diagram, point name, equipment or room); `POST /api/logic/template-draft/{template}` (the template's logic draft and its roles); publishing a template-scope draft takes an optional `templateVersion` and answers with the new template version; `GET /api/logic/by-equip`; `GET`, `PUT`, `DELETE /api/logic-snippets[/{name}]`. Instances answer `GET /api/logic/{name}` (read-only), `/live` and `/enable`; they cannot be deleted.
+- **Web app:** Equipment templates → **Logic** (site templates; copy a built-in one first); the editor's role mode (role pickers, a note, a template version in Publish, no test strip: test on an instance after roll-out); instances on the Logic page and in the editor with Live only and their own switch; **Save as snippet** and the palette's **Snippets** (with remove; a snippet whose points are not on this site opens the import mapping); **Publish as point** for site variables (Logic page) and in Live mode's variables; Setup → Equipment shows **BMS-controlled** or **Device-controlled** and the diagrams writing it.
+
+### How to use 10C
+
+- **A template's logic:** make or copy a site equipment template, open **Logic** on it, build the diagram with roles, **Publish…** (a new template version), then roll the version out (Equipment templates → roll-out: all, a group or one). Each instance appears on the Logic page; switch one off there or in its editor.
+- **A variable on the HMI:** on the Logic page (site variables) or in Live mode (a diagram's variables), **Publish as point**, choose the equipment. A constant becomes a setpoint within its limits: it shows on the HMI Setpoints screen (PIN to change), on graphics and trends.
+- **Snippets:** select blocks, **Save as snippet**, name it; insert it from the palette in any diagram.
+
+### 10C tests
+
+- Backend (`tests/test_logic.py`): variables as points (the BMS logic device made on publishing, setpoint with the variable's limits, read-only memory point, the live value following the variable, a command setting it and refused outside the limits, a missing variable making the point Bad); template logic (role mode checks, a template version from Publish, nothing running before roll-out, the instance running and writing after it, its Live and read-only detail, the equipment panel, its own switch with the fail-safe, no deleting an instance, an equipment diagram replacing it, the setup refusing a template whose logic names an unknown role); snippets in the setup.
+- Browser (`web/tests/logic-templates.mjs`): Logic from a template opens role mode; roles instead of points; publishing a template version; the instance listed and running after roll-out, Live only, writing 120 kW; the equipment panel; publishing a variable as a point from the Logic page; a command to that point setting the variable and the instance writing the new value; saving and inserting a snippet; snippets in the setup file.

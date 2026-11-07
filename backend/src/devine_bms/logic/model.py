@@ -34,6 +34,7 @@ class _Settings(_Model):
 
 class PointReadSettings(_Settings):
     point: str = ""
+    role: str = ""  # in a template's logic: the role instead of a point (milestone 10C)
     on_bad: Literal["fallback", "failsafe"] = "fallback"
     fallback: Value | None = None
 
@@ -51,6 +52,7 @@ class Failsafe(_Model):
 
 class PointWriteSettings(_Settings):
     point: str = ""
+    role: str = ""
     failsafe: Failsafe = Failsafe()
 
 
@@ -156,9 +158,9 @@ def _n(*names: str, required: bool = True) -> Callable:
 
 BLOCKS: dict[str, BlockType] = {b.type: b for b in [
     BlockType("point_read", "Read and write", "Point read", PointReadSettings,
-              lambda s, c: [], lambda s, c: [Port("out", c.point_type(s.point))]),
+              lambda s, c: [], lambda s, c: [Port("out", c.point_type(s.role or s.point))]),
     BlockType("point_write", "Read and write", "Point write", PointWriteSettings,
-              lambda s, c: [Port("in", c.point_type(s.point))], lambda s, c: []),
+              lambda s, c: [Port("in", c.point_type(s.role or s.point))], lambda s, c: []),
     BlockType("variable_read", "Read and write", "Variable read", VariableSettings,
               lambda s, c: [], lambda s, c: [Port("out", c.variable_type(s.variable))]),
     BlockType("variable_write", "Read and write", "Variable write", VariableSettings,
@@ -241,8 +243,9 @@ class Diagram(_Model):
     schema_: Literal["devine-bms-logic/1"] = Field(default=SCHEMA, alias="schema")
     name: str = Field(pattern=NAME_PATTERN, max_length=100)
     dis: str = ""
-    scope: Literal["equipment", "site"] = "site"
+    scope: Literal["equipment", "site", "template"] = "site"
     equip: str | None = None
+    template: str | None = None  # scope template: the equipment template it belongs to (milestone 10C)
     description: str | None = Field(default=None, max_length=2000)
     variables: list[VariableDef] = Field(default=[], max_length=200)
     blocks: list[Block] = Field(default=[], max_length=500)

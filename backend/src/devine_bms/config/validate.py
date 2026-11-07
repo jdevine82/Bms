@@ -22,6 +22,7 @@ from devine_bms.config.model import (
     ObjectType,
     PointType,
     SiteConfig,
+    VariableAddress,
 )
 from devine_bms.drivers.modbus.codec import DataType
 from devine_bms.haystack.library import TagLibrary, load_library
@@ -260,6 +261,7 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
                 "bacnet_ip": (BacnetAddress, "BACnet"),
                 "bacnet_mstp": (BacnetAddress, "BACnet"),
                 "mqtt": (MqttAddress, "MQTT"),
+                "logic": (VariableAddress, "BMS logic"),
             }.get(device.protocol, (ModbusAddress, "Modbus"))
             if not isinstance(point.address, wanted):
                 error(where, f"device '{point.device}' is {label}, so the point needs a {label} address")
@@ -272,6 +274,8 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             _check_modbus_point(where, point, error)
         elif isinstance(point.address, BacnetAddress):
             _check_bacnet_point(where, point, error)
+        elif isinstance(point.address, VariableAddress):
+            pass  # the variable is checked when logic runs (variables live in the database)
         else:
             _check_mqtt_point(where, point, error)
 
@@ -293,6 +297,8 @@ def writable(point) -> bool:
         return a.object_type.value in ("coil", "holdingRegister")
     if isinstance(a, BacnetAddress):
         return not a.object_type.value.endswith("Input")
+    if isinstance(a, VariableAddress):
+        return True
     return bool(a.command_topic)
 
 
@@ -364,6 +370,8 @@ def _check_equip_templates(config, error, warning) -> None:
         roles = [r.role for r in t.roles]
         if len(roles) != len(set(roles)):
             error(where, "role names must be unique")
+        if t.logic is not None:
+            _check_template_logic(where, t, error)
         for r in t.roles:
             _check_alarms(f"{where}.roles.{r.role}", r.kind, r.enum, r.alarms, error)
             if r.occupancy is not None:
@@ -559,3 +567,20 @@ def _check_graphics(config, error, warning) -> None:
                     point(at, name)
                 if item.rule is not None:
                     bands(at, item.rule)
+
+
+def _check_template_logic(where: str, t, error) -> None:
+    """A template's logic (milestone 10C): a readable diagram whose point blocks name its roles."""
+    from devine_bms.logic.check import errors as logic_errors
+    from devine_bms.logic.check import plan
+
+    body = {**t.logic, "name": t.logic.get("name") or "template_logic", "scope": "template", "template": t.id}
+    p, issues = plan(body, None)
+    for i in logic_errors(issues):
+        error(f"{where}.logic", (f"{i.block}: " if i.block else "") + i.message)
+    roles = {r.role for r in t.roles}
+    for b in body.get("blocks", []):
+        role = (b.get("settings") or {}).get("role")
+        if b.get("type") in ("point_read", "point_write") and role and role not in roles:
+            error(f"{where}.logic", f"{b.get('id')}: role '{role}' is not in the template")
+    del p

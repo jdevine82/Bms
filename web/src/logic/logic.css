@@ -121,3 +121,8 @@ table.vars input { width: 90px !important; }
 }
 .logic-canvas .react-flow__minimap-node.mm-node { fill: var(--muted-bg); stroke: var(--text-muted); }
 .logic-canvas .react-flow__minimap { border: 1px solid var(--border); border-radius: 6px; }
+.snippet-row { display: flex; gap: 4px; }
+.snippet-row button:first-child { flex: 1; }
+.logic-palette .snippet-row .snippet-remove { width: auto; flex: none; cursor: pointer; }
+.template-note { background: var(--muted-bg); border-radius: 8px; padding: 8px 10px; margin: 0; }
+.issue-list li.error, .issue-list li.warning { border: 0; border-bottom: 1px solid var(--grid); border-radius: 0; background: none; color: var(--text); padding: 3px 0; margin: 0; font-size: 13px; }

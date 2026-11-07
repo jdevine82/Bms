@@ -40,6 +40,8 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [d, setD] = useState<Diagram | null>(null);
   const [mode, setMode] = useState<"edit" | "live">(admin ? "edit" : "live");
+  const [roles, setRoles] = useState<api.Role[] | null>(null); // role mode: a template's logic (milestone 10C)
+  const [snippets, setSnippets] = useState<api.Snippet[]>([]);
   const [points, setPoints] = useState<Point[]>([]);
   const [variables, setVariables] = useState<SiteVariable[]>([]);
   const [schedules, setSchedules] = useState<{ name: string; dis: string }[]>([]);
@@ -62,6 +64,10 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
   const reload = useCallback(async () => {
     const got = await api.getLogic(name);
     setDetail(got);
+    if (got.instance) setMode("live"); // a template instance is read-only: it runs the template's logic
+    if (got.draft.scope === "template" && got.draft.template) {
+      api.templateDraft(got.draft.template).then((r) => setRoles(r.roles)).catch(() => setRoles([]));
+    }
     const draft = { ...got.draft, variables: got.draft.variables ?? [], blocks: got.draft.blocks ?? [], wires: got.draft.wires ?? [],
                     scope: got.draft.scope ?? "site", dis: got.draft.dis ?? name };
     setD(autoLayout(draft));
@@ -74,6 +80,7 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
     api.listVariables().then(setVariables).catch(() => undefined);
     get<{ name: string; dis: string }[]>("/api/schedules").then(setSchedules).catch(() => undefined);
     get<{ equips?: { name: string; dis: string }[] }>("/api/site").then((s) => setEquips(s.equips ?? [])).catch(() => undefined);
+    api.listSnippets().then(setSnippets).catch(() => undefined);
   }, [reload]);
 
   // Autosave the draft a second after each change (main spec 5.3.1: drafts save automatically).
@@ -104,11 +111,13 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
   }, [mode, name]);
 
   const typeInfo: TypeInfo = useMemo(() => {
-    const kinds = Object.fromEntries(points.map((p) => [p.name, KIND_TYPE[p.kind]]));
+    // In role mode the template's roles stand in for points.
+    const kinds = roles ? Object.fromEntries(roles.map((r) => [r.role, KIND_TYPE[r.kind]]))
+      : Object.fromEntries(points.map((p) => [p.name, KIND_TYPE[p.kind]]));
     const varTypes: Record<string, any> = Object.fromEntries(variables.filter((v) => v.scope === "site").map((v) => [v.name, v.type]));
     for (const v of d?.variables ?? []) varTypes[v.name] = v.type;
     return { pointType: (n) => kinds[n] ?? null, variableType: (n) => varTypes[n] ?? null };
-  }, [points, variables, d?.variables]);
+  }, [points, variables, d?.variables, roles]);
 
   /** A change that can be undone. */
   const change = useCallback((next: Diagram, before?: Diagram) => {
@@ -221,6 +230,32 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
     }
   };
 
+  const saveSnippet = async () => {
+    if (!d || !selected.size) return;
+    const dis = prompt("Name the snippet (for example Run-on timer with alarm)");
+    if (!dis) return;
+    const id = dis.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^(\d)/, "s_$1") || "snippet";
+    try {
+      await api.putSnippet(id, dis, fragmentOf(d, selected));
+      setSnippets(await api.listSnippets());
+      setMessage({ kind: "ok", text: `Saved the snippet ${dis}; it is in the palette.` });
+    } catch (e) { setMessage({ kind: "error", text: e instanceof SetupError ? e.message : String(e) }); }
+  };
+  const [importText, setImportText] = useState<string | null>(null);
+  const insertSnippet = (sn: api.Snippet) => {
+    if (!d) return;
+    const known = new Set(points.map((p) => p.name));
+    const unresolved = sn.fragment.blocks.some((b) => b.settings?.point && !known.has(b.settings.point));
+    if (unresolved) {
+      setImportText(JSON.stringify(sn.fragment, null, 2)); // map its points first, as for a paste
+      setDialog("import");
+      return;
+    }
+    const { diagram, added } = mergeFragment(d, sn.fragment, flowCentre());
+    change(diagram);
+    setSelected(new Set(added));
+  };
+
   const flowCentre = () => {
     const el = document.querySelector(".logic-canvas");
     const box = el?.getBoundingClientRect();
@@ -331,7 +366,8 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
       <button type="button" className="btn" onClick={onClose}>← Logic</button></div>;
   }
   const one = selected.size === 1 ? d.blocks.find((b) => selected.has(b.id)) ?? null : null;
-  const status = detail.publishedVersion ? `Published version ${detail.publishedVersion}` : "Draft (not published)";
+  const status = detail.instance ? `Template ${detail.template} version ${detail.templateVersion} on ${detail.equip}`
+    : detail.publishedVersion ? `Published version ${detail.publishedVersion}` : "Draft (not published)";
   const same = (a: Diagram, b: Diagram) => (["dis", "scope", "equip", "variables", "blocks", "wires"] as const)
     .every((k) => JSON.stringify(a[k] ?? null) === JSON.stringify(b[k] ?? null));
   const changed = detail.published !== null && !same(detail.published, d);
@@ -346,7 +382,7 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
           <h2>{d.dis || name}</h2>
           <span className="muted small"><code>{name}</code> · {status}{stateText ? ` · ${stateText}` : ""}{changed ? " · draft has unpublished changes" : ""}</span>
         </div>
-        {admin && detail.publishedVersion !== null && (
+        {admin && (detail.publishedVersion !== null || detail.instance) && d.scope !== "template" && (
           <label className="logic-switch">
             <input type="checkbox" checked={detail.enabled} onChange={async (e) => {
               const on = e.target.checked;
@@ -361,7 +397,7 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
         )}
         <span className="logic-spacer" />
         <div className="seg" role="group" aria-label="Mode">
-          {admin && <button type="button" className={mode === "edit" ? "active" : ""} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Edit</button>}
+          {admin && !detail.instance && <button type="button" className={mode === "edit" ? "active" : ""} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Edit</button>}
           <button type="button" className={mode === "live" ? "active" : ""} aria-pressed={mode === "live"} onClick={() => setMode("live")}>Live</button>
         </div>
         {admin && mode === "edit" && (
@@ -380,7 +416,12 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
         <p>{message.text}</p></div>}
 
       <div className={`logic-body${mode === "live" ? " live" : ""}`}>
-        {mode === "edit" && <Palette onAdd={(t) => addBlock(t)} />}
+        {mode === "edit" && <Palette onAdd={(t) => addBlock(t)} snippets={snippets} onSnippet={(sn) => insertSnippet(sn)}
+                                     onRemoveSnippet={admin ? async (sn) => {
+                                       if (!confirm(`Remove the snippet ${sn.dis}?`)) return;
+                                       await api.deleteSnippet(sn.name);
+                                       setSnippets(await api.listSnippets());
+                                     } : undefined} />}
         <div className="logic-main">
           <div className="logic-canvas" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
             {mode === "live" && !detail.published ? (
@@ -402,6 +443,7 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
               <div className="canvas-tools" role="toolbar" aria-label="Selection">
                 <button type="button" className="btn danger" onClick={() => removeSelection()}>Delete</button>
                 {selected.size > 0 && <button type="button" className="btn" onClick={() => void copySelection().then((x) => { if (x) void paste(x); })}>Duplicate</button>}
+                {selected.size > 0 && <button type="button" className="btn" onClick={() => void saveSnippet()}>Save as snippet</button>}
               </div>
             )}
             {menu && (
@@ -416,15 +458,23 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
               </div>
             )}
           </div>
-          {mode === "edit" && admin && <TestStrip name={name} diagram={d} points={points} />}
+          {mode === "edit" && admin && d.scope !== "template" && <TestStrip name={name} diagram={d} points={points} />}
+          {mode === "edit" && d.scope === "template" && (
+            <p className="muted small template-note">
+              This is the logic of the equipment template <strong>{d.template}</strong>: blocks name roles, and each instance runs
+              its own copy with its own points. Publishing saves a new template version; roll it out from Equipment templates.
+            </p>
+          )}
         </div>
         <Properties diagram={d} block={one} mode={mode} admin={admin} points={points} variables={variables} schedules={schedules}
+                    roles={roles}
                     equips={equips} issues={issues} live={live} typeInfo={typeInfo}
                     onDiagram={(next) => change(next)} onSelect={(id) => setSelected(new Set([id]))}
                     onVariables={() => api.listVariables().then(setVariables)} />
       </div>
 
-      {dialog === "publish" && <PublishDialog name={name} diagram={d} errors={errorCount} onClose={() => setDialog(null)}
+      {dialog === "publish" && <PublishDialog name={name} diagram={d} errors={errorCount} roleMode={d.scope === "template"}
+                                              onClose={() => setDialog(null)}
                                               onDone={async (text) => { setDialog(null); setMessage({ kind: "ok", text }); await reload(); }} />}
       {dialog === "versions" && <VersionsDialog detail={detail} onClose={() => setDialog(null)}
                                                 onRestore={async (v) => {
@@ -434,16 +484,18 @@ function Editor({ name, onClose }: { name: string; onClose: () => void }) {
                                                   await reload();
                                                 }} />}
       {dialog === "import" && <ImportDialog current={d} points={points} variables={variables} schedules={schedules}
-                                            onClose={() => setDialog(null)}
+                                            initialText={importText ?? undefined}
+                                            onClose={() => { setDialog(null); setImportText(null); }}
                                             onPaste={(diagram, added) => { change(diagram); setSelected(new Set(added)); setDialog(null); }} />}
       {dialog === "export" && <ExportDialog diagram={d} selection={selected} onClose={() => setDialog(null)} />}
     </div>
   );
 }
 
-function PublishDialog({ name, diagram, errors, onClose, onDone }: {
-  name: string; diagram: Diagram; errors: number; onClose: () => void; onDone: (text: string) => void;
+function PublishDialog({ name, diagram, errors, roleMode, onClose, onDone }: {
+  name: string; diagram: Diagram; errors: number; roleMode: boolean; onClose: () => void; onDone: (text: string) => void;
 }) {
+  const [version, setVersion] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [note, setNote] = useState("");
   const [problems, setProblems] = useState<Issue[] | null>(null);
@@ -457,14 +509,22 @@ function PublishDialog({ name, diagram, errors, onClose, onDone }: {
     <div className="dialog-backdrop" role="dialog" aria-label="Publish">
       <div className="dialog">
         <h3>Publish {diagram.dis || name}</h3>
-        <p className="muted">A new version runs at once. If an input goes bad, logic is disabled or the server stops, each output goes to its fail-safe:</p>
+        <p className="muted">{roleMode
+          ? `This saves a new version of the template ${diagram.template}. Instances run it once they are rolled out to it (Equipment templates). If an input goes bad, logic is disabled or the server stops, each output goes to its fail-safe:`
+          : "A new version runs at once. If an input goes bad, logic is disabled or the server stops, each output goes to its fail-safe:"}</p>
         {outputs.length ? (
           <ul className="failsafe-list">
-            {outputs.map((b) => <li key={b.id}><strong>{b.settings?.point || b.id}</strong>: {failsafe(b)}</li>)}
+            {outputs.map((b) => <li key={b.id}><strong>{b.settings?.role || b.settings?.point || b.id}</strong>: {failsafe(b)}</li>)}
           </ul>
         ) : <p className="muted">This diagram writes no points.</p>}
         {errors > 0 && <p className="error">The draft has {errors} error{errors > 1 ? "s" : ""}; see Checks on the right.</p>}
         <label className="prop-inline"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /> I confirm these fail-safes</label>
+        {roleMode && (
+          <div className="prop">
+            <label htmlFor="publish-version">New template version</label>
+            <input id="publish-version" value={version} placeholder="next number" onChange={(e) => setVersion(e.target.value)} />
+          </div>
+        )}
         <div className="prop">
           <label htmlFor="publish-note">Note (what changed)</label>
           <input id="publish-note" value={note} onChange={(e) => setNote(e.target.value)} />
@@ -475,8 +535,10 @@ function PublishDialog({ name, diagram, errors, onClose, onDone }: {
             setBusy(true);
             try {
               await api.saveDraft(name, diagram);
-              const r = await api.publish(name, note);
-              onDone(`Published version ${r.version}; it is running.`);
+              const r = await api.publish(name, note, version.trim() || undefined);
+              onDone(r.templateVersion
+                ? `Saved as template ${diagram.template} version ${r.templateVersion}; roll it out from Equipment templates.`
+                : `Published version ${r.version}; it is running.`);
             } catch (e) {
               setProblems(e instanceof SetupError ? e.issues as unknown as Issue[] : []);
               if (!(e instanceof SetupError) || !e.issues.length) setProblems([{ level: "error", message: String(e instanceof Error ? e.message : e) }]);

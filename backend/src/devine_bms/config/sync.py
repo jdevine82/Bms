@@ -157,6 +157,8 @@ def _site_settings(config: cfg.SiteConfig) -> dict:
         settings["equipTemplates"] = [t.model_dump(mode="json", by_alias=True) for t in config.equip_templates]
     if config.graphics:
         settings["graphics"] = [g.model_dump(mode="json", by_alias=True, exclude_none=True) for g in config.graphics]
+    if config.logic_snippets:
+        settings["logicSnippets"] = [x.model_dump(mode="json", by_alias=True) for x in config.logic_snippets]
     if config.symbols:
         settings["symbols"] = [x.model_dump(mode="json", by_alias=True, exclude_none=True) for x in config.symbols]
     return settings

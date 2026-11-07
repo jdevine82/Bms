@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from devine_bms.auth.service import Actor
 from devine_bms.db import models as db
 from devine_bms.logic.check import errors, plan
-from devine_bms.logic.engine import LogicEngine, Var
+from devine_bms.logic.engine import INSTANCE_SUFFIX, LogicEngine, Var
 from devine_bms.logic.model import NAME_PATTERN, SCHEMA
 
 
@@ -32,10 +32,11 @@ def _who(actor: Actor) -> str:
 
 
 class LogicService:
-    def __init__(self, engine: LogicEngine, sessions, record=None) -> None:
+    def __init__(self, engine: LogicEngine, sessions, record=None, setup=None) -> None:
         self.engine = engine
         self.sessions = sessions
         self.record = record
+        self.setup = setup  # SetupService: publishing a variable as a point is a setup change
 
     async def _site_id(self, session):
         site = await session.scalar(select(db.Site).where(db.Site.name == self.engine.site_name))
@@ -54,7 +55,7 @@ class LogicService:
         writes = [b["settings"]["point"] for b in row.draft.get("blocks", [])
                   if b.get("type") == "point_write" and (b.get("settings") or {}).get("point")]
         return {"name": row.name, "dis": row.dis, "scope": row.draft.get("scope", "site"),
-                "equip": row.draft.get("equip"), "enabled": row.enabled, "publishedVersion": row.published_version,
+                "equip": row.draft.get("equip"), "template": row.draft.get("template"), "enabled": row.enabled, "publishedVersion": row.published_version,
                 "state": status["state"], "issues": status["issues"], "draftAt": row.draft_at.isoformat(),
                 "draftBy": row.draft_by, "writes": writes}
 
@@ -64,9 +65,44 @@ class LogicService:
         async with self.sessions() as session:
             rows = (await session.scalars(select(db.LogicDiagram).where(
                 db.LogicDiagram.site_id == await self._site_id(session)).order_by(db.LogicDiagram.name))).all()
-            return [self._summary(r) for r in rows]
+            out = [self._summary(r) for r in rows]
+        return out + [self._instance_summary(n) for n in sorted(self.engine.instances)]
+
+    def _instance_summary(self, name: str) -> dict:
+        """A template logic instance (milestone 10C): it runs the template version's logic."""
+        meta = self.engine.instances[name]
+        status = self.engine.status.get(name, {"state": "unknown", "issues": []})
+        return {"name": name, "dis": f"{meta['dis']}: {meta['template']}", "scope": "template", "equip": meta["equip"],
+                "template": meta["template"], "templateVersion": meta["templateVersion"], "instance": True,
+                "enabled": meta["enabled"], "publishedVersion": None, "state": status["state"],
+                "issues": status["issues"], "draftAt": None, "draftBy": None, "writes": self.engine.writes.get(name, [])}
+
+    def by_equip(self) -> list[dict]:
+        """The equipment panel (main spec 5.3): which diagrams write each piece of equipment's
+        points, and whether it is BMS-controlled (a running diagram writes one) or device-controlled."""
+        cfg = self.engine.runtime.config
+        names = {e.id: e for e in cfg.equips}
+        equip_of = {p.name: names[p.equip_id].name for p in cfg.points if p.equip_id in names}
+        out = {e.name: {"equip": e.name, "dis": e.dis, "control": "device", "diagrams": []} for e in cfg.equips}
+        for diagram, points in sorted(self.engine.writes.items()):
+            state = self.engine.status.get(diagram, {}).get("state", "unknown")
+            for equip in sorted({equip_of[p] for p in points if p in equip_of}):
+                out[equip]["diagrams"].append({"name": diagram, "state": state,
+                                               "points": [p for p in points if equip_of.get(p) == equip],
+                                               "template": diagram in self.engine.instances})
+                if state == "running":
+                    out[equip]["control"] = "bms"
+        return list(out.values())
+
+    def _template_body(self, name: str) -> dict | None:
+        r = self.engine.running.get(name)
+        return r.plan.diagram.model_dump(mode="json", by_alias=True) if r else None
 
     async def get(self, name: str) -> dict:
+        if name in self.engine.instances:  # an instance: read-only, its body is the mapped template logic
+            body = self._template_body(name)
+            return {**self._instance_summary(name), "draft": body, "published": body, "draftChanged": False,
+                    "versions": []}
         async with self.sessions() as session:
             row = await self._row(session, name)
             versions = (await session.scalars(select(db.LogicVersion).where(
@@ -77,8 +113,14 @@ class LogicService:
                     "versions": [{"version": v.version, "note": v.note, "by": v.published_by,
                                   "at": v.published_at.isoformat()} for v in versions]}
 
-    def check(self, name: str, body: dict) -> dict:
-        p, issues = plan(body, self.engine.site_view(exclude=name))
+    def check(self, name: str, body: dict, setup: dict | None = None) -> dict:
+        site = self._role_view(body, setup) if body.get("scope") == "template" and setup is not None \
+            else self.engine.site_view(exclude=name)
+        if body.get("scope") == "equipment" and body.get("equip"):
+            # An equipment diagram replaces that equipment's template logic, so it does not compete with it.
+            replaced = f"{body['equip']}{INSTANCE_SUFFIX}"
+            site.writers = {p: d for p, d in site.writers.items() if d != replaced}
+        p, issues = plan(body, site)
         # `ok` is that the request worked; `valid` is whether the diagram passes the checks.
         return {"ok": True, "valid": p is not None and not errors(issues), "issues": [i.as_dict() for i in issues]}
 
@@ -106,17 +148,23 @@ class LogicService:
             row.draft_at = func.now()
         if created:
             await self._audit(actor, "logic-create", f"created logic diagram {name}", name, None, None)
-        return {"ok": True, "created": created, **self.check(name, body)}
+        setup = await self.setup.export() if body.get("scope") == "template" and self.setup is not None else None
+        return {"ok": True, "created": created, **self.check(name, body, setup)}
 
-    async def publish(self, actor: Actor, name: str, confirm_failsafe: bool, note: str | None = None) -> dict:
+    async def publish(self, actor: Actor, name: str, confirm_failsafe: bool, note: str | None = None,
+                      template_version: str | None = None) -> dict:
         async with self.sessions() as session:
             row = await self._row(session, name)
             body = row.draft
-        result = self.check(name, body)
+        setup = await self.setup.export() if body.get("scope") == "template" and self.setup is not None else None
+        result = self.check(name, body, setup)
         if not result["valid"]:
             raise LogicError("the diagram fails the publish checks", issues=result["issues"])
         if not confirm_failsafe and any(b.get("type") == "point_write" for b in body.get("blocks", [])):
             raise LogicError("confirm each output's fail-safe before publishing (confirmFailsafe)", 409)
+        new_template = None
+        if body.get("scope") == "template":
+            new_template = await self._publish_template(actor, body, setup, template_version, note)
         async with self.sessions() as session, session.begin():
             row = await self._row(session, name)
             last = await session.scalar(select(func.max(db.LogicVersion.version)).where(
@@ -127,8 +175,77 @@ class LogicService:
             row.published_version = version
         await self.engine.reload()
         await self._audit(actor, "logic-publish", f"published logic diagram {name} version {version}"
+                          + (f" as template {new_template['id']} version {new_template['version']}" if new_template else "")
                           + (f": {note}" if note else ""), name, None, {"version": version})
-        return {"ok": True, "version": version, "issues": result["issues"], "state": self.engine.status.get(name)}
+        return {"ok": True, "version": version, "issues": result["issues"], "state": self.engine.status.get(name),
+                **({"templateVersion": new_template["version"]} if new_template else {})}
+
+    # ---------- template logic (milestone 10C, decision 7) ----------
+
+    def _role_view(self, body: dict, setup: dict):
+        """The checks' view for a template's logic: its roles stand in for points."""
+        from devine_bms.config.model import EquipTemplate
+        from devine_bms.logic.check import SitePoint
+        from devine_bms.templates.equip import find
+
+        t = find([EquipTemplate.model_validate(x) for x in setup.get("equipTemplates") or []], body.get("template") or "")
+        site = self.engine.site_view()
+        site.writers = {}
+        site.points = {} if t is None else {
+            r.role: SitePoint(r.role, r.kind.value, r.type.value in ("sp", "cmd"), r.occupancy is not None)
+            for r in t.roles}
+        return site
+
+    async def _publish_template(self, actor: Actor, body: dict, setup: dict, version: str | None,
+                                note: str | None) -> dict:
+        """Save the logic in a new version of its template (instances move by the roll-out)."""
+        from devine_bms.config.model import EquipTemplate
+        from devine_bms.setup.equip_templates import EquipTemplateService
+        from devine_bms.setup.service import SetupError
+        from devine_bms.templates.equip import all_versions, builtin_equip_templates
+
+        tid = body.get("template") or ""
+        if tid in builtin_equip_templates():
+            raise LogicError(f"'{tid}' is a built-in template; save a copy of it under a new ID first, then give it logic")
+        versions = all_versions([EquipTemplate.model_validate(x) for x in setup.get("equipTemplates") or []]).get(tid)
+        if not versions:
+            raise LogicError(f"no equipment template '{tid}'", 404)
+        latest = versions[-1]
+        if not version:
+            parts = latest.version.split(".")
+            version = ".".join([*parts[:-1], str(int(parts[-1]) + 1)]) if parts[-1].isdigit() else f"{latest.version}.1"
+        logic = {k: v for k, v in body.items() if k not in ("name", "schema")}
+        new = latest.model_dump(mode="json", by_alias=True) | {"version": version, "logic": {"schema": SCHEMA, **logic}}
+        if note:
+            new["notes"] = [*new.get("notes", []), f"{version}: {note}"]
+        try:
+            await EquipTemplateService(self.setup).save(new, actor)
+        except SetupError as exc:
+            raise LogicError(exc.message, exc.status) from exc
+        return {"id": tid, "version": version}
+
+    async def template_draft(self, actor: Actor, template_id: str) -> dict:
+        """Open a template's logic for editing: its draft, started from the latest version's logic."""
+        from devine_bms.config.model import EquipTemplate
+        from devine_bms.templates.equip import find
+
+        data = await self.setup.export()
+        t = find([EquipTemplate.model_validate(x) for x in data.get("equipTemplates") or []], template_id)
+        if t is None:
+            raise LogicError(f"no equipment template '{template_id}'", 404)
+        name = "tpl_" + re.sub(r"[^a-z0-9_]", "_", template_id)
+        async with self.sessions() as session:
+            exists = await session.scalar(select(db.LogicDiagram).where(
+                db.LogicDiagram.site_id == await self._site_id(session), db.LogicDiagram.name == name))
+        if exists is None:
+            start = dict(t.logic or {})
+            start.update({"name": name, "dis": f"{t.dis} logic", "scope": "template", "template": t.id})
+            start.setdefault("variables", [])
+            start.setdefault("blocks", [])
+            start.setdefault("wires", [])
+            await self.save_draft(actor, name, start)
+        return {"ok": True, "name": name, "roles": [{"role": r.role, "dis": r.dis, "kind": r.kind.value,
+                                                     "type": r.type.value, "unit": r.unit} for r in t.roles]}
 
     async def restore(self, actor: Actor, name: str, version: int) -> dict:
         async with self.sessions() as session, session.begin():
@@ -144,7 +261,15 @@ class LogicService:
 
     async def enable(self, actor: Actor, name: str, enabled: bool) -> dict:
         async with self.sessions() as session, session.begin():
-            row = await self._row(session, name)
+            if name in self.engine.instances:  # a template instance's own switch
+                site_id = await self._site_id(session)
+                row = await session.scalar(select(db.LogicInstance).where(
+                    db.LogicInstance.site_id == site_id, db.LogicInstance.name == name))
+                if row is None:
+                    row = db.LogicInstance(site_id=site_id, name=name)
+                    session.add(row)
+            else:
+                row = await self._row(session, name)
             row.enabled = enabled
         await self.engine.reload()
         await self._audit(actor, "logic-enable" if enabled else "logic-disable",
@@ -154,6 +279,8 @@ class LogicService:
         return {"ok": True, "enabled": enabled, "state": self.engine.status.get(name)}
 
     async def delete(self, actor: Actor, name: str) -> dict:
+        if name in self.engine.instances:
+            raise LogicError("a template's logic runs on each instance; switch this one off, or unlink the equipment")
         async with self.sessions() as session, session.begin():
             row = await self._row(session, name)
             await session.delete(row)
@@ -247,6 +374,86 @@ class LogicService:
         await self._audit(actor, "variable", f"set {diagram}.{name} to {v.value}", f"{diagram}.{name}",
                           {"value": before}, {"value": v.value}, kind="variable")
         return {"ok": True, "variable": v.as_dict()}
+
+    async def publish_variable(self, actor: Actor, body: dict) -> dict:
+        """Make a point for a variable on the BMS logic device (milestone 10C, decision 6). body:
+        variable, diagram (for a diagram's own variable), point (its name), dis, equip or space."""
+        from devine_bms.setup.service import SetupError
+
+        if self.setup is None:
+            raise LogicError("setup is not available")
+        name, diagram = body.get("variable"), body.get("diagram") or None
+        v = self.engine.vars.get(("diagram", diagram, name)) if diagram else self.engine.vars.get(("site", "", name))
+        if v is None:
+            raise LogicError(f"no variable '{name}'" + (f" in {diagram} (publish the diagram first)" if diagram else ""), 404)
+        point = body.get("point") or ""
+        if not re.match(NAME_PATTERN, point):
+            raise LogicError("give the point a name: lowercase letters, digits and _, starting with a letter")
+        if not body.get("equip") and not body.get("space"):
+            raise LogicError("choose the equipment or room the point belongs to")
+        data = await self.setup.export()
+        if not any(d.get("protocol") == "logic" for d in data["devices"]):
+            data["devices"].append({"name": "bms_logic", "dis": "BMS logic", "protocol": "logic", "connection": {}})
+        device = next(d["name"] for d in data["devices"] if d.get("protocol") == "logic")
+        item = {"name": point, "dis": body.get("dis") or v.dis or name, "device": device,
+                "type": "sp" if v.kind == "constant" else "sensor",
+                "kind": {"number": "Number", "bool": "Bool", "text": "Str"}[v.type],
+                "address": {"variable": name, **({"diagram": diagram} if diagram else {})},
+                "pollClass": "fast", "tags": {}}
+        if v.type == "text":
+            raise LogicError("text variables cannot be points yet (a text point needs a list of values)")
+        if v.unit:
+            item["unit"] = v.unit
+        if v.kind == "constant" and v.type == "number" and v.min is not None and v.max is not None:
+            item["writeLimits"] = {"min": v.min, "max": v.max}
+        item.update({k: body[k] for k in ("equip", "space") if body.get(k)})
+        if any(p["name"] == point for p in data["points"]):
+            raise LogicError(f"there is already a point '{point}'", 409)
+        data["points"].append(item)
+        try:
+            result = await self.setup._apply(data, actor, "put", "point", point,
+                                             f"published logic variable {name} as point {point}", None, item, False)
+        except SetupError as exc:
+            raise LogicError(exc.message, exc.status, [{"level": i.severity.value, "message": f"{i.where}: {i.message}"}
+                                                       for i in exc.issues]) from exc
+        return {"ok": True, "point": point, "warnings": result.get("warnings", [])}
+
+    # ---------- snippets (milestone 10C, decision 8) ----------
+
+    async def snippets(self) -> list[dict]:
+        return list((await self.setup.export()).get("logicSnippets") or [])
+
+    async def put_snippet(self, actor: Actor, name: str, body: dict) -> dict:
+        from devine_bms.setup.service import SetupError
+
+        fragment = body.get("fragment")
+        if not isinstance(fragment, dict) or not isinstance(fragment.get("blocks"), list) or not fragment["blocks"]:
+            raise LogicError("a snippet needs blocks (select some first)")
+        _p, issues = plan({"name": "snippet", **fragment}, None)
+        # A snippet is a piece of a diagram: its inputs are wired where it is inserted.
+        blocking = [i for i in errors(issues) if "is not wired and has no value" not in i.message]
+        if blocking:
+            raise LogicError("the snippet has errors", issues=[i.as_dict() for i in blocking])
+        data = await self.setup.export()
+        snippets = [x for x in data.get("logicSnippets") or [] if x["name"] != name]
+        item = {"name": name, "dis": body.get("dis") or name, "fragment": {"schema": SCHEMA, **fragment}}
+        data["logicSnippets"] = [*snippets, item]
+        try:
+            await self.setup._apply(data, actor, "put", "logic-snippet", name, f"saved logic snippet {item['dis']}",
+                                    None, None, False)
+        except SetupError as exc:
+            raise LogicError(exc.message, exc.status) from exc
+        return {"ok": True, "snippet": item}
+
+    async def delete_snippet(self, actor: Actor, name: str) -> dict:
+        data = await self.setup.export()
+        before = data.get("logicSnippets") or []
+        if not any(x["name"] == name for x in before):
+            raise LogicError(f"no snippet '{name}'", 404)
+        data["logicSnippets"] = [x for x in before if x["name"] != name]
+        await self.setup._apply(data, actor, "delete", "logic-snippet", name, f"removed logic snippet {name}",
+                                None, None, False)
+        return {"ok": True}
 
     async def _audit(self, actor: Actor, action: str, summary: str, name: str | None, before: Any, after: Any,
                      kind: str = "logic") -> None:
