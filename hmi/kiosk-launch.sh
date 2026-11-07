@@ -1,6 +1,7 @@
 #!/bin/sh
 # Started by bms-kiosk.service inside cage (milestone 3 spec 5).
 # Opens the local waiting page, which moves to <server>/hmi once the site server answers.
+# With standby (milestone 11) the pages also ask the Pi's own backend, and open it once it has taken over.
 set -eu
 
 # shellcheck source=/dev/null
@@ -30,4 +31,4 @@ exec "$BROWSER" \
     --disable-pinch \
     --password-store=basic \
     --check-for-update-interval=31536000 \
-    "file:///opt/devine-bms/hmi/waiting.html?server=${BMS_SERVER_URL}"
+    "file:///opt/devine-bms/hmi/waiting.html?server=${BMS_SERVER_URL}${BMS_STANDBY_URL:+&standby=${BMS_STANDBY_URL}}"

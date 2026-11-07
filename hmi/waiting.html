@@ -1,8 +1,10 @@
 <!doctype html>
 <!--
   Devine BMS HMI waiting page (milestone 3 spec 5). Installed on the Pi and opened first by the kiosk.
-  Usage: file:///opt/devine-bms/hmi/waiting.html?server=http://<site server>:8000
+  Usage: file:///opt/devine-bms/hmi/waiting.html?server=http://<site server>:8000[&standby=http://localhost:8000]
   It checks <server>/api/health every 3 seconds and opens <server>/hmi as soon as the server answers.
+  With standby (milestone 11: the Pi can take over), it also asks the Pi itself and opens the Pi's
+  HMI once the Pi has taken over (direct mode).
 -->
 <html lang="en">
   <head>
@@ -69,7 +71,9 @@
     </main>
     <script>
       "use strict";
-      const server = (new URLSearchParams(location.search).get("server") || "").replace(/\/+$/, "");
+      const params = new URLSearchParams(location.search);
+      const server = (params.get("server") || "").replace(/\/+$/, "");
+      const standby = (params.get("standby") || "").replace(/\/+$/, "");
       const serverEl = document.getElementById("server");
       const stateEl = document.getElementById("state");
       const clockEl = document.getElementById("clock");
@@ -85,10 +89,26 @@
           // The page is a local file, so the answer is opaque; any answer means the server is up.
           await fetch(server + "/api/health", { mode: "no-cors", cache: "no-store" });
           stateEl.textContent = "Server found. Opening the HMI…";
-          location.replace(server + "/hmi");
+          location.replace(server + "/hmi" + (standby ? "?standby=" + encodeURIComponent(standby) : ""));
           return;
         } catch (e) {
           stateEl.textContent = "No answer yet (tried " + attempts + " times). Retrying every 3 seconds.";
+        }
+        if (standby) {
+          try {
+            const r = await fetch(standby + "/api/standby/state", { cache: "no-store" });
+            const st = await r.json();
+            if (st.mode === "direct") {
+              stateEl.textContent = "This HMI has taken over (direct mode). Opening it…";
+              location.replace(standby + "/hmi");
+              return;
+            }
+            if (st.serverLostS != null) {
+              stateEl.textContent += " This HMI takes over after " + st.takeoverAfterS + " seconds without the server.";
+            }
+          } catch (e) {
+            // The Pi's own backend is still starting.
+          }
         }
         setTimeout(check, 3000);
       }

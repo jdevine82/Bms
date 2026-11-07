@@ -12,17 +12,26 @@ import { HmiLog, HmiOverrides, useStandaloneStatus, usbText } from "./HmiStandal
 import { HmiAlarms } from "./HmiAlarms";
 import { HmiSetpoints } from "./HmiSetpoints";
 import { HmiSchedules } from "./HmiSchedules";
+import { DirectBanner, HandBack, useStandbyState, useTakeoverRedirect } from "./HmiStandby";
 import { useAuth } from "../auth/AuthGate";
 import { Chart, toSamples, type Sample } from "../TrendPage";
 import "./hmi.css";
 
-type Tab = "overview" | "graphics" | "setpoints" | "schedules" | "trends" | "overrides" | "log";
+type Tab = "overview" | "graphics" | "setpoints" | "schedules" | "trends" | "overrides" | "log" | "server";
 // Standalone mode (milestone 11a; main spec 6.5): Graphics, Overrides, Schedules, Log.
 const STANDALONE_TABS: { key: Tab; label: string }[] = [
   { key: "graphics", label: "Graphics" },
   { key: "overrides", label: "Overrides" },
   { key: "schedules", label: "Schedules" },
   { key: "log", label: "Log" },
+];
+// An HMI that has taken over (milestone 11): no schedules or trends run here; Server has Hand control back.
+const DIRECT_TABS: { key: Tab; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "graphics", label: "Graphics" },
+  { key: "setpoints", label: "Setpoints" },
+  { key: "overrides", label: "Overrides" },
+  { key: "server", label: "Server" },
 ];
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
@@ -41,6 +50,8 @@ export function HmiApp() {
   const [tab, setTab] = useState<Tab>("overview");
   const [loadError, setLoadError] = useState(false);
   const [standalone, setStandalone] = useState(false);
+  const [standby, setStandby] = useState(false); // this page is served by an HMI in standby mode
+  const { state: sb, refresh: refreshSb } = useStandbyState(standby);
   const { status: saStatus, refresh: refreshSa } = useStandaloneStatus(standalone);
   const { summary: alarmSummary } = useOpenAlarms();
   useEffect(() => {
@@ -49,9 +60,10 @@ export function HmiApp() {
         setStandalone(true);
         setTab((t) => (t === "overview" ? "graphics" : t));
       }
+      if (m.mode === "standby") setStandby(true);
     }).catch(() => undefined);
   }, []);
-  const tabs = standalone ? STANDALONE_TABS : TABS;
+  const tabs = standalone ? STANDALONE_TABS : standby ? DIRECT_TABS : TABS;
 
   useEffect(() => {
     document.documentElement.dataset.theme = "dark";
@@ -90,12 +102,14 @@ export function HmiApp() {
 
   const connected = useLive(points.length ? "all" : [], onValue);
   const offline = useOffline(connected, points.length > 0);
+  const takeoverNote = useTakeoverRedirect(!standby && (offline || loadError));
 
   return (
     <div className={`hmi ${offline ? "hmi-offline" : ""}`}>
       <header className="hmi-top">
         <span className="hmi-site">{site?.dis ?? "Devine BMS"}</span>
         {standalone && <span className="hmi-standalone">Standalone</span>}
+        {standby && sb?.mode === "direct" && <span className="hmi-direct-chip">Direct mode</span>}
         {standalone && site && (() => {
           const u = usbText(saStatus?.usb, site.ianaTz);
           return <span className={`hmi-usb-chip${u.bad ? " bad" : ""}`}>{u.text}</span>;
@@ -113,9 +127,11 @@ export function HmiApp() {
         <span className="hmi-lock">{user.username && can("operator") ? `Unlocked: ${user.dis}` : "Locked"}</span>
       </header>
 
-      {(offline || loadError) && (
+      {standby && sb && <DirectBanner state={sb} onHandBack={() => setTab("server")} />}
+      {!standby && (offline || loadError) && (
         <div className="hmi-banner" role="alert">
           The site server cannot be reached. Values are not live. Reconnecting…
+          {takeoverNote && <span className="hmi-banner-note"> {takeoverNote}</span>}
         </div>
       )}
 
@@ -128,6 +144,7 @@ export function HmiApp() {
         {site && tab === "schedules" && <HmiSchedules />}
         {site && tab === "graphics" && <GraphicsPage site={site} points={points} live={live} hmi />}
         {site && tab === "overrides" && <HmiOverrides points={points} live={live} tz={site.ianaTz} />}
+        {site && tab === "server" && sb && <HandBack state={sb} tz={site.ianaTz} onDone={() => void refreshSb()} />}
         {site && tab === "log" && <HmiLog site={site} points={points} status={saStatus} onExported={refreshSa} />}
       </main>
 

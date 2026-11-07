@@ -1,6 +1,6 @@
 # Devine BMS backend in standalone mode (milestone 11a): the Pi is the whole system.
 [Unit]
-Description=Devine BMS (standalone)
+Description=Devine BMS on the Pi (standalone, or an HMI in standby)
 Requires=bms-pgram.service
 After=bms-pgram.service network-online.target
 Wants=network-online.target

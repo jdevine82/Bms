@@ -42,11 +42,15 @@ class Runtime:
         self._poll_tasks: list[asyncio.Task] = []  # restarted by reload()
         self._core_tasks: list[asyncio.Task] = []  # stale check and history writer, kept running
         self._reload_lock = asyncio.Lock()
+        self.held = False  # milestone 11: not polling or writing (see hold())
+        self.held_why: str | None = None
 
-    async def start(self) -> None:
+    async def start(self, held: bool = False, why: str | None = None) -> None:
         self.config = await self.storage.load_runtime_config(self.site_name)
         self.tracker = QualityTracker(list(self.config.points), self.cache, self.history.add, self.intervals)
-        await self._start_pollers()
+        self.held, self.held_why = held, (why if held else None)
+        if not held:
+            await self._start_pollers()
         self._core_tasks.append(asyncio.create_task(self._stale_loop(), name="stale check"))
         self._core_tasks.append(asyncio.create_task(self.history.run(), name="history writer"))
         log.info("runtime started: %d connections, %d devices, %d points",
@@ -63,9 +67,38 @@ class Runtime:
             await self._stop_pollers()
             self.config = await self.storage.load_runtime_config(self.site_name)
             self.tracker.replace_points(list(self.config.points))
-            await self._start_pollers()
+            if not self.held:
+                await self._start_pollers()
             log.info("runtime reloaded: %d connections, %d devices, %d points",
                      len(self.buses), len(self.pollers), len(self.config.points))
+
+    async def hold(self, why: str) -> None:
+        """Stop polling and writing and close every connection (milestone 11: one writer at a time:
+        the server while an HMI holds the buses, the HMI in standby)."""
+        async with self._reload_lock:
+            if self.held:
+                return
+            self.held, self.held_why = True, why
+            await self._stop_pollers()
+            for bus in self.buses:
+                close = getattr(getattr(bus, "driver", None), "close", None)
+                if close is not None:
+                    try:
+                        result = close()
+                        if asyncio.iscoroutine(result):
+                            await result
+                    except Exception:  # noqa: BLE001 -- closing is best effort
+                        log.debug("closing %s failed", bus.name, exc_info=True)
+            self.pollers, self.buses, self.cov = [], [], []
+            log.warning("runtime held: %s", why)
+
+    async def resume(self) -> None:
+        async with self._reload_lock:
+            if not self.held:
+                return
+            self.held, self.held_why = False, None
+            await self._start_pollers()
+            log.info("runtime resumed: %d connections", len(self.buses))
 
     async def _start_pollers(self) -> None:
         self.pollers = []
