@@ -121,8 +121,9 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             # Hand mode ends at logic's value, else the schedule's, else the value before (decision 027).
             state["commands"].schedule_value = lambda p: (
                 state["logic"].value_for(p) if state["logic"].owns(p) else state["schedules"].value_for(p))
+            runtime.logic_write = state["logic"].write_variable_point  # variables published as points
             await state["logic"].start()
-            state["logic_service"] = LogicService(state["logic"], sessions, state["auth"].record)
+            state["logic_service"] = LogicService(state["logic"], sessions, state["auth"].record, state["setup"])
             state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
             yield

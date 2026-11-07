@@ -234,7 +234,8 @@
       "default": "site",
       "enum": [
         "equipment",
-        "site"
+        "site",
+        "template"
       ],
       "title": "Scope",
       "type": "string"
@@ -250,6 +251,18 @@
       ],
       "default": null,
       "title": "Equip"
+    },
+    "template": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Template"
     },
     "description": {
       "anyOf": [
@@ -326,6 +339,11 @@
         "point": {
           "default": "",
           "title": "Point",
+          "type": "string"
+        },
+        "role": {
+          "default": "",
+          "title": "Role",
           "type": "string"
         },
         "onBad": {
@@ -429,6 +447,11 @@
         "point": {
           "default": "",
           "title": "Point",
+          "type": "string"
+        },
+        "role": {
+          "default": "",
+          "title": "Role",
           "type": "string"
         },
         "failsafe": {

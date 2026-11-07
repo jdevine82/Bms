@@ -17,6 +17,7 @@ interface Props {
   variables: SiteVariable[];
   schedules: { name: string; dis: string }[];
   equips: { name: string; dis: string }[];
+  roles?: api.Role[] | null; // role mode (a template's logic)
   issues: Issue[];
   live: Live | null;
   typeInfo: TypeInfo;
@@ -82,7 +83,8 @@ export function Properties(props: Props) {
   );
 }
 
-function BlockProps({ diagram, block: b, points, variables, schedules, typeInfo, onDiagram }: Props & { block: Block }) {
+function BlockProps(props: Props & { block: Block }) {
+  const { diagram, block: b, points, variables, schedules, typeInfo, onDiagram } = props;
   const spec = BLOCKS[b.type];
   const s = b.settings ?? {};
   const set = (patch: Record<string, unknown>) =>
@@ -108,7 +110,18 @@ function BlockProps({ diagram, block: b, points, variables, schedules, typeInfo,
       <Field label="Label">{(id) => <input id={id} value={b.label ?? ""} maxLength={80}
         onChange={(e) => onDiagram({ ...diagram, blocks: diagram.blocks.map((x) => (x.id === b.id ? { ...x, label: e.target.value || undefined } : x)) })} />}</Field>
 
-      {(b.type === "point_read" || b.type === "point_write") && (
+      {(b.type === "point_read" || b.type === "point_write") && props.roles && (
+        <Field label="Role" hint="Each instance uses the point bound to this role.">
+          {(id) => (
+            <select id={id} value={s.role ?? ""} onChange={(e) => set({ role: e.target.value, point: "" })}>
+              <option value="">(choose)</option>
+              {props.roles!.filter((r) => b.type === "point_read" || r.type !== "sensor").map((r) =>
+                <option key={r.role} value={r.role}>{r.role} ({r.dis})</option>)}
+            </select>
+          )}
+        </Field>
+      )}
+      {(b.type === "point_read" || b.type === "point_write") && !props.roles && (
         <Field label="Point" hint={s.point ? (known ? `${known.dis}${known.unit ? ` (${known.unit})` : ""}` : "No such point") : undefined}>
           {(id) => (
             <>
@@ -130,7 +143,7 @@ function BlockProps({ diagram, block: b, points, variables, schedules, typeInfo,
             )}
           </Field>
           {(s.onBad ?? "fallback") === "fallback" && (
-            <Field label="Fallback value">{(id) => <ValueInput id={id} type={typeInfo.pointType(s.point ?? "")} value={s.fallback}
+            <Field label="Fallback value">{(id) => <ValueInput id={id} type={typeInfo.pointType(s.role || s.point || "")} value={s.fallback}
                                                                 onChange={(v) => set({ fallback: v ?? null })} />}</Field>
           )}
         </>
@@ -147,7 +160,7 @@ function BlockProps({ diagram, block: b, points, variables, schedules, typeInfo,
             )}
           </Field>
           {s.failsafe?.mode === "value" && (
-            <Field label="Fail-safe value">{(id) => <ValueInput id={id} type={typeInfo.pointType(s.point ?? "")} value={s.failsafe?.value}
+            <Field label="Fail-safe value">{(id) => <ValueInput id={id} type={typeInfo.pointType(s.role || s.point || "")} value={s.failsafe?.value}
                                                                   onChange={(v) => set({ failsafe: { ...s.failsafe, value: v ?? null } })} />}</Field>
           )}
           {known?.writeLimits && <p className="muted small">Write limits {known.writeLimits.min} to {known.writeLimits.max}: values outside are clamped.</p>}
@@ -318,8 +331,12 @@ function DiagramProps({ diagram: d, equips, admin, onDiagram }: Props) {
   );
 }
 
-function LiveVariables({ diagram, live, variables, admin, onVariables }: Props) {
+function LiveVariables({ diagram, live, variables, admin, equips, onVariables }: Props) {
   const [error, setError] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState<SiteVariable | null>(null);
+  const [pointName, setPointName] = useState("");
+  const [equip, setEquip] = useState("");
+  const [done, setDone] = useState<string | null>(null);
   const [edit, setEdit] = useState<Record<string, string>>({});
   const own = live?.variables ?? [];
   const usedSite = new Set(diagram.blocks.map((b) => b.settings?.variable).filter(Boolean));
@@ -368,12 +385,41 @@ function LiveVariables({ diagram, live, variables, admin, onVariables }: Props) 
                   ) : <strong>{v.value === null ? "--" : String(v.value)}</strong>}
                   {v.unit ? ` ${v.unit}` : ""}
                   {v.min !== null || v.max !== null ? <span className="muted small"> ({v.min ?? "…"} to {v.max ?? "…"})</span> : null}
+                  {admin && v.type !== "text" && (
+                    <div><button type="button" className="link small" onClick={() => {
+                      setPublishing(v); setPointName(`${v.name}_point`); setDone(null);
+                    }}>Publish as point</button></div>
+                  )}
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      {publishing && (
+        <div className="publish-var" aria-label="Publish as point">
+          <h4>Publish {publishing.name} as a point</h4>
+          <p className="muted small">It then shows on graphics, trends and the HMI{publishing.kind === "constant"
+            ? ", and can be changed there within its limits (on the HMI with the PIN)" : " (read-only: logic writes it)"}.</p>
+          <Field label="Point name">{(id) => <input id={id} value={pointName} onChange={(e) => setPointName(e.target.value)} />}</Field>
+          <Field label="Equipment">{(id) => (
+            <select id={id} value={equip} onChange={(e) => setEquip(e.target.value)}>
+              <option value="">(choose)</option>
+              {equips.map((e) => <option key={e.name} value={e.name}>{e.dis}</option>)}
+            </select>)}</Field>
+          <button type="button" className="btn primary" disabled={!pointName || !equip} onClick={async () => {
+            try {
+              await api.publishVariable({ variable: publishing.name, diagram: publishing.scope === "diagram" ? diagram.name : undefined,
+                                          point: pointName, equip, dis: publishing.dis ?? undefined });
+              setDone(`Published as the point ${pointName}.`);
+              setPublishing(null);
+              setError(null);
+            } catch (e) { setError(e instanceof SetupError ? e.message : String(e)); }
+          }}>Publish</button>{" "}
+          <button type="button" className="btn" onClick={() => setPublishing(null)}>Cancel</button>
+        </div>
+      )}
+      {done && <p className="small" role="status">{done}</p>}
       {error && <p className="error small" role="alert">{error}</p>}
     </section>
   );

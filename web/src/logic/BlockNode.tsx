@@ -26,8 +26,8 @@ export function fmt(v: unknown, unit?: string | null): string {
 function summary(b: Block): string {
   const s = b.settings ?? {};
   switch (b.type) {
-    case "point_read": return s.point || "(choose a point)";
-    case "point_write": return `${s.point || "(choose a point)"} · fail-safe: ${s.failsafe?.mode === "value" ? fmt(s.failsafe.value) : s.failsafe?.mode ?? "release"}`;
+    case "point_read": return s.role ? `role ${s.role}` : s.point || "(choose a point)";
+    case "point_write": return `${s.role ? `role ${s.role}` : s.point || "(choose a point)"} · fail-safe: ${s.failsafe?.mode === "value" ? fmt(s.failsafe.value) : s.failsafe?.mode ?? "release"}`;
     case "variable_read": case "variable_write": return s.variable || "(choose a variable)";
     case "schedule": return s.schedule || "(choose a schedule)";
     case "compare": return `a ${s.op ?? ">"} b${s.deadband ? ` ± ${s.deadband}` : ""}`;

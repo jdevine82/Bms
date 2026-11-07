@@ -470,3 +470,169 @@ def test_published_schema_matches_the_model():
     path = Path(__file__).resolve().parents[2] / "config/schema/devine-bms-logic-1.schema.json"
     assert json.loads(path.read_text()) == json.loads(json.dumps(json_schema())), \
         "run python -m devine_bms.logic.write_schema"
+
+
+# ---------- milestone 10C: variables as points, template logic, the equipment panel, snippets ----------
+
+@needs_db
+async def test_variables_published_as_points():
+    from setup_helpers import running_stack
+    from test_commands import bus_stack, pid, wait_for
+    from test_commands import site as rs485_site
+
+    sim = await bus_stack()
+    try:
+        async for s in running_stack(rs485_site(sim.port, 5099)):
+            c = s["client"]
+            await c.put("/api/logic-variables/occ_sp", json={"type": "number", "kind": "constant", "value": 21,
+                                                             "min": 15, "max": 28, "unit": "°C"})
+            await c.put("/api/logic-variables/count", json={"type": "number", "kind": "memory", "value": 3})
+            refused = await c.post("/api/logic-variables/publish", json={"variable": "occ_sp", "point": "occ_sp_point"})
+            assert refused.status_code == 422 and "equipment or room" in refused.json()["error"]
+            r = (await c.post("/api/logic-variables/publish", json={"variable": "occ_sp", "point": "site_lights1_occ_sp",
+                                                                    "equip": "lights1", "dis": "Occupied setpoint"})).json()
+            assert r["ok"], r
+            assert (await c.post("/api/logic-variables/publish", json={"variable": "count", "point": "site_lights1_count",
+                                                                       "equip": "lights1"})).json()["ok"]
+            exported = (await c.get("/api/setup/config")).json()
+            device = next(d for d in exported["devices"] if d["protocol"] == "logic")
+            point = next(p for p in exported["points"] if p["name"] == "site_lights1_occ_sp")
+            assert device["name"] == "bms_logic" and point["address"]["variable"] == "occ_sp" and not point["address"].get("diagram")
+            assert point["type"] == "sp" and point["writeLimits"] == {"min": 15, "max": 28} and point["unit"] == "°C"
+
+            points = {p["name"]: p for p in (await c.get("/api/points")).json()}
+            assert points["site_lights1_occ_sp"]["writable"] and not points["site_lights1_count"]["writable"]
+
+            async def live_is(name, value):
+                p = next(x for x in (await c.get("/api/points")).json() if x["name"] == name)
+                return p["cur"]["status"] == "ok" and p["cur"]["value"] == value
+            await wait_for(lambda: live_is("site_lights1_occ_sp", 21))
+            await wait_for(lambda: live_is("site_lights1_count", 3))
+
+            # A command to the point sets the variable (audit-logged as a command); limits apply.
+            occ = await pid(c, "site_lights1_occ_sp")
+            r = await c.post(f"/api/points/{occ}/command", json={"value": 23})
+            assert r.status_code == 200, r.text
+            variables = {v["name"]: v for v in (await c.get("/api/logic-variables")).json()}
+            assert variables["occ_sp"]["value"] == 23
+            await wait_for(lambda: live_is("site_lights1_occ_sp", 23))
+            assert (await c.post(f"/api/points/{occ}/command", json={"value": 40})).status_code == 422
+            # A change to the variable shows on the point.
+            await c.put("/api/logic-variables/occ_sp", json={"value": 19})
+            await wait_for(lambda: live_is("site_lights1_occ_sp", 19))
+            # A point for a variable that does not exist is Bad.
+            await c.put("/api/setup/points/site_lights1_ghost", json={
+                "name": "site_lights1_ghost", "dis": "Ghost", "equip": "lights1", "device": "bms_logic", "type": "sp",
+                "kind": "Number", "address": {"variable": "nope"}})
+            await wait_for(lambda: _bad(c, "site_lights1_ghost"))
+    finally:
+        await sim.stop()
+
+
+async def _bad(c, name):
+    p = next(x for x in (await c.get("/api/points")).json() if x["name"] == name)
+    return p["cur"]["status"] == "fault"
+
+
+@needs_db
+async def test_template_logic_runs_on_each_instance():
+    from setup_helpers import running_stack
+    from test_commands import bus_stack, wait_for
+    from test_commands import site as rs485_site
+
+    sim = await bus_stack()
+    try:
+        async for s in running_stack(rs485_site(sim.port, 5099)):
+            c = s["client"]
+            await c.put("/api/logic-variables/lights_on", json={"type": "bool", "kind": "constant", "value": True})
+            t = {"id": "light-test", "version": "1.0", "dis": "Test light", "tags": {"lighting": True},
+                 "roles": [{"role": "relay", "dis": "Relay", "type": "cmd", "kind": "Bool", "tags": {"light": True}}]}
+            assert (await c.post("/api/setup/equip-templates", json=t)).json()["applied"]
+            equip = (await c.get("/api/setup/equips/lights1")).json()
+            equip["template"] = {"id": "light-test", "version": "1.0", "bindings": {"relay": "site_lights1_relay"}}
+            r = (await c.put("/api/setup/equips/lights1", json=equip)).json()
+            assert r["applied"], r
+
+            # The template's logic, in role mode.
+            opened = (await c.post("/api/logic/template-draft/light-test")).json()
+            assert opened["name"] == "tpl_light_test" and opened["roles"][0]["role"] == "relay"
+            draft = {"dis": "Test light logic", "scope": "template", "template": "light-test", "blocks": [
+                block("want", "variable_read", variable="lights_on"),
+                block("out", "point_write", 1, point="site_lights1_relay", failsafe={"mode": "value", "value": False})],
+                "wires": [wire("want.out", "out.in")]}
+            r = (await c.put("/api/logic/tpl_light_test/draft", json=draft)).json()
+            assert not r["valid"] and any("names roles" in i["message"] for i in r["issues"])
+            draft["blocks"][1]["settings"] = {"role": "relay", "failsafe": {"mode": "value", "value": False}}
+            draft["blocks"].append(block("bad", "point_read", role="nope", onBad="failsafe"))
+            r = (await c.put("/api/logic/tpl_light_test/draft", json=draft)).json()
+            assert any("role 'nope' does not exist in the template" in i["message"] for i in r["issues"])
+            draft["blocks"].pop()
+            assert (await c.put("/api/logic/tpl_light_test/draft", json=draft)).json()["valid"]
+
+            # Publishing makes template version 1.1; nothing runs until an instance is rolled out.
+            r = (await c.post("/api/logic/tpl_light_test/publish", json={"confirmFailsafe": True, "note": "on by variable"})).json()
+            assert r["templateVersion"] == "1.1", r
+            got = (await c.get("/api/setup/equip-templates/light-test")).json()
+            assert got["template"]["version"] == "1.1" and got["template"]["logic"]["blocks"][1]["settings"]["role"] == "relay"
+            assert not any(d.get("instance") for d in (await c.get("/api/logic")).json())
+            assert sim.units[2].coils[3] is False
+
+            r = (await c.post("/api/setup/equip-templates/light-test/rollout", json={"version": "1.1", "all": True})).json()
+            assert r["applied"], r
+            listed = {d["name"]: d for d in (await c.get("/api/logic")).json()}
+            inst = listed["lights1__tpl"]
+            assert inst["instance"] and inst["templateVersion"] == "1.1" and inst["state"] == "running", inst
+            await wait_for(lambda: _true(sim.units[2].coils[3] is True))
+            live = (await c.get("/api/logic/lights1__tpl/live")).json()
+            assert live["outputs"]["site_lights1_relay"]["state"] == "written"
+            detail = (await c.get("/api/logic/lights1__tpl")).json()
+            assert detail["published"]["blocks"][1]["settings"]["point"] == "site_lights1_relay"
+
+            # The equipment panel: lights1 is BMS-controlled by the instance.
+            panel = {e["equip"]: e for e in (await c.get("/api/logic/by-equip")).json()}
+            assert panel["lights1"]["control"] == "bms" and panel["lights1"]["diagrams"][0]["name"] == "lights1__tpl"
+            assert panel["meter2"]["control"] == "device" and panel["meter2"]["diagrams"] == []
+
+            # Each instance has its own switch: off applies the fail-safe.
+            await c.post("/api/logic/lights1__tpl/enable", json={"enabled": False})
+            await wait_for(lambda: _true(sim.units[2].coils[3] is False))
+            assert {d["name"]: d for d in (await c.get("/api/logic")).json()}["lights1__tpl"]["enabled"] is False
+            await c.post("/api/logic/lights1__tpl/enable", json={"enabled": True})
+            await wait_for(lambda: _true(sim.units[2].coils[3] is True))
+            assert (await c.delete("/api/logic/lights1__tpl")).status_code == 422
+
+            # An equipment diagram for the same equipment replaces the template's logic there.
+            own = {"name": "lights1_own", "dis": "Own", "scope": "equipment", "equip": "lights1", "blocks": [
+                block("o", "point_write", point="site_lights1_relay", inputs={"in": False})]}
+            await c.put("/api/logic/lights1_own/draft", json=own)
+            r = (await c.post("/api/logic/lights1_own/publish", json={"confirmFailsafe": True})).json()
+            assert r["state"]["state"] == "running", r
+            listed = {d["name"]: d for d in (await c.get("/api/logic")).json()}
+            assert listed["lights1__tpl"]["state"] == "overridden"
+            await wait_for(lambda: _true(sim.units[2].coils[3] is False))
+
+            # The setup checks a template's logic: an unknown role is refused.
+            bad = {**t, "version": "2.0", "logic": {"blocks": [block("x", "point_read", role="ghost", onBad="failsafe")]}}
+            r = await c.post("/api/setup/equip-templates", json=bad)
+            assert r.status_code == 422 and any("role 'ghost' is not in the template" in i["message"]
+                                                for i in r.json()["issues"])
+    finally:
+        await sim.stop()
+
+
+@needs_db
+async def test_snippets_are_part_of_the_setup():
+    from helpers import example_data
+    from setup_helpers import running_stack
+
+    async for s in running_stack(example_data(5099)):
+        c = s["client"]
+        frag = {"blocks": [block("d", "delay_on", inputs={"time": 30}), block("n", "not")], "wires": [wire("d.out", "n.in")]}
+        r = (await c.put("/api/logic-snippets/run_on", json={"dis": "Run-on timer", "fragment": frag})).json()
+        assert r["ok"] and r["snippet"]["fragment"]["schema"] == "devine-bms-logic/1"
+        bad = await c.put("/api/logic-snippets/broken", json={"fragment": {"blocks": [block("x", "teapot")]}})
+        assert bad.status_code == 422
+        assert [x["name"] for x in (await c.get("/api/logic-snippets")).json()] == ["run_on"]
+        assert (await c.get("/api/setup/config")).json()["logicSnippets"][0]["dis"] == "Run-on timer"
+        assert (await c.delete("/api/logic-snippets/run_on")).json()["ok"]
+        assert (await c.get("/api/logic-snippets")).json() == []

@@ -461,3 +461,15 @@ class LogicVariable(Base):
     max: Mapped[float | None] = mapped_column(Double)
     updated_by: Mapped[str | None] = mapped_column(String(100))
     updated_at: Mapped[datetime] = _updated()
+
+
+class LogicInstance(Base):
+    """A template logic instance's switch (milestone 10C): instances run unless switched off."""
+
+    __tablename__ = "logic_instance"
+    __table_args__ = (UniqueConstraint("site_id", "name"),)
+    id: Mapped[uuid.UUID] = _id()
+    site_id: Mapped[uuid.UUID] = _site_fk()
+    name: Mapped[str] = mapped_column(String(100), nullable=False)  # <instance>__tpl
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    updated_at: Mapped[datetime] = _updated()

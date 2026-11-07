@@ -12,7 +12,8 @@ import * as api from "./logicApi";
 import { LogicEditor } from "./LogicEditor";
 import "./logic.css";
 
-const STATE: Record<string, string> = { running: "Running", disabled: "Disabled", error: "Not running (error)", draft: "Draft only", unknown: "" };
+const STATE: Record<string, string> = { running: "Running", disabled: "Disabled", error: "Not running (error)", draft: "Draft only",
+  template: "Template logic (runs on instances)", overridden: "Replaced by an equipment diagram", unknown: "" };
 
 export function LogicPage({ open }: { open: string | null }) {
   const go = (name: string | null) => { location.hash = name ? `#/logic/${encodeURIComponent(name)}` : "#/logic"; };
@@ -71,11 +72,13 @@ function LogicList({ onOpen }: { onOpen: (name: string) => void }) {
                   <td><span className={`state-chip state-${d.state}`}>{STATE[d.state] ?? d.state}</span>
                     {d.issues.length > 0 && <div className="error small">{d.issues[0].message}</div>}</td>
                   <td>{d.publishedVersion ?? "—"}</td>
-                  <td>{d.scope === "equipment" ? `Equipment ${d.equip ?? ""}` : "Site"}</td>
+                  <td>{d.instance ? `Template ${d.template} ${d.templateVersion} on ${d.equip}`
+                    : d.scope === "template" ? `Template ${d.template} (its logic)`
+                    : d.scope === "equipment" ? `Equipment ${d.equip ?? ""}` : "Site"}</td>
                   <td className="small">{d.writes.join(", ") || "—"}</td>
                   <td>
                     <button type="button" className="link" onClick={() => onOpen(d.name)}>{admin ? "Open" : "Live"}</button>
-                    {admin && (
+                    {admin && !d.instance && (
                       <>
                         {" · "}
                         <button type="button" className="link" onClick={async () => {
@@ -123,6 +126,12 @@ function LogicList({ onOpen }: { onOpen: (name: string) => void }) {
 }
 
 function SiteVariables({ vars, admin, onChange }: { vars: api.SiteVariable[]; admin: boolean; onChange: () => void }) {
+  const [equips, setEquips] = useState<{ name: string; dis: string }[]>([]);
+  const [pub, setPub] = useState<{ variable: string; point: string; equip: string } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    get<{ equips?: { name: string; dis: string }[] }>("/api/site").then((s) => setEquips(s.equips ?? [])).catch(() => undefined);
+  }, []);
   const [draft, setDraft] = useState<{ name: string; type: api.VType; kind: "constant" | "memory"; value: string; unit: string;
                                        min: string; max: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,12 +163,38 @@ function SiteVariables({ vars, admin, onChange }: { vars: api.SiteVariable[]; ad
                 <td>{v.min !== null || v.max !== null ? `${v.min ?? "…"} to ${v.max ?? "…"}` : ""}</td>
                 <td>{admin && <button type="button" className="link" onClick={() => setDraft({ name: v.name, type: v.type, kind: v.kind,
                   value: v.value === null ? "" : String(v.value), unit: v.unit ?? "", min: v.min === null ? "" : String(v.min),
-                  max: v.max === null ? "" : String(v.max) })}>Change</button>}</td>
+                  max: v.max === null ? "" : String(v.max) })}>Change</button>}
+                  {admin && v.type !== "text" && <>{" · "}<button type="button" className="link" onClick={() => {
+                    setPub({ variable: v.name, point: `${v.name}_point`, equip: "" }); setNote(null);
+                  }}>Publish as point</button></>}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      {pub && (
+        <div className="form" aria-label="Publish as point">
+          <p className="muted small">A point on the BMS logic device: shown on graphics, trends and the HMI; a constant can be changed there within its limits.</p>
+          <div className="form-row"><label htmlFor="pub-point">Point name for {pub.variable}</label>
+            <input id="pub-point" value={pub.point} onChange={(e) => setPub({ ...pub, point: e.target.value })} /></div>
+          <div className="form-row"><label htmlFor="pub-equip">Equipment</label>
+            <select id="pub-equip" value={pub.equip} onChange={(e) => setPub({ ...pub, equip: e.target.value })}>
+              <option value="">(choose)</option>
+              {equips.map((e) => <option key={e.name} value={e.name}>{e.dis}</option>)}
+            </select></div>
+          <div className="actions">
+            <button type="button" className="btn primary" disabled={!pub.point || !pub.equip} onClick={async () => {
+              try {
+                await api.publishVariable({ variable: pub.variable, point: pub.point, equip: pub.equip });
+                setNote(`Published ${pub.variable} as the point ${pub.point}.`);
+                setPub(null);
+              } catch (e) { setNote(e instanceof SetupError ? e.message : String(e)); }
+            }}>Publish</button>
+            <button type="button" className="btn" onClick={() => setPub(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {note && <p role="status">{note}</p>}
       {admin && !draft && (
         <button type="button" className="btn" onClick={() => setDraft({ name: "", type: "number", kind: "constant", value: "", unit: "", min: "", max: "" })}>
           Add a site variable</button>

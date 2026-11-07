@@ -182,32 +182,37 @@ def plan(diagram: Diagram | dict, site: Site | None = None) -> tuple[Plan | None
         if s is None:
             continue
         if b.type in ("point_read", "point_write"):
-            if not s.point:
-                error("no point chosen", b.id)
+            template = diagram.scope == "template"
+            ref = s.role if template else s.point
+            what = "role" if template else "point"
+            if template and s.point:
+                error("a template's logic names roles, not points", b.id)
+            if not ref:
+                error(f"no {what} chosen", b.id)
             elif site is not None:
-                pt = site.points.get(s.point)
+                pt = site.points.get(ref)
                 if pt is None:
-                    error(f"point '{s.point}' does not exist", b.id)
+                    error(f"{what} '{ref}' does not exist" + (" in the template" if template else ""), b.id)
                 elif diagram.scope == "equipment" and diagram.equip and pt.equip not in (None, diagram.equip) \
                         and b.type == "point_write":
-                    warning(f"'{s.point}' belongs to {pt.equip}, not {diagram.equip}", b.id)
+                    warning(f"'{ref}' belongs to {pt.equip}, not {diagram.equip}", b.id)
             if b.type == "point_read" and s.on_bad == "fallback":
                 if s.fallback is None:
                     error("choose a fallback value for when the point is not Good, or use the fail-safe", b.id)
-                elif point_type(s.point) and _type_of(s.fallback) != point_type(s.point):
-                    error(f"the fallback must be {point_type(s.point)}", b.id)
-            if b.type == "point_write" and site is not None and s.point in site.points:
-                pt = site.points[s.point]
+                elif point_type(ref) and _type_of(s.fallback) != point_type(ref):
+                    error(f"the fallback must be {point_type(ref)}", b.id)
+            if b.type == "point_write" and site is not None and ref in site.points:
+                pt = site.points[ref]
                 if not pt.writable:
-                    error(f"'{s.point}' cannot be written (only writable setpoints and commands)", b.id)
+                    error(f"'{ref}' cannot be written (only writable setpoints and commands)", b.id)
                 if pt.occupancy:
-                    error(f"'{s.point}' already follows a schedule (its occupancy values); a point has one writer",
+                    error(f"'{ref}' already follows a schedule (its occupancy values); a point has one writer",
                           b.id)
-                if s.point in site.writers:
-                    error(f"'{s.point}' is already written by the diagram '{site.writers[s.point]}'", b.id)
-                if s.failsafe.mode == "value" and point_type(s.point) \
-                        and _type_of(s.failsafe.value) != point_type(s.point):
-                    error(f"the fail-safe value must be {point_type(s.point)}", b.id)
+                if ref in site.writers:
+                    error(f"'{ref}' is already written by the diagram '{site.writers[ref]}'", b.id)
+                if s.failsafe.mode == "value" and point_type(ref) \
+                        and _type_of(s.failsafe.value) != point_type(ref):
+                    error(f"the fail-safe value must be {point_type(ref)}", b.id)
         elif b.type in ("variable_read", "variable_write"):
             if not s.variable:
                 error("no variable chosen", b.id)
@@ -235,16 +240,19 @@ def plan(diagram: Diagram | dict, site: Site | None = None) -> tuple[Plan | None
     written: dict[str, str] = {}
     for b in diagram.blocks:
         s = p.settings.get(b.id)
-        if b.type == "point_write" and s is not None and s.point:
-            if s.point in written:
-                error(f"'{s.point}' is also written by block {written[s.point]}", b.id)
-            written[s.point] = b.id
+        if b.type == "point_write" and s is not None and (s.role or s.point):
+            ref = s.role or s.point
+            if ref in written:
+                error(f"'{ref}' is also written by block {written[ref]}", b.id)
+            written[ref] = b.id
         if b.type == "variable_write" and s is not None and s.variable:
             key = f"variable {s.variable}"
             if key in written:
                 error(f"variable '{s.variable}' is also written by block {written[key]}", b.id)
             written[key] = b.id
 
+    if diagram.scope == "template" and not diagram.template:
+        error("a template's logic names its equipment template")
     if diagram.scope == "equipment":
         if not diagram.equip:
             error("an equipment diagram names its equipment")

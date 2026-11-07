@@ -461,7 +461,8 @@
             "modbus",
             "bacnet_ip",
             "bacnet_mstp",
-            "mqtt"
+            "mqtt",
+            "logic"
           ],
           "title": "Protocol",
           "type": "string"
@@ -482,6 +483,9 @@
             },
             {
               "$ref": "#/$defs/MqttConnection"
+            },
+            {
+              "$ref": "#/$defs/LogicConnection"
             }
           ],
           "title": "Connection"
@@ -687,7 +691,8 @@
         "logic": {
           "anyOf": [
             {
-              "type": "string"
+              "additionalProperties": true,
+              "type": "object"
             },
             {
               "type": "null"
@@ -1121,6 +1126,41 @@
         "path"
       ],
       "title": "LineItem",
+      "type": "object"
+    },
+    "LogicConnection": {
+      "additionalProperties": false,
+      "description": "The built-in BMS logic device (milestone 10C): no wire, nothing to set.",
+      "properties": {},
+      "title": "LogicConnection",
+      "type": "object"
+    },
+    "LogicSnippet": {
+      "additionalProperties": false,
+      "description": "A saved set of logic blocks to reuse (main spec 5.3.2 Snippets; milestone 10C).",
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "dis": {
+          "title": "Dis",
+          "type": "string"
+        },
+        "fragment": {
+          "additionalProperties": true,
+          "title": "Fragment",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "dis",
+        "fragment"
+      ],
+      "title": "LogicSnippet",
       "type": "object"
     },
     "Medium": {
@@ -1934,6 +1974,9 @@
             },
             {
               "$ref": "#/$defs/MqttAddress"
+            },
+            {
+              "$ref": "#/$defs/VariableAddress"
             }
           ],
           "title": "Address"
@@ -2876,6 +2919,37 @@
       "title": "ValueItem",
       "type": "object"
     },
+    "VariableAddress": {
+      "additionalProperties": false,
+      "description": "A point on the BMS logic device: a logic variable published as a point (milestone 10C).\nA site variable by name, or a diagram's own variable with `diagram`.",
+      "properties": {
+        "variable": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Variable",
+          "type": "string"
+        },
+        "diagram": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Diagram"
+        }
+      },
+      "required": [
+        "variable"
+      ],
+      "title": "VariableAddress",
+      "type": "object"
+    },
     "WordOrder": {
       "enum": [
         "high_first",
@@ -3022,6 +3096,14 @@
         "$ref": "#/$defs/CustomSymbol"
       },
       "title": "Symbols",
+      "type": "array"
+    },
+    "logicSnippets": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LogicSnippet"
+      },
+      "title": "Logicsnippets",
       "type": "array"
     }
   },
