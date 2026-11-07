@@ -15,7 +15,8 @@
     "test:commands": "node tests/commands.mjs",
     "test:schedules": "node tests/schedules.mjs",
     "test:graphics": "node tests/graphics.mjs",
-    "test:graphics-editor": "node tests/graphics-editor.mjs"
+    "test:graphics-editor": "node tests/graphics-editor.mjs",
+    "test:logic": "node tests/logic.mjs"
   },
   "author": "Jason Devine",
   "license": "UNLICENSED",

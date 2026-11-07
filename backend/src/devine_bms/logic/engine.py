@@ -404,7 +404,7 @@ class LogicEngine:
         given read their live values; a given value of null is a bad (offline) point."""
         p, issues = plan(body, self.site_view(exclude=name))
         if p is None or errors(issues):
-            return {"ok": False, "issues": [i.as_dict() for i in issues]}
+            return {"ok": True, "valid": False, "issues": [i.as_dict() for i in issues]}
         sim_vars = {k: Var(**v.__dict__) for k, v in self.vars.items()}
         for v in p.diagram.variables:
             sim_vars.setdefault(("diagram", name, v.name), Var("diagram", name, v.name, v.type, v.kind, v.value))
@@ -442,7 +442,7 @@ class LogicEngine:
                 "errors": step.errors,
             })
             t += timedelta(seconds=dt)
-        return {"ok": True, "issues": [i.as_dict() for i in issues], "steps": result}
+        return {"ok": True, "valid": True, "issues": [i.as_dict() for i in issues], "steps": result}
 
 
 class _Reader:

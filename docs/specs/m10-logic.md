@@ -1,6 +1,6 @@
 # Milestone 10: control logic
 
-Status: **10A built** (6 Nov 2026); **10B in progress** (7 Nov 2026); 10C planned. Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
+Status: **10A built** (6 Nov 2026); **10B built** (7 Nov 2026); 10C planned. Main spec: 5.3 (control logic), 5.3.1 (editor, blocks, execution, publishing), 5.3.2 (import and export), 5.2.1 (value quality), 5.6 (commands and write limits), 18 (milestone 10).
 
 ## Decisions
 
@@ -131,3 +131,27 @@ Main spec 5.3.1 Layout, Editing blocks, Edit and Live modes, and 5.3.2. Built wi
 - **Test strip (below the canvas, Edit mode):** a value, switch or Offline for each point the diagram reads and each schedule; steps and step length; **Run** shows the outputs at each step. Nothing is written.
 - **Import dialog:** paste text or choose a `.bmslogic.json` file; **Import as new diagram** or **Paste into this diagram**. Errors are listed per block, with **Remove the failing blocks and continue**. Unresolved points, variables and schedules are listed in a **mapping table** with suggestions; clashing block IDs are renumbered; blocks without positions are laid out.
 - **Export:** the whole diagram or the selection, copied or saved as `<name>.bmslogic.json`.
+
+### What 10B built
+
+- `web/src/logic/`: `LogicPage.tsx` (the list, New diagram, Import, site variables), `LogicEditor.tsx` (canvas, top bar, keyboard, clipboard, autosave, Live polling, Publish, Versions, Export), `BlockNode.tsx`, `Palette.tsx`, `Properties.tsx`, `TestStrip.tsx`, `ImportDialog.tsx`, `blocks.ts` (the block ports, matching `logic/model.py`), `diagramOps.ts` (layout, fragments, merging).
+- The Logic page loads separately, so the main page and the HMI do not carry the editor (about 250 KB).
+- The API answers `ok` (the request worked) and `valid` (the diagram passes the checks) separately, so a draft with errors is still saved. `POST /api/logic/import` with `"check": true` checks without creating anything (the import dialog's Check).
+- Blocks added from the palette step down to free space instead of covering another block.
+
+### How to use the editor
+
+1. **Logic → New diagram**, give it a name and display name.
+2. Add blocks from the palette (click, or drag onto the canvas). Set each block on the right: pick its point, variable or schedule; give unwired inputs a value; choose an output's fail-safe.
+3. Wire an output port (right side) to an input port (left side). Ports of different types do not join; their shape and colour show the type.
+4. The draft saves itself; **Checks** on the right list what would stop publishing (click a block name to select it).
+5. In **Test** below the canvas, simulate the points (a value or Offline) and schedules, then **Run**: the outputs at each step appear, and nothing is written.
+6. **Publish…**: confirm the fail-safes, add a note. **Live** shows it running. **Versions** restores an earlier version into the draft; the **Enabled** switch stops it (fail-safes apply).
+7. **Export** copies or saves the diagram or the selection; **Import** (on the Logic page or in a diagram) takes pasted text or a file, maps points, variables and schedules that are not found, and can remove failing blocks.
+
+Keys: Delete or Backspace, Ctrl+Z, Ctrl+Y, Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+D, Ctrl+A, Escape. Shift-click and Shift-drag select several.
+
+### 10B tests
+
+- Browser (`web/tests/logic.mjs`): a new diagram from the Logic page; blocks from the palette set in the properties panel; three wires drawn port to port; a wire between types refused; port types shown; undo and redo; copy and paste (renumbered); Delete; the warning before deleting an output (Cancel keeps it); right-click Delete; autosave; the test strip (10 kW scaled to 50, nothing written); Publish needing the fail-safes confirmed; Live values on the wires and the output written; Versions; Export; Import with the mapping table (suggestions), an unknown block type removed, and the paste landing in the draft; disabling; the Logic page's state; a phone without sideways scrolling.
+- Backend: `ok` and `valid`, and the import check, in `tests/test_logic.py`.

@@ -1,0 +1,123 @@
+/* Logic page and editor (milestone 10B). */
+.logic-list .state-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; border: 1px solid var(--border); }
+.state-running { color: var(--ok); border-color: var(--ok) !important; }
+.state-error { color: var(--bad); border-color: var(--bad) !important; }
+.state-disabled { color: var(--warn); border-color: var(--warn) !important; }
+
+.logic-editor { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; height: calc(100vh - 66px); box-sizing: border-box; min-height: 520px; }
+.logic-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.logic-title h2 { margin: 0; font-size: 19px; }
+.logic-spacer { flex: 1; }
+.logic-switch { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); color: var(--text); padding: 6px 12px; font: inherit; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.active { background: var(--accent); color: var(--accent-text); }
+.seg button:disabled { opacity: 0.5; cursor: default; }
+
+.logic-body { display: grid; grid-template-columns: 170px minmax(0, 1fr) 300px; gap: 10px; flex: 1; min-height: 0; }
+.logic-body.live { grid-template-columns: minmax(0, 1fr) 280px; }
+.logic-main { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.logic-canvas { position: relative; flex: 1; min-height: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.logic-empty { padding: 24px; }
+.logic-palette, .logic-props { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow-y: auto; min-height: 0; }
+.logic-palette input[type="search"] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+.logic-palette h3, .logic-props h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 12px 0 6px; }
+.logic-props section:first-child h3 { margin-top: 0; }
+.logic-props h4 { font-size: 13px; margin: 12px 0 4px; }
+.logic-palette button { display: block; width: 100%; text-align: left; margin: 0 0 4px; padding: 6px 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); border-radius: 6px; font: inherit; font-size: 14px; cursor: grab; }
+.logic-palette button:hover { border-color: var(--accent); }
+
+.canvas-tools { position: absolute; top: 8px; left: 8px; z-index: 5; display: flex; gap: 6px; }
+.context-menu { position: fixed; z-index: 30; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / 25%); padding: 4px; display: flex; flex-direction: column; }
+.context-menu button { border: 0; background: none; color: var(--text); text-align: left; padding: 6px 14px; font: inherit; cursor: pointer; border-radius: 4px; }
+.context-menu button:hover { background: var(--muted-bg); }
+
+/* React Flow in the BMS themes */
+.logic-canvas .react-flow { --xy-background-color: var(--surface); --xy-edge-stroke: var(--text-muted); --xy-minimap-background-color: var(--bg);
+  --xy-controls-button-background-color: var(--surface); --xy-controls-button-color: var(--text); --xy-controls-button-border-color: var(--border);
+  --xy-edge-label-background-color: var(--surface); --xy-edge-label-color: var(--text); color: var(--text); }
+.logic-canvas .react-flow__background { color: var(--border); }
+
+.lnode { min-width: 190px; max-width: 260px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
+.lnode.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.lnode.has-error { border-color: var(--bad); }
+.lnode.is-bad { border-style: dashed; border-color: var(--bad); }
+.lnode-head { display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 8px 8px 0 0; font-weight: 600; background: var(--muted-bg); }
+.lnode-head code { font-weight: 400; color: var(--text-muted); font-size: 11px; }
+.group-read .lnode-head, .lnode-head.group-read { border-top: 3px solid var(--series-1); }
+.lnode-head.group-logic { border-top: 3px solid var(--series-3); }
+.lnode-head.group-math { border-top: 3px solid var(--series-4); }
+.lnode-head.group-timing { border-top: 3px solid var(--series-2); }
+.lnode-head.group-control { border-top: 3px solid var(--warn); }
+.lnode-sub { padding: 3px 8px; color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.lnode-ports { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0 6px; }
+.lnode-in, .lnode-out { display: flex; flex-direction: column; gap: 4px; }
+.lnode-port { position: relative; display: flex; gap: 6px; align-items: center; padding: 0 10px; min-height: 18px; white-space: nowrap; }
+.lnode-port.out { justify-content: flex-end; }
+.lnode-port em { font-style: normal; color: var(--text-muted); font-size: 12px; }
+.lnode-port em.val-true { color: var(--g-blue, var(--accent)); font-weight: 600; }
+.lhandle { width: 10px !important; height: 10px !important; border: 2px solid var(--surface) !important; }
+.lhandle.port-bool { border-radius: 50% !important; background: var(--series-1) !important; }
+.lhandle.port-number { border-radius: 2px !important; background: var(--series-2) !important; }
+.lhandle.port-text { border-radius: 1px !important; transform: translate(-50%, -50%) rotate(45deg) !important; background: var(--series-4) !important; }
+.lhandle.port-any { background: var(--text-muted) !important; }
+.lnode-live { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 8px 6px; }
+.lnode-issue { padding: 4px 8px 6px; color: var(--bad); font-size: 12px; }
+.badge { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); }
+.badge.bad { color: var(--bad); border-color: var(--bad); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.badge.ok { color: var(--ok); border-color: var(--ok); }
+
+.wire path.react-flow__edge-path { stroke-width: 2; }
+.wire-bool path.react-flow__edge-path { stroke: var(--series-1); }
+.wire-number path.react-flow__edge-path { stroke: var(--series-2); }
+.wire-text path.react-flow__edge-path { stroke: var(--series-4); }
+.wire-true path.react-flow__edge-path { stroke: var(--g-blue, #2563c9); stroke-width: 3; }
+.wire-false path.react-flow__edge-path { stroke: var(--text-muted); }
+.wire-bad path.react-flow__edge-path { stroke: var(--bad); stroke-dasharray: 6 4; }
+.react-flow__edge.selected path.react-flow__edge-path { stroke: var(--accent) !important; stroke-width: 3; }
+
+.issue-list { list-style: none; padding: 0; margin: 4px 0; font-size: 13px; }
+.issue-list li { padding: 3px 0; border-bottom: 1px solid var(--grid); }
+.issue-list li.error .issue-level { color: var(--bad); font-weight: 600; }
+.issue-list li.warning .issue-level { color: var(--warn); font-weight: 600; }
+.logic-props .prop { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.logic-props .prop label { font-size: 13px; color: var(--text-muted); }
+.logic-props input:not([type="checkbox"]), .logic-props select, .logic-props textarea, .test-strip input, .test-strip select, .dialog input:not([type="checkbox"]):not([type="file"]), .dialog select {
+  font: inherit; font-size: 14px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); box-sizing: border-box; }
+.logic-props input:not([type="checkbox"]), .logic-props select, .logic-props textarea { width: 100%; }
+.logic-props .prop-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; }
+.logic-props .prop-row.two { grid-template-columns: 1fr 1fr; }
+.logic-props .prop-inline { display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 8px; }
+.var-row { border-top: 1px solid var(--grid); padding-top: 6px; margin-top: 6px; }
+table.vars { width: 100%; font-size: 14px; border-collapse: collapse; }
+table.vars th { text-align: left; font-weight: 500; padding: 4px 4px 4px 0; vertical-align: top; }
+table.vars td { padding: 4px 0; }
+table.vars input { width: 90px !important; }
+
+.test-strip { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; max-height: 40%; overflow-y: auto; flex: none; }
+.test-strip header { display: flex; gap: 10px; align-items: baseline; }
+.test-inputs { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 6px 0; }
+.test-input { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+.test-input input[type="number"] { width: 80px; }
+
+.dialog-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 45%); display: grid; place-items: center; z-index: 40; padding: 16px; }
+.dialog { background: var(--surface); color: var(--text); border-radius: 12px; padding: 18px 20px; width: min(520px, 100%); max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgb(0 0 0 / 35%); }
+.dialog.wide { width: min(820px, 100%); }
+.dialog h3 { margin-top: 0; }
+.dialog textarea.json { width: 100%; min-height: 220px; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 13px;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+.dialog .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.dialog .prop { display: flex; flex-direction: column; gap: 3px; margin: 8px 0; }
+.failsafe-list { padding-left: 18px; }
+
+@media (max-width: 900px) {
+  .logic-editor { height: auto; }
+  .logic-body, .logic-body.live { grid-template-columns: 1fr; }
+  .logic-canvas { min-height: 420px; }
+  .logic-palette { max-height: 180px; }
+}
+.logic-canvas .react-flow__minimap-node.mm-node { fill: var(--muted-bg); stroke: var(--text-muted); }
+.logic-canvas .react-flow__minimap { border: 1px solid var(--border); border-radius: 6px; }

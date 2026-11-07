@@ -347,12 +347,12 @@ async def test_logic_runs_writes_fails_safe_and_versions():
             # A draft may be incomplete; checks say why it cannot be published.
             r = (await c.put("/api/logic/lights_logic/draft", json={"dis": "Lights logic", "blocks": [
                 block("o", "point_write", point="site_lights1_relay")]})).json()
-            assert r["created"] and not r["ok"]
+            assert r["created"] and r["ok"] and not r["valid"]
             assert any("not wired" in i["message"] for i in r["issues"])
             refused = await c.post("/api/logic/lights_logic/publish", json={"confirmFailsafe": True})
             assert refused.status_code == 422 and refused.json()["issues"]
 
-            assert (await c.put("/api/logic/lights_logic/draft", json=lights_logic())).json()["ok"]
+            assert (await c.put("/api/logic/lights_logic/draft", json=lights_logic())).json()["valid"]
             unconfirmed = await c.post("/api/logic/lights_logic/publish", json={})
             assert unconfirmed.status_code == 409 and "fail-safe" in unconfirmed.json()["error"]
             r = (await c.post("/api/logic/lights_logic/publish", json={"confirmFailsafe": True, "note": "first"})).json()
@@ -407,7 +407,7 @@ async def test_logic_runs_writes_fails_safe_and_versions():
 
             # Versions: publish a second, restore the first into the draft.
             d2 = lights_logic({"mode": "release"})
-            assert (await c.put("/api/logic/lights_logic/draft", json=d2)).json()["ok"]
+            assert (await c.put("/api/logic/lights_logic/draft", json=d2)).json()["valid"]
             assert (await c.post("/api/logic/lights_logic/publish", json={"confirmFailsafe": True})).json()["version"] == 2
             got = (await c.get("/api/logic/lights_logic")).json()
             assert [v["version"] for v in got["versions"]] == [1, 2] and got["publishedVersion"] == 2
@@ -419,7 +419,7 @@ async def test_logic_runs_writes_fails_safe_and_versions():
             before = sim.units[2].coils[3]
             t = (await c.post("/api/logic/lights_logic/test", json={
                 "inputs": {"site_meter2_nolimit": 10}, "steps": 3})).json()
-            assert t["ok"] and t["steps"][-1]["outputs"]["site_lights1_relay"] is False
+            assert t["valid"] and t["steps"][-1]["outputs"]["site_lights1_relay"] is False
             t = (await c.post("/api/logic/lights_logic/test", json={
                 "inputs": {"site_meter2_nolimit": None}, "steps": 1})).json()
             assert t["steps"][0]["outputs"]["site_lights1_relay"] == "fail-safe: value False"
@@ -429,6 +429,9 @@ async def test_logic_runs_writes_fails_safe_and_versions():
             bad = await c.post("/api/logic/import", json={"diagram": {"name": "imp", "blocks": [block("x", "teapot")]}})
             assert bad.status_code == 422 and "unknown block type" in bad.json()["issues"][0]["message"]
             assert (await c.post("/api/logic/import", json={"diagram": "{not json"})).status_code == 422
+            dry = (await c.post("/api/logic/import", json={"diagram": {"name": "imp", "blocks": [block("x", "teapot")]},
+                                                           "check": True})).json()
+            assert dry["valid"] is False and dry["issues"][0]["level"] == "error" and not dry["exists"]
             ok = (await c.post("/api/logic/import", json={"diagram": {**lights_logic(), "name": "copy"}})).json()
             assert ok["ok"] and ok["name"] == "copy"
             assert any(i["level"] == "warning" and "already written by the diagram 'lights_logic'" in i["message"]
