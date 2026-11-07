@@ -32,6 +32,7 @@ from devine_bms.api.history import history_csv, row_json, thin
 from devine_bms.api.logic_api import build_logic_router
 from devine_bms.api.schedules_api import build_schedules_router
 from devine_bms.api.setup_api import build_setup_router
+from devine_bms.api.standalone_api import build_standalone_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.auth.service import AuthService
 from devine_bms.commands.service import CommandService
@@ -63,9 +64,37 @@ async def default_runtime() -> tuple[Runtime, Callable[[], Awaitable[None]]]:
     setup_logging(settings.log_level)
     engine = make_engine(settings.database_url)
     sessions = make_sessionmaker(engine)
+    if settings.mode == "standalone":  # milestone 11a: PostgreSQL in RAM, the state file on the card
+        from devine_bms.standalone.boot import (
+            LOG_EVERY_S,
+            STANDALONE_INTERVALS,
+            make_keeper,
+            prepare_standalone,
+        )
+
+        site_name, standalone = await prepare_standalone(sessions, settings)
+        runtime = Runtime(PostgresStorage(sessions), site_name, intervals=STANDALONE_INTERVALS,
+                          history_min_interval_s=LOG_EVERY_S)
+        runtime.keeper = make_keeper(sessions, site_name, settings, standalone)
+        runtime.settings = settings
+        return runtime, engine.dispose
     site_name = await prepare_site(sessions, settings)
     runtime = Runtime(PostgresStorage(sessions), site_name)
     return runtime, engine.dispose
+
+
+async def _release_operator_priority(runtime) -> None:
+    """Standalone mode after a power loss (main spec 3.1, decided): hand modes return to Auto.
+    Nothing remembers them, so release the operator priority on every writable BACnet point."""
+    from devine_bms.commands.writer import MANUAL_PRIORITY, WriteError, write_point
+    from devine_bms.config.model import BacnetAddress
+
+    await asyncio.sleep(5)  # let the links come up
+    for point in [p for p in runtime.config.points if p.writable and isinstance(p.address, BacnetAddress)]:
+        try:
+            await write_point(runtime, point, None, MANUAL_PRIORITY)
+        except WriteError as exc:
+            log.info("return to auto: %s: %s", point.name, exc)
 
 
 def live_json(live: LiveValue | None) -> dict:
@@ -123,6 +152,17 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 state["logic"].value_for(p) if state["logic"].owns(p) else state["schedules"].value_for(p))
             runtime.logic_write = state["logic"].write_variable_point  # variables published as points
             await state["logic"].start()
+            keeper = getattr(runtime, "keeper", None)
+            if keeper is not None:  # standalone mode (milestone 11a)
+                from devine_bms.standalone.service import StandaloneService
+
+                state["standalone"] = StandaloneService(runtime, sessions, runtime.site_name, runtime.settings, keeper,
+                                                        iana_zone(runtime.config.site_tz).key, state["auth"].record)
+                state["delivery"].sms_allowed = False  # standalone: on-screen, ntfy and email (main spec 3.1)
+                keeper.start()
+                await state["standalone"].start()
+                await state["standalone"].prepare_setup_code(state["auth"])
+                state["release"] = asyncio.create_task(_release_operator_priority(runtime), name="return to auto")
             state["logic_service"] = LogicService(state["logic"], sessions, state["auth"].record, state["setup"])
             state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
@@ -130,6 +170,11 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         finally:
             if state.get("prune") is not None:
                 state["prune"].cancel()
+            if state.get("release") is not None:
+                state["release"].cancel()
+            if state.get("standalone") is not None:
+                await state["standalone"].stop()
+                await state["standalone"].keeper.stop()  # the last save
             for name in ("logic", "schedules", "commands", "alarms", "delivery"):
                 if state.get(name) is not None:
                     await state[name].stop()
@@ -139,6 +184,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             await cleanup()
 
     app = FastAPI(title="Devine BMS", version=__version__, lifespan=lifespan)
+    app.state.services = state  # the running services, for tools and tests
     install_guard(app, lambda: state.get("auth"))
     app.include_router(build_auth_router(lambda: state.get("auth")))
     app.include_router(build_commands_router(lambda: state.get("commands")))
@@ -147,6 +193,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                                            lambda: state.get("auth")))
     app.include_router(build_graphics_router(lambda: state.get("setup")))
     app.include_router(build_logic_router(lambda: state.get("logic_service")))
+    app.include_router(build_standalone_router(lambda: state.get("standalone"), lambda: state.get("auth")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 

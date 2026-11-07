@@ -25,13 +25,14 @@ class Runtime:
         intervals: dict[PollClass, float] = POLL_INTERVAL_S,
         stale_check_s: float = 1.0,
         flush_interval_s: float = 1.0,
+        history_min_interval_s: float = 0.0,
     ) -> None:
         self.storage = storage
         self.site_name = site_name
         self.intervals = intervals
         self.stale_check_s = stale_check_s
         self.cache = ValueCache()
-        self.history = HistoryWriter(storage, flush_interval_s)
+        self.history = HistoryWriter(storage, flush_interval_s, min_interval_s=history_min_interval_s)
         self.config: RuntimeConfig | None = None
         self.tracker: QualityTracker | None = None
         self.pollers: list[DeviceState] = []  # one per device, for health reporting

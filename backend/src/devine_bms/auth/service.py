@@ -114,6 +114,9 @@ class AuthService:
         self.site_name = site_name
         self._attempts: dict[str, deque[float]] = defaultdict(deque)
         self._security: dict | None = None  # cached; reloaded when changed
+        self.setup_code: str | None = None  # standalone first boot (milestone 11a); RAM only
+        self._setup_fails = 0
+        self._setup_failed_at = 0.0
 
     # ---------- site and settings ----------
 
@@ -183,10 +186,26 @@ class AuthService:
             return bool(await session.scalar(select(func.count()).select_from(db.User)
                                              .where(db.User.site_id == site.id)))
 
-    async def create_first_admin(self, client: str, username: str, dis: str, password: str) -> tuple[dict, str]:
-        """The first-run page: only while there are no accounts, and only from the server itself."""
-        if not self.is_loopback(client):
+    def check_setup_code(self, client: str, code: str | None) -> None:
+        """Standalone mode (milestone 11a): away from the Pi itself, the first admin needs the
+        one-time setup code shown on its screen. Five wrong codes lock it for a minute."""
+        if self.is_loopback(client):
+            return
+        if not self.setup_code:
             raise AuthError("The first admin can only be created on the server itself.", 403)
+        now = time.monotonic()
+        if self._setup_fails >= 5 and now - self._setup_failed_at < 60:
+            raise AuthError("Too many wrong setup codes; wait a minute.", 429)
+        if not code or not secrets.compare_digest(str(code).strip(), self.setup_code):
+            self._setup_fails = self._setup_fails + 1 if now - self._setup_failed_at < 60 else 1
+            self._setup_failed_at = now
+            raise AuthError("The setup code is not right. It is shown on the Pi's screen.", 403)
+
+    async def create_first_admin(self, client: str, username: str, dis: str, password: str,
+                                 setup_code: str | None = None) -> tuple[dict, str]:
+        """The first-run page: only while there are no accounts, and only from the server itself
+        (or, in standalone mode, with the setup code)."""
+        self.check_setup_code(client, setup_code)
         async with self.sessions() as session, session.begin():
             site = await self._site(session)
             await session.execute(select(db.Site.id).where(db.Site.id == site.id).with_for_update())
@@ -196,6 +215,7 @@ class AuthService:
             actor = Actor(client=client, role="admin", user_id=user.id, username=user.username)
             self._audit(session, site.id, actor, "first-run", "user", user.username,
                         f"created the first admin account {user.username}", None, {"role": "admin"})
+        self.setup_code = None  # used: it stops working once the admin exists
         token = await self._open_session(user.id, client)
         return user_json(user), token
 

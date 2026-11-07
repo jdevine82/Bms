@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     # without TimescaleDB: history then goes to a plain PostgreSQL table with no retention.
     allow_plain_postgres: bool = False
 
+    # Standalone mode (milestone 11a): the Pi is the whole system; PostgreSQL runs in RAM and
+    # the state file on the config partition keeps the site through a power cut.
+    mode: str = "full"  # full or standalone
+    state_file: str = "/var/lib/devine-bms/config/site-state.json"
+    state_rw_cmd: str = ""  # for example: sudo mount -o remount,rw /var/lib/devine-bms/config
+    state_ro_cmd: str = ""
+    usb_path: str = "/run/devine-bms/usb"  # where the USB stick is mounted for an export
+    usb_mount_cmd: str = ""  # for example: sudo /usr/local/sbin/bms-usb mount
+    usb_umount_cmd: str = ""
+    net_cmd: str = ""  # the Pi's network helper: show | dhcp | static ADDRESS/PREFIX GATEWAY DNS
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
