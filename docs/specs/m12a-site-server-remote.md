@@ -1,6 +1,6 @@
 # Milestone 12a: Site server packaging and Tailscale remote access
 
-Status: **in progress** (7 Nov 2026). Main spec: 1 (support access), 7 (accounts), 8 (networking and security), 11 (deployment), 16 (bench test 12), 18 (milestone 12). Milestone 12b (remote updates with snapshot and rollback) builds on this.
+Status: **built**; bench test 12 on real Proxmox and Tailscale to do (7 Nov 2026). Main spec: 1 (support access), 7 (accounts), 8 (networking and security), 11 (deployment), 16 (bench test 12), 18 (milestone 12). Milestone 12b (remote updates with snapshot and rollback) builds on this.
 
 ## Decisions
 
@@ -66,3 +66,35 @@ Status: **in progress** (7 Nov 2026). Main spec: 1 (support access), 7 (accounts
   - Container IDs 201 (db) and 202 (app), set with `--ctid-base`.
 - **Bridges:** private bridge `vmbrbms` 10.77.0.0/24; LAN `vmbr0` (DHCP unless `--lan-ip`); device bridge `vmbr1` (`--device-bridge`, `none` for a shared LAN).
 - **Tailscale:** interactive login (the URL is printed). Tags are named `tag:bms-site-<site>`.
+
+## What was built
+
+- **`deploy/`:**
+  - `build-release.sh` (committed files only, no `.env` or local `site.json`);
+  - `proxmox/create-site.sh` and `proxmox/tailscale-host.sh` (with `DRY_RUN=1`);
+  - `containers/provision-db.sh` and `provision-app.sh`;
+  - `tailscale/policy.py` with `sites.example.json`;
+  - `README.md` with the install steps.
+- **Backend:**
+  - `auth/proxies.py` (`BMS_TRUSTED_PROXIES`). A trusted proxy's `X-Forwarded-For` names the client. A request from a trusted proxy *without* it counts as the server itself, so the first-run page works through an SSH tunnel via the host.
+  - The Tailscale identity in login audit entries; `support-login` for platform accounts, highlighted in the audit log.
+  - A new site server with `BMS_SITE_NAME` and no config file starts with an empty site, ready for the first run.
+  - `uvicorn --no-proxy-headers` on the site server and the Pi, so the backend, not uvicorn, decides which proxies to believe.
+- **Tests:**
+  - `tests/test_deploy.py`: the policy and its tests, bad site lists, the scripts in dry run, shellcheck, the release contents.
+  - `tests/test_auth.py`: trusted proxies, spoofed headers from the LAN, support logins, the host as the server itself.
+  - `tests/test_setup.py`: the empty site.
+  - By hand: the release was unpacked into a fresh venv and started on an empty database (first run offered, web app served).
+
+Not tested here (no Proxmox or tailnet in the build environment): `pct`, `pveam`, the apt repositories in the containers, `tailscale up` and `serve`, and node sharing. They are bench test 12.
+
+## How to set up
+
+See `deploy/README.md` ("Install a site"), in short:
+1. Build a release on a committed checkout.
+2. Run `create-site.sh` on the Proxmox host.
+3. Make the first admin through an SSH tunnel.
+4. Generate and save the customer tailnet policy.
+5. Run `tailscale-host.sh`.
+6. Share the host with the support tailnet.
+7. Set up MS/TP on the host with `BMS_MSTP_LISTEN=10.77.0.1:<port>`.

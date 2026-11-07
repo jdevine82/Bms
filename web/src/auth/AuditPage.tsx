@@ -5,7 +5,7 @@ import { useLoad } from "../setup/ui";
 import type { AuditRow } from "./authApi";
 import { auditQuery, getAudit } from "./authApi";
 
-const ACTIONS = ["", "login", "login-failed", "logout", "first-run", "user-add", "user-change", "user-remove", "password",
+const ACTIONS = ["", "login", "support-login", "login-failed", "logout", "first-run", "user-add", "user-change", "user-remove", "password",
   "unlock", "2fa", "settings", "put", "delete", "rename", "import", "commit", "apply-template", "create-from-template",
   "rollout", "reset-override", "unlink", "scan"];
 
@@ -15,7 +15,7 @@ export function AuditTable({ rows }: { rows: AuditRow[] }) {
       <thead><tr><th>When</th><th>User</th><th>What</th><th>Details</th></tr></thead>
       <tbody>
         {rows.map((c, i) => (
-          <tr key={i} className={c.action === "login-failed" ? "row-warn" : ""}>
+          <tr key={i} className={c.action === "login-failed" || c.action === "support-login" ? "row-warn" : ""}>
             <td className="nowrap">{new Date(c.ts).toLocaleString()}</td>
             <td>{c.user ?? <span className="muted">–</span>}<div className="mono small muted">{c.client}</div></td>
             <td>{c.summary}</td>

@@ -40,6 +40,11 @@ async def prepare_site(sessions: async_sessionmaker, settings: Settings) -> str:
 
     path = Path(settings.config_path)
     if not path.is_file():
+        if settings.site_name:  # a new site server (milestone 12a): an empty site; the setup starts in the web app
+            async with sessions() as session, session.begin():
+                session.add(db.Site(name=settings.site_name, dis=settings.site_name))
+            log.info("no site and no config file: made an empty site %s for the first-run setup", settings.site_name)
+            return settings.site_name
         raise StartupError(f"the database has no site and there is no config file at {path} to import")
     config, warnings = load_config(path)
     for warning in warnings:

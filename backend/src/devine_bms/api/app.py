@@ -25,7 +25,7 @@ from devine_bms import __version__
 from devine_bms.alarms.delivery import Delivery
 from devine_bms.alarms.engine import AlarmEngine
 from devine_bms.api.alarms_api import build_alarms_router
-from devine_bms.api.auth_api import COOKIE, build_auth_router, client_ip, install_guard
+from devine_bms.api.auth_api import COOKIE, build_auth_router, client_ip, install_guard, set_trusted_proxies
 from devine_bms.api.commands_api import build_commands_router
 from devine_bms.api.graphics_api import build_graphics_router
 from devine_bms.api.history import history_csv, row_json, thin
@@ -133,6 +133,8 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         runtime, cleanup = await runtime_factory()
         settings = getattr(runtime, "settings", None)
+        if settings is not None:
+            set_trusted_proxies(getattr(settings, "trusted_proxies", ""))
         standby = bool(getattr(runtime, "standby", False))
         if standby:  # milestone 11: the HMI in standby polls nothing and sends nothing
             from devine_bms.standby.boot import HELD_WHY

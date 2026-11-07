@@ -656,7 +656,7 @@ Write limits apply to every role, including admin (5.6). The same roles apply in
 
 ## 11. Deployment and updates
 
-Each site server runs **Proxmox VE** with one **LXC container per service**:
+Each site server runs **Proxmox VE** with LXC containers. **Decided in milestone 12a (decision 030): two containers, `bms-app` (backend, web app and Mosquitto) and `bms-db` (PostgreSQL + TimescaleDB), on a private bridge, with Tailscale and `tailscale serve` on the Proxmox host** (`deploy/README.md`). The table below is the original five-container plan, kept for reference:
 
 | Container | Contents |
 |---|---|
@@ -837,6 +837,8 @@ All figures are proposals and should be adjusted.
 | MS/TP stack location | `bacnet-stack` on the Proxmox host |
 | BACnet router | Yes, in v1 |
 | Remote access | Dashboard over Tailscale |
+| Tailnets and support access | **One tailnet per customer** (one tag per site, a generated policy with tests); each site server is **shared into the support tailnet** (decision 030, milestone 12a) |
+| Site server containers | **Two LXC containers**: `bms-app` (backend, web app, Mosquitto) and `bms-db` (PostgreSQL 16 + TimescaleDB), on a private bridge; **Tailscale and `tailscale serve` on the Proxmox host**. Replaces the five-container layout in section 11 (decision 030) |
 | HTTPS for remote users | `tailscale serve` in the `bms-tailscale` container; `bms-web` is plain HTTP only |
 | User accounts | Per site server, roles per site |
 | Control logic | Mixed: device-controlled and BMS-controlled; authored in a visual block editor |

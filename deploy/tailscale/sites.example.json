@@ -1,0 +1,10 @@
+{
+  "customer": "Example Holdings",
+  "owners": ["it@example.com"],
+  "admins": ["facilities@example.com"],
+  "supportPorts": [443, 22],
+  "sites": [
+    {"name": "plant1", "people": ["pat@example.com"]},
+    {"name": "office", "people": ["sam@example.com", "pat@example.com"]}
+  ]
+}

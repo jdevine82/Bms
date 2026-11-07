@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     site_name: str = ""
     listen_host: str = "127.0.0.1"
     listen_port: int = 8000
+    # Proxies whose X-Forwarded-For and Tailscale identity headers are believed, besides loopback
+    # (milestone 12a): on a site server the Proxmox host on the private bridge, 10.77.0.1.
+    trusted_proxies: str = ""
     log_level: str = "INFO"
     # Built web app (web/dist) to serve at /. Leave empty when the Vite dev server is used.
     web_dist: str = ""

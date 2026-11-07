@@ -187,6 +187,55 @@ async def test_tailscale_proxy_address_is_the_client(stack):
     assert log[0]["client"] == "100.64.1.2"
 
 
+async def test_trusted_proxy_on_the_proxmox_host_and_tailscale_identity(stack):
+    """Milestone 12a: tailscale serve runs on the Proxmox host (10.77.0.1 on the private bridge).
+    Its X-Forwarded-For and Tailscale-User-Login are believed only from a trusted proxy."""
+    from devine_bms.api.auth_api import set_trusted_proxies
+
+    admin = stack["client"]
+    await add_user(admin, "pat", "operator")
+    r = await admin.post("/api/users", json={"username": "support", "dis": "Support", "role": "admin",
+                                             "password": "a long enough pw", "platform": True})
+    assert r.status_code == 200, r.text
+    ts = {"X-Forwarded-For": "100.64.1.2", "Tailscale-User-Login": "pat@example.com"}
+    try:
+        # Not trusted yet: the host is the client and the identity is ignored.
+        async with client_from(stack["app"], "10.77.0.1") as host:
+            assert (await login(host, "pat", "a long enough pw")).status_code == 200
+        set_trusted_proxies("10.77.0.1")
+        async with client_from(stack["app"], "10.77.0.1") as host:
+            r = await host.post("/api/auth/login", json={"username": "pat", "password": "a long enough pw"},
+                                headers=ts)
+            assert r.status_code == 200
+            r = await host.post("/api/auth/login", json={"username": "support", "password": "a long enough pw"},
+                                headers={**ts, "Tailscale-User-Login": "jason@support.example"})
+            assert r.status_code == 200
+        # A LAN client cannot claim either.
+        async with client_from(stack["app"], "192.168.1.80") as lan:
+            assert (await login(lan, "pat", "a long enough pw")).status_code == 200
+            await lan.post("/api/auth/login", json={"username": "pat", "password": "a long enough pw"}, headers=ts)
+    finally:
+        set_trusted_proxies("")
+    logins = (await admin.get("/api/audit?action=login")).json()
+    pats = [e for e in logins if e["name"] == "pat"]
+    assert [e["client"] for e in pats][::-1] == ["10.77.0.1", "100.64.1.2", "192.168.1.80", "192.168.1.80"]
+    assert pats[-2]["summary"] == "logged in over Tailscale as pat@example.com"
+    assert all(e["summary"] == "logged in" for e in pats if e["client"] != "100.64.1.2")
+    # From the host itself (an SSH tunnel through it, no X-Forwarded-For) is the server itself.
+    set_trusted_proxies("10.77.0.1")
+    try:
+        async with client_from(stack["app"], "10.77.0.1") as tunnel:
+            assert (await tunnel.get("/api/auth/state")).json()["firstRunHere"] is False  # has users already
+            from devine_bms.auth.service import AuthService
+            assert AuthService.is_loopback("10.77.0.1") and not AuthService.is_loopback("10.77.0.2")
+    finally:
+        set_trusted_proxies("")
+    assert not AuthService.is_loopback("10.77.0.1")
+    support = (await admin.get("/api/audit?action=support-login")).json()
+    assert support[0]["summary"] == "support logged in over Tailscale as jason@support.example"
+    assert support[0]["user"] == "support"
+
+
 async def test_users_admin_rules(stack):
     admin = stack["client"]
     assert (await admin.put("/api/users/admin", json={"role": "operator"})).status_code == 409  # last admin
