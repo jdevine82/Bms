@@ -238,6 +238,18 @@ async def test_startup_without_site_or_file(tmp_path):
         await engine.dispose()
 
 
+async def test_a_new_site_server_starts_with_an_empty_site(tmp_path):
+    """Milestone 12a: with BMS_SITE_NAME and no config file, an empty site is made for the first run."""
+    engine = await fresh_database()
+    try:
+        sessions = make_sessionmaker(engine)
+        settings = Settings(config_path=str(tmp_path / "missing.json"), database_url=URL, site_name="plant1")
+        assert await prepare_site(sessions, settings) == "plant1"
+        assert await prepare_site(sessions, settings) == "plant1"  # and the next start uses it
+    finally:
+        await engine.dispose()
+
+
 
 
 async def test_cli_export_and_import(tmp_path):

@@ -174,10 +174,11 @@ class AuthService:
 
     @staticmethod
     def is_loopback(client: str) -> bool:
-        try:
-            return ipaddress.ip_address(client).is_loopback
-        except ValueError:
-            return client == "localhost"
+        """The server itself: loopback, or a trusted proxy that named no other client (milestone 12a:
+        the Proxmox host, for example through an SSH tunnel)."""
+        from devine_bms.auth.proxies import trusted_proxy
+
+        return trusted_proxy(client)
 
     # ---------- first run ----------
 
@@ -233,7 +234,9 @@ class AuthService:
         attempts.append(now)
         return False
 
-    async def login(self, client: str, username: str, password: str, code: str | None) -> tuple[dict, str]:
+    async def login(self, client: str, username: str, password: str, code: str | None,
+                    via: str | None = None) -> tuple[dict, str]:
+        """`via`: the Tailscale user, when the login came over Tailscale (milestone 12a)."""
         rules = await self.security()
         if self._rate_limited(client):
             raise AuthError("Too many login attempts from this address. Wait a minute and try again.", 429)
@@ -272,7 +275,13 @@ class AuthService:
                     user.failed_logins = 0
                     user.locked_until = None
                     user.last_login = _now()
-                    self._audit(session, site.id, actor, "login", "user", user.username, "logged in", None, None)
+                    where = f" over Tailscale as {via}" if via else ""
+                    if user.platform:  # support (main spec 1): visible to the customer's admin
+                        self._audit(session, site.id, actor, "support-login", "user", user.username,
+                                    f"support logged in{where}", None, {"tailscale": via} if via else None)
+                    else:
+                        self._audit(session, site.id, actor, "login", "user", user.username, f"logged in{where}",
+                                    None, {"tailscale": via} if via else None)
                     info = user_json(user)
         if error is not None:
             raise error

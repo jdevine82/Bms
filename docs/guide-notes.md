@@ -7,7 +7,10 @@ milestone adds to it.
 ## Installation
 
 - Development machine: Python 3.12 and uv, Node and npm, PostgreSQL 16 (TimescaleDB on sites; `BMS_ALLOW_PLAIN_POSTGRES=true` only on a dev machine), migrations with `uv run alembic upgrade head`. Facts: `docs/decisions/016-native-dev-setup.md`, `docs/specs/m2-simulated-modbus-to-trend.md`.
-- Site server (manual steps until the packaging of milestone 11): database, backend service, built web app (`BMS_WEB_DIST`), listen address (`BMS_LISTEN_HOST`, default 127.0.0.1), Tailscale and `tailscale serve` for HTTPS (decision 010).
+- Site server on Proxmox (milestone 12a): `deploy/README.md`.
+  - The two containers and the private bridge; building a release; `create-site.sh` and its options.
+  - The first admin through an SSH tunnel; where the secrets live (`/etc/devine-bms/bms.env`).
+  - Tailscale on the host with `tailscale serve`; MS/TP on the host at 10.77.0.1 (decision 030).
 - Pi HMI kiosk: `hmi/README.md` (provision.sh, 64-bit Raspberry Pi OS Lite, cage).
 - BACnet MS/TP service: `mstp/README.md` (build.sh, systemd template, udev rules in `deploy/udev`); version 0.2.0 adds WRITE and 0.3.0 the BACnet router (rebuild and restart the service when updating). Router set-up: the network-number plan, the trunk's labelled IP address, `BMS_MSTP_ROUTE_ARGS`, checking with a BACnet tool (`mstp/README.md`, "BACnet router").
 - MQTT broker (Mosquitto): `docs/specs/m4d-mqtt.md`.
@@ -34,6 +37,19 @@ milestone adds to it.
 - The operator's view: the Direct mode banner and Critical alarm; what works in direct mode; the Server screen; why Hand control back waits 5 minutes; that hand modes set during direct mode return to Auto; the web app banner while the HMI holds the site.
 - Bench test: stop the server, watch the takeover (30 s plus the bus quiet time), command on the HMI, start the server, hand back, check the audit log (entries marked "[HMI …, direct mode]").
 - Troubleshooting: "bus not clear" (something still polls a serial line: another master, or the server still running), "the server refused the cache" (the tokens differ), `serverOk: false` (address or firewall).
+
+## Remote access (milestone 12a)
+
+- One tailnet per customer:
+  - making the policy from `sites.json` (`deploy/tailscale/policy.py`);
+  - what each group can reach;
+  - that the policy replaces the tailnet's own, and its built-in tests.
+- Support access:
+  - sharing each site server into the support tailnet;
+  - how the customer sees and revokes the share;
+  - `support-login` entries in the audit log (main spec 1).
+- What a person needs: the Tailscale app, an invitation to the customer's tailnet, a site account; the site address `https://bms-<site>.<tailnet>.ts.net/`.
+- Settings: `BMS_TRUSTED_PROXIES`; and why the allowed-networks setting sees tailnet addresses (100.64.0.0/10) for remote users.
 
 ## Users and logins
 

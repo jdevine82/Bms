@@ -18,6 +18,10 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import or_, select
 
+from devine_bms.auth.proxies import (  # noqa: F401 (re-exported)
+    set_trusted_proxies,
+    trusted_proxy,
+)
 from devine_bms.auth.service import RANK, Actor, AuthError, AuthService
 from devine_bms.db import models as db
 
@@ -27,13 +31,10 @@ PUBLIC = {"/api/health", "/api/mode", "/api/standalone/setup-info", "/api/auth/s
 
 
 def client_ip(peer: str | None, forwarded: str | None) -> str:
-    """The client's address. A request from this machine with X-Forwarded-For came through a
-    local proxy (tailscale serve, main spec 8), so the address it names is the client."""
+    """The client's address. A request from a trusted proxy (tailscale serve on this machine or on
+    the Proxmox host, main spec 8) with X-Forwarded-For is from the address it names."""
     host = peer or "unknown"
-    try:
-        local = ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        local = host == "localhost"
+    local = trusted_proxy(host)
     if local and forwarded:
         last = forwarded.split(",")[-1].strip()
         try:
@@ -46,6 +47,16 @@ def client_ip(peer: str | None, forwarded: str | None) -> str:
 
 def request_client(request: Request) -> str:
     return client_ip(request.client.host if request.client else None, request.headers.get("x-forwarded-for"))
+
+
+def tailscale_login(request: Request) -> str | None:
+    """The Tailscale user (name@example.com) that tailscale serve names, only from a trusted proxy."""
+    peer = request.client.host if request.client else None
+    value = request.headers.get("tailscale-user-login")
+    if not value or not trusted_proxy(peer):
+        return None
+    value = value.strip()[:200]
+    return value if value.isprintable() else None
 
 
 def actor_of(request: Request) -> Actor:
@@ -137,7 +148,8 @@ def build_auth_router(get_auth: Callable[[], AuthService | None]) -> APIRouter:
     async def login(request: Request, body: dict = Body(...), svc: AuthService = Depends(auth)) -> Any:
         try:
             user, token = await svc.login(request_client(request), str(body.get("username", "")),
-                                          str(body.get("password", "")), body.get("code"))
+                                          str(body.get("password", "")), body.get("code"),
+                                          via=tailscale_login(request))
         except AuthError as exc:
             return JSONResponse(exc.as_dict(), status_code=exc.status)
         return with_cookie(request, {"ok": True, "user": user}, token)
