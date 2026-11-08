@@ -848,6 +848,7 @@ All figures are proposals and should be adjusted.
 | Point types | sensor, sp, cmd (Haystack), each with a Haystack `kind`: Number, Bool, or Str with `enum` for multistate; configuration points are flagged, not a separate type (5.2) |
 | Tag vocabulary | Project Haystack 4 standard library plus a house def library for missing meanings; picked from a menu; versioned files in the repository; site admins can add site-only custom tags, marked custom and not used by templates (5.2) |
 | Haystack compatibility | Pinned to haystack-defs v4.0.0 (not Xeto); tag sets and house library in Appendix A. Data model is Haystack 4 (site, space, equip, point, refs); read-only Haystack HTTP API with SCRAM login, off by default; no pointWrite in v1 (5.12) |
+| Haystack API logins | **API client accounts only** (viewer rights, no web or HMI login); people's accounts cannot use the API (decision 032, milestone 12a-Haystack) |
 | Discover screen | Scan per network (BACnet/IP, MS/TP, Modbus TCP and RTU), results listed live, click or multi-select to add; template suggested from vendor, model and object signature; Modbus devices without an ID need a template picked by hand (5.1.3) |
 | Scan during HMI takeover | Allowed with a warning and confirmation; not blocked (5.1.3) |
 | Add several devices | Add selected adds several discovered devices in one go; each is tested and failures stay in the list (5.1.3) |

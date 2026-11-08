@@ -179,6 +179,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
+    { name = "phable" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
@@ -202,6 +203,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "phable", specifier = ">=0.1.29" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.1" },
 ]
@@ -584,6 +586,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/da/66/bba39edaac853235385c59e1e30600cd104b8779164c181780742d8095fc/paho_mqtt-2.2.0.tar.gz", hash = "sha256:bcf706f03f1f49e0fc3ae166dc7b67ee35463496f8bdfd7c9c36181f6ba635c9", size = 133751, upload-time = "2026-11-04T20:10:51.405Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bf/af/fea4b0ee14cee6149f18d180430a14be0963b9a4fbc7875421a7de75f831/paho_mqtt-2.2.0-py3-none-any.whl", hash = "sha256:3243630f7c2b05f71d1de8c6f59865eb04d3a59ae8c866e92377faed6753db4d", size = 77202, upload-time = "2026-11-04T20:10:50.148Z" },
+]
+
+[[package]]
+name = "phable"
+version = "0.1.29"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/ab/3c67984016b6704c8bff6eb783c79fdd58dd6eb764f383a900c5160b6a84/phable-0.1.29.tar.gz", hash = "sha256:92b1380b2ac4462b7cda977aa416fc47b29413e11b8d002cf6da161a991d3573", size = 94785, upload-time = "2026-06-27T21:26:35.327Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/66/ad81d1fc31e6a925cdcc60546bcc79e6c761b75aaf46d63f170a7aeea89c/phable-0.1.29-py3-none-any.whl", hash = "sha256:9492a75bf1434af6632eb37e53e8752449b99fa541436d54dc472950d6032465", size = 40155, upload-time = "2026-06-27T21:26:34.514Z" },
 ]
 
 [[package]]

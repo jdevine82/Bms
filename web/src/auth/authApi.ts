@@ -27,6 +27,7 @@ export interface UserRow {
   dis: string;
   role: Role;
   platform: boolean;
+  apiClient?: boolean; // a Haystack API client (milestone 12a-Haystack)
   enabled: boolean;
   totp: boolean;
   pin?: boolean;
@@ -43,6 +44,7 @@ export interface Security {
   requireTotpForAdmins: boolean;
   kioskAddresses: string[];
   allowedNetworks: string[];
+  haystackApi: boolean;
 }
 
 export interface AuditRow {
@@ -70,7 +72,7 @@ export const totpConfirm = (code: string) => post<{ ok: boolean }>("/api/auth/me
 export const totpRemove = (password: string) => post<{ ok: boolean }>("/api/auth/me/totp/remove", { password });
 
 export const listUsers = () => get<UserRow[]>("/api/users");
-export const addUser = (body: { username: string; dis: string; role: Role; password: string; platform?: boolean }) =>
+export const addUser = (body: { username: string; dis: string; role: Role; password: string; platform?: boolean; apiClient?: boolean }) =>
   post<UserRow>("/api/users", body);
 export const changeUser = (username: string, body: Partial<Pick<UserRow, "dis" | "role" | "enabled" | "platform">>) =>
   put<UserRow>(`/api/users/${encodeURIComponent(username)}`, body);

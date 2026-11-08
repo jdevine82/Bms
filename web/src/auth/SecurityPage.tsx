@@ -35,6 +35,13 @@ export function SecurityPage() {
         <div className="form-row check">
           <label><input type="checkbox" checked={s.requireTotpForAdmins} onChange={(e) => setS({ ...s, requireTotpForAdmins: e.target.checked })} /> Require 2FA for admins</label>
         </div>
+        <h3>Haystack API</h3>
+        <div className="form-row check">
+          <label><input type="checkbox" checked={!!s.haystackApi} onChange={(e) => setS({ ...s, haystackApi: e.target.checked })} /> Haystack API on (read only)</label>
+        </div>
+        <p className="muted small">Lets analytics and energy tools read the site's model, live values and history with Project Haystack 4.
+          Address: <code>{location.origin}/api/haystack</code>. Only Haystack API client accounts (Users) can log in, with SCRAM.
+          Nothing can be written through it.</p>
         <h3>HMI kiosks</h3>
         <p className="muted small">Addresses of HMI screens that show the site without a login (view only; commands will need a PIN, milestone 7). One per line.</p>
         <textarea className="json short" aria-label="Kiosk addresses" value={kiosks} onChange={(e) => setKiosks(e.target.value)} placeholder="192.168.10.21" />

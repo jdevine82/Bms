@@ -1,6 +1,6 @@
 # Milestone 12a-Haystack: the Haystack API and model export
 
-Status: **in progress** (8 Nov 2026). Main spec: 5.12 (Haystack API), 5.2 (data model), 7 (accounts), 8 (networking), 16 (Haystack conformance tests), 18 (item 12a), open item 39.
+Status: **built** (8 Nov 2026). Main spec: 5.12 (Haystack API), 5.2 (data model), 7 (accounts), 8 (networking), 16 (Haystack conformance tests), 18 (item 12a), open item 39.
 
 ## Decisions
 
@@ -53,3 +53,49 @@ Status: **in progress** (8 Nov 2026). Main spec: 5.12 (Haystack API), 5.2 (data 
 - SCRAM: 10,000 iterations.
 - Standby HMIs do not serve the API (main spec 5.12: the server only). A standalone Pi does.
 - Conformance tests use `phable` (MIT, a Haystack client library), as a test-only dependency.
+
+## What was built
+
+- **`haystack/kinds.py` and `codec.py`:** the Haystack 4 kinds, Haystack JSON (Hayson) and Zinc, both read and write.
+- **`haystack/filter.py`:** the filter language (`and`, `or`, `not`, comparisons, `->` paths).
+- **`haystack/model.py`:**
+  - the entities from the setup tables;
+  - live values from the cache;
+  - feed refs on the thing fed (one feeder a medium: Haystack refs hold one value).
+- **`haystack/scram.py`:** PBKDF2-SHA-256 keys and the proof check. It sends standard base64 (what clients such as phable read) and accepts both alphabets. The salt is 18 bytes, so it needs no padding.
+- **`haystack/server.py`:**
+  - the HELLO / SCRAM / BEARER exchange; an unknown user name gets a made-up salt;
+  - the operations, plus `close` (logs out);
+  - watches with leases;
+  - the limits from decision 3.
+- **`api/haystack_api.py`:** `/api/haystack/<op>` (GET or POST, JSON or Zinc by `Accept`) and `/api/haystack-export`. The web login guard lets `/api/haystack/` through, because it authenticates itself.
+- **Accounts:**
+  - migration 0015 adds `app_user.api_client` and `scram`;
+  - an API client is always a viewer and never a platform account;
+  - it cannot use web or PIN login, and API tokens are refused as web sessions;
+  - `api-login` audit entries;
+  - `haystackApi` in the security settings.
+- **Web:**
+  - Users: "Haystack API client" accounts, marked in the list;
+  - Security: the switch and the address;
+  - Site: Export Haystack JSON or Zinc;
+  - Audit: the `api-login` filter.
+- **Tests:**
+  - `tests/test_haystack_codec.py` (35): every kind both ways, Zinc from other tools, filters, ranges, the SCRAM maths.
+  - `tests/test_haystack_api.py` (5): end to end with **phable** in JSON and Zinc. It covers: off by default; people refused; tokens not sessions; read, filters, paths and limit; read by id; nav; hisRead single and batch; watches; error grids; an unknown id. It also checks every entity against the 4.0.0 and house libraries, the export, the hisRead limits and the rate limit.
+  - `web/tests/haystack.mjs` (12).
+
+## How to set up
+
+1. Setup → Users → Add: tick **Haystack API client**, give the program a name, a user name and a password of at least the site's minimum length.
+2. Setup → Security: tick **Haystack API on** and save. The address is shown: `https://<site>/api/haystack` over Tailscale. On the LAN, `http://<server>/api/haystack` follows the allowed networks.
+3. In the tool (SkySpark, an energy platform, a script), set the server URI, the user name and the password. For example, with phable:
+
+   ```python
+   from phable import open_haystack_client
+
+   with open_haystack_client("https://<site>/api/haystack", "analytics", "<password>") as c:
+       print(c.read_all("point and his"))
+   ```
+
+4. Check the audit log for `api-login` entries. To stop access: switch the API off, or disable the API client account.

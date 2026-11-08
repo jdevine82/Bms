@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from devine_bms.auth import totp
 from devine_bms.auth.passwords import DUMMY_HASH, hash_password, verify_password
 from devine_bms.db import models as db
+from devine_bms.haystack.scram import make_keys
 
 ROLES = ("viewer", "operator", "admin")
 RANK = {"viewer": 0, "operator": 1, "admin": 2}
@@ -39,6 +40,7 @@ DEFAULT_SECURITY: dict[str, Any] = {
     "requireTotpForAdmins": False,
     "kioskAddresses": [],  # HMI kiosks: viewer access without a login (commands need a PIN, milestone 7)
     "allowedNetworks": [],  # empty: any network may log in
+    "haystackApi": False,  # the read-only Haystack API (milestone 12a-Haystack): off by default
 }
 LOGIN_RATE = (10, 60.0)  # attempts per client address, per seconds
 PIN_IDLE_MIN = 5  # an HMI PIN unlocks commands for 5 minutes idle (main spec 7)
@@ -88,6 +90,7 @@ def _now() -> datetime:
 
 def user_json(u: db.User) -> dict:
     return {"username": u.username, "dis": u.dis, "role": u.role, "platform": u.platform, "enabled": u.enabled,
+            "apiClient": bool(u.api_client),
             "totp": u.totp_secret is not None, "pin": u.pin_hash is not None,
             "locked": bool(u.locked_until and u.locked_until > _now()),
             "lockedUntil": u.locked_until.isoformat() if u.locked_until and u.locked_until > _now() else None,
@@ -163,6 +166,7 @@ class AuthService:
                 and not self.is_loopback(actor.client):
             raise AuthError("the allowed networks would lock you out: include the network you are on", 422)
         merged["requireTotpForAdmins"] = bool(merged["requireTotpForAdmins"])
+        merged["haystackApi"] = bool(merged["haystackApi"])
         async with self.sessions() as session, session.begin():
             site = await self._site(session)
             before = {k: (site.security or {}).get(k, DEFAULT_SECURITY[k]) for k in clean}
@@ -265,6 +269,10 @@ class AuthService:
                 elif not verify_password(password or "", user.password_hash) or not user.enabled:
                     self._fail(session, site.id, user, actor, rules, "wrong password" if user.enabled else "disabled")
                     error = AuthError("Wrong user name or password.", 401)
+                elif user.api_client:  # milestone 12a-Haystack: the Haystack API only
+                    self._audit(session, site.id, actor, "login-failed", "user", user.username,
+                                "failed login: an API client account cannot use the web app", None, None)
+                    error = AuthError("This is an API client account: it can only use the Haystack API.", 403)
                 elif user.totp_secret and not code:
                     error = AuthError("Enter the code from your authenticator app.", 401, "totp-required")
                 elif user.totp_secret and not totp.verify(user.totp_secret, code or ""):
@@ -383,7 +391,8 @@ class AuthService:
             return None
         if token:
             async with self.sessions() as session, session.begin():
-                row = await session.scalar(select(db.UserSession).where(db.UserSession.token_hash == token_hash(token)))
+                row = await session.scalar(select(db.UserSession).where(db.UserSession.token_hash == token_hash(token),
+                                                                       db.UserSession.kind != "api"))
                 if row is not None:
                     now = _now()
                     user = await session.get(db.User, row.user_id)
@@ -399,6 +408,72 @@ class AuthService:
         if client in {str(a) for a in rules["kioskAddresses"]} or client in self.extra_kiosks:
             return Actor(client=client, role="viewer", kiosk=True)
         return None
+
+    # ---------- Haystack API clients (milestone 12a-Haystack) ----------
+
+    async def api_credentials(self, username: str) -> tuple[uuid.UUID, dict] | None:
+        """The SCRAM keys of an enabled API client account, or None."""
+        async with self.sessions() as session:
+            site = await self._site(session)
+            user = await session.scalar(select(db.User).where(db.User.site_id == site.id,
+                                                              db.User.username == username.strip().lower()))
+        if user is None or not user.enabled or not user.api_client or not user.scram:
+            return None
+        return user.id, dict(user.scram)
+
+    async def api_login_done(self, client: str, username: str, user_id: uuid.UUID | None, proof_ok: bool) -> str:
+        """After the SCRAM proof: lockout, the audit log and, on success, an API token. Raises AuthError."""
+        rules = await self.security()
+        error: AuthError | None = None
+        async with self.sessions() as session, session.begin():
+            site = await self._site(session)
+            user = await session.get(db.User, user_id, with_for_update=True) if user_id else None
+            if user is None:
+                self._audit(session, site.id, Actor(client=client, role="viewer", username=username[:64] or None),
+                            "login-failed", "user", username[:100] or None,
+                            "failed Haystack API login: unknown user name or not an API client", None, None)
+                error = AuthError("Wrong user name or password.", 403)
+            else:
+                actor = Actor(client=client, role=user.role, user_id=user.id, username=user.username)
+                if user.locked_until and user.locked_until > _now():
+                    self._audit(session, site.id, actor, "login-failed", "user", user.username,
+                                "failed Haystack API login: account locked", None, None)
+                    error = AuthError("This account is locked after too many failed logins.", 403)
+                elif not proof_ok:
+                    self._fail(session, site.id, user, actor, rules, "wrong password (Haystack API)")
+                    error = AuthError("Wrong user name or password.", 403)
+                else:
+                    user.failed_logins, user.locked_until, user.last_login = 0, None, _now()
+                    self._audit(session, site.id, actor, "api-login", "user", user.username,
+                                "logged in to the Haystack API", None, None)
+        if error is not None:
+            raise error
+        return await self._open_session(user_id, client, kind="api")
+
+    async def api_actor(self, token: str, client: str, idle_min: int = 60) -> Actor | None:
+        """The API client for a Haystack bearer token (only API tokens: never a web session)."""
+        rules = await self.security()
+        if rules["allowedNetworks"] and not in_networks(client, rules["allowedNetworks"]) \
+                and not self.is_loopback(client):
+            return None
+        async with self.sessions() as session, session.begin():
+            row = await session.scalar(select(db.UserSession).where(db.UserSession.token_hash == token_hash(token),
+                                                                   db.UserSession.kind == "api"))
+            if row is None:
+                return None
+            user = await session.get(db.User, row.user_id)
+            now = _now()
+            if now - row.last_seen > timedelta(minutes=idle_min) or user is None or not user.enabled \
+                    or not user.api_client:
+                await session.delete(row)
+                return None
+            if (now - row.last_seen).total_seconds() > TOUCH_EVERY_S:
+                row.last_seen = now
+            return Actor(client=client, role="viewer", user_id=user.id, username=user.username, dis=user.dis,
+                         session_id=row.id)
+
+    def rate_limited(self, client: str) -> bool:
+        return self._rate_limited(client)
 
     async def logout(self, actor: Actor, everywhere: bool = False) -> None:
         async with self.sessions() as session, session.begin():
@@ -486,12 +561,13 @@ class AuthService:
     async def add_user(self, actor: Actor, body: dict) -> dict:
         async with self.sessions() as session, session.begin():
             site = await self._site(session)
+            api = bool(body.get("apiClient", False))
             user = await self._new_user(session, site, body.get("username", ""), body.get("dis", ""),
-                                        body.get("role", "viewer"), body.get("password", ""),
-                                        bool(body.get("platform", False)))
+                                        "viewer" if api else body.get("role", "viewer"), body.get("password", ""),
+                                        False if api else bool(body.get("platform", False)), api_client=api)
             self._audit(session, site.id, actor, "user-add", "user", user.username,
-                        f"added {user.role} account {user.username}", None,
-                        {"role": user.role, "dis": user.dis, "platform": user.platform})
+                        f"added {'Haystack API client' if api else user.role} account {user.username}", None,
+                        {"role": user.role, "dis": user.dis, "platform": user.platform, "apiClient": api})
             return user_json(user)
 
     async def change_user(self, actor: Actor, username: str, body: dict) -> dict:
@@ -499,6 +575,8 @@ class AuthService:
             site = await self._site(session)
             user = await self._user(session, site, username)
             before = {"role": user.role, "dis": user.dis, "enabled": user.enabled, "platform": user.platform}
+            if user.api_client and (body.get("role", "viewer") != "viewer" or body.get("platform")):
+                raise AuthError("an API client account stays a viewer", 422)
             if "role" in body:
                 if body["role"] not in ROLES:
                     raise AuthError(f"role must be one of {', '.join(ROLES)}", 422)
@@ -531,6 +609,8 @@ class AuthService:
             user = await self._user(session, site, username)
             await self._check_password(password, user.username)
             user.password_hash = hash_password(password)
+            if user.api_client:
+                user.scram = make_keys(password)
             user.failed_logins, user.locked_until = 0, None
             await session.execute(delete(db.UserSession).where(db.UserSession.user_id == user.id))
             self._audit(session, site.id, actor, "password", "user", user.username,
@@ -577,7 +657,7 @@ class AuthService:
         return user
 
     async def _new_user(self, session: AsyncSession, site: db.Site, username: str, dis: str, role: str,
-                        password: str, platform: bool) -> db.User:
+                        password: str, platform: bool, api_client: bool = False) -> db.User:
         username = (username or "").strip().lower()
         if not 2 <= len(username) <= 64 or not set(username) <= USERNAME_CHARS:
             raise AuthError("user names are 2 to 64 characters: letters, digits and . _ - @", 422)
@@ -589,7 +669,8 @@ class AuthService:
             raise AuthError(f"there is already an account '{username}'", 409)
         await self._check_password(password, username)
         user = db.User(site_id=site.id, username=username, dis=dis.strip(), role=role, platform=platform,
-                       password_hash=hash_password(password))
+                       password_hash=hash_password(password), api_client=api_client,
+                       scram=make_keys(password) if api_client else None)
         session.add(user)
         await session.flush()
         return user

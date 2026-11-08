@@ -5,7 +5,7 @@ import { useLoad } from "../setup/ui";
 import type { AuditRow } from "./authApi";
 import { auditQuery, getAudit } from "./authApi";
 
-const ACTIONS = ["", "login", "support-login", "login-failed", "logout", "first-run", "user-add", "user-change", "user-remove", "password",
+const ACTIONS = ["", "login", "support-login", "api-login", "login-failed", "logout", "first-run", "user-add", "user-change", "user-remove", "password",
   "unlock", "2fa", "settings", "put", "delete", "rename", "import", "commit", "apply-template", "create-from-template",
   "rollout", "reset-override", "unlink", "scan", "update-start", "update", "update-hmi"];
 
