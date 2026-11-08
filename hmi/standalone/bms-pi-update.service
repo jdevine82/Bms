@@ -1,0 +1,15 @@
+# Devine BMS on a Pi: finish an update staged from the web app (milestone 12b). Does nothing
+# unless a release is waiting on the config partition.
+[Unit]
+Description=Devine BMS update (if one is waiting)
+After=bms-pgram.service network-online.target
+Wants=network-online.target
+RequiresMountsFor=/var/lib/devine-bms/config
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/bms-pi-update apply
+TimeoutStartSec=20min
+
+[Install]
+WantedBy=multi-user.target

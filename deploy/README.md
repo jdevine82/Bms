@@ -76,6 +76,24 @@ This writes `dist/devine-bms-<version>.tar.gz`. It contains only files under ver
 
   Then check from a phone and a laptop in the customer's tailnet: `https://bms-plant1.<tailnet>.ts.net/`.
 
+## Updates (milestone 12b)
+
+- An admin uploads a release in **Setup → Updates**. The page streams the file to `bms-updater` on the host (`10.77.0.1:8701`, token in `/etc/devine-bms/updater.env` and `bms.env`).
+- The agent:
+  1. checks the file's shape (not who made it, decision 031);
+  2. snapshots both containers;
+  3. installs with the release's own `deploy/containers/install-release.sh`;
+  4. checks the site: the new version answers, the same devices are online, and it stays up 60 s;
+  5. if the check fails, rolls both containers back.
+- The page shows the steps and the result, and the history is in the audit log. A passed release then goes to the standby HMIs (`BMS_HMI_URLS`).
+- Storage must support snapshots (LVM-thin or ZFS). The last 3 `bms-pre-*` snapshots are kept.
+- An update needs internet (PyPI) for `pip install`.
+- On the host:
+  - `systemctl status bms-updater`;
+  - `journalctl -u bms-updater`;
+  - `/var/lib/devine-bms/updater/state.json`;
+  - snapshots: `pct listsnapshot 202`.
+
 ## Bench test 12
 
 - The site opens over Tailscale from a phone and a laptop.

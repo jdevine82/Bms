@@ -1,0 +1,15 @@
+# Devine BMS update agent on the Proxmox host (milestone 12b, decision 031). Listens on the private
+# bridge only; the token is in /etc/devine-bms/updater.env (0600).
+[Unit]
+Description=Devine BMS updater
+After=network-online.target pve-guests.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/devine-bms/updater.env
+ExecStart=/usr/bin/python3 /usr/local/lib/devine-bms/bms_updater.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

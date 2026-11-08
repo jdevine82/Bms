@@ -51,6 +51,15 @@ milestone adds to it.
 - What a person needs: the Tailscale app, an invitation to the customer's tailnet, a site account; the site address `https://bms-<site>.<tailnet>.ts.net/`.
 - Settings: `BMS_TRUSTED_PROXIES`; and why the allowed-networks setting sees tailnet addresses (100.64.0.0/10) for remote users.
 
+## Updates (milestone 12b)
+
+- Building a release (`deploy/build-release.sh`, committed checkout only).
+- Setup → Updates: what the steps mean, how long the site is down (about a minute; a Pi about 3), what a rollback loses (history and audit entries written during the update).
+- That releases are not checked for who made them (decision 031): only install releases from Devine BMS; admin accounts are that powerful.
+- Snapshot-capable storage (LVM-thin or ZFS) on the site server; internet during an update.
+- Standby HMIs updating after the server; the HMI table; a standalone Pi's own page; `last-update.json`.
+- Troubleshooting: "the updater on the host does not answer" (`bms-updater`, token), "cannot snapshot", a rollback that failed (the site needs attention: `pct listsnapshot`, `pct rollback` by hand).
+
 ## Users and logins
 
 - First admin on the first-run page, from a browser on the server itself only.

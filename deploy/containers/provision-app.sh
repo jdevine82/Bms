@@ -1,14 +1,15 @@
 #!/bin/bash
 # bms-app: the backend (which serves the web app) and Mosquitto (milestone 12a). Run inside the
 # container by deploy/proxmox/create-site.sh, with the database password on standard input.
-# Installs /opt/devine-bms/releases/$VERSION.tar.gz into /opt/devine-bms/$VERSION and points
-# /opt/devine-bms/current at it (milestone 12b updates switch that link). Safe to run again.
+# Installs /opt/devine-bms/releases/$VERSION.tar.gz with the release's own install-release.sh
+# (/opt/devine-bms/<version>, linked as /opt/devine-bms/current). Safe to run again.
 set -euo pipefail
 : "${SITE:?}" "${VERSION:?}" "${DB_IP:?}" "${HOST_IP:?}"
 ALLOW_PLAIN="${ALLOW_PLAIN:-0}"
 step() { echo "==> [bms-app] $*"; }
 fail() { echo "ERROR: [bms-app] $*" >&2; exit 1; }
 IFS= read -r PG_PASSWORD || true
+IFS= read -r UPDATER_TOKEN || true  # milestone 12b: the host's updater agent
 [ "${#PG_PASSWORD}" -ge 20 ] || fail "the database password is missing (it comes on standard input)"
 
 step "packages"
@@ -24,17 +25,9 @@ usermod -aG dialout bms
 step "release $VERSION"
 TARBALL="/opt/devine-bms/releases/$VERSION.tar.gz"
 [ -f "$TARBALL" ] || fail "$TARBALL is missing"
-DEST="/opt/devine-bms/$VERSION"
-rm -rf "$DEST.new"
-install -d "$DEST.new"
-tar -xzf "$TARBALL" -C "$DEST.new" --strip-components=1
-[ -f "$DEST.new/web/dist/index.html" ] || fail "the release has no built web app"
-python3 -m venv "$DEST.new/venv"
-"$DEST.new/venv/bin/pip" install --quiet --upgrade pip
-"$DEST.new/venv/bin/pip" install --quiet "$DEST.new/backend"
-rm -rf "$DEST"
-mv "$DEST.new" "$DEST"
-ln -sfn "$DEST" /opt/devine-bms/current
+# The release's own installer (the same one updates use, milestone 12b).
+tar -xzf "$TARBALL" --wildcards -O '*/deploy/containers/install-release.sh' > /root/install-release.sh
+bash /root/install-release.sh "$TARBALL" --no-restart
 
 step "settings (/etc/devine-bms/bms.env; secrets stay in this file)"
 install -d -m 0755 /etc/devine-bms /var/lib/devine-bms/config
@@ -54,12 +47,15 @@ BMS_WEB_DIST=/opt/devine-bms/current/web/dist
 BMS_LISTEN_HOST=0.0.0.0
 # tailscale serve runs on the Proxmox host ($HOST_IP on the private bridge).
 BMS_TRUSTED_PROXIES=$HOST_IP
+# Updates (milestone 12b): the updater agent on the host.
+BMS_UPDATER_URL=http://$HOST_IP:8701
+BMS_UPDATER_TOKEN=$UPDATER_TOKEN
 # The site's Mosquitto: name this variable as passwordEnv for user bms in the MQTT broker settings.
 BMS_MQTT_PASSWORD=$MQTT_PASSWORD
 $([ "$ALLOW_PLAIN" = 1 ] && echo "BMS_ALLOW_PLAIN_POSTGRES=true")
 ENVEOF
 if [ -f "$ENV" ]; then  # keep what an installer added by hand (alarm delivery keys, standby token)
-    grep -vE '^(# Devine BMS site|BMS_SITE_NAME|BMS_PG_PASSWORD|BMS_DATABASE_URL|BMS_CONFIG_PATH|BMS_WEB_DIST|BMS_LISTEN_HOST|# tailscale serve|BMS_TRUSTED_PROXIES|# The site.s Mosquitto|BMS_MQTT_PASSWORD|BMS_ALLOW_PLAIN_POSTGRES)' \
+    grep -vE '^(# Devine BMS site|BMS_SITE_NAME|BMS_PG_PASSWORD|BMS_DATABASE_URL|BMS_CONFIG_PATH|BMS_WEB_DIST|BMS_LISTEN_HOST|# tailscale serve|BMS_TRUSTED_PROXIES|# Updates \(milestone 12b\)|BMS_UPDATER_URL|BMS_UPDATER_TOKEN|# The site.s Mosquitto|BMS_MQTT_PASSWORD|BMS_ALLOW_PLAIN_POSTGRES)' \
         "$ENV" >> "$ENV.new" || true
 fi
 chown root:bms "$ENV.new"

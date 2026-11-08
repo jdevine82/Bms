@@ -34,6 +34,7 @@ from devine_bms.api.schedules_api import build_schedules_router
 from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.standalone_api import build_standalone_router
 from devine_bms.api.standby_api import build_standby_router
+from devine_bms.api.updates_api import build_updates_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.auth.service import AuthService
 from devine_bms.commands.service import CommandService
@@ -210,6 +211,12 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 await state["standalone"].start()
                 await state["standalone"].prepare_setup_code(state["auth"])
                 state["release"] = asyncio.create_task(_release_operator_priority(runtime), name="return to auto")
+            if settings is not None:  # milestone 12b
+                from devine_bms.updates.service import UpdateService
+
+                mode = "standby" if standby else ("standalone" if keeper is not None else "full")
+                state["updates"] = UpdateService(settings, state["auth"].record, mode, lambda: state.get("standby"),
+                                                 lambda: state.get("gate"))
             state["logic_service"] = LogicService(state["logic"], sessions, state["auth"].record, state["setup"])
             state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
@@ -251,6 +258,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         lambda: state.get("sessions"), lambda: state["runtime"].site_name,
         lambda: getattr(getattr(state.get("runtime"), "settings", None), "standby_token", ""),
         lambda: state.get("gate"), lambda: state.get("standby")))
+    app.include_router(build_updates_router(lambda: state.get("updates")))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 

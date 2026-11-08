@@ -158,22 +158,47 @@ if [ "$DRY_RUN" != 1 ] && pct exec "$APP_ID" -- test -f /etc/devine-bms/bms.env;
     PG_PASSWORD="$(pct exec "$APP_ID" -- sed -n 's/^BMS_PG_PASSWORD=//p' /etc/devine-bms/bms.env)"
 fi
 [ -n "$PG_PASSWORD" ] || PG_PASSWORD="$(head -c 32 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 32)"
+# The updater agent's token (milestone 12b): on the host in /etc/devine-bms/updater.env, and in bms-app.
+UPDATER_TOKEN=""
+[ -f /etc/devine-bms/updater.env ] && UPDATER_TOKEN="$(sed -n 's/^BMS_UPDATER_TOKEN=//p' /etc/devine-bms/updater.env)"
+[ -n "$UPDATER_TOKEN" ] || UPDATER_TOKEN="$(head -c 48 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 40)"
 
 step "Installing $VERSION in both containers"
 for id in "$DB_ID" "$APP_ID"; do
     run pct exec "$id" -- mkdir -p /opt/devine-bms/releases
-    run pct push "$id" "$RELEASE" "/opt/devine-bms/releases/$VERSION.tar.gz"
+    run pct push "$id" "$RELEASE" "/opt/devine-bms/releases/$VERSION.tar.gz" --perms 0644
     run pct push "$id" "$HERE/../containers/provision-$([ "$id" = "$DB_ID" ] && echo db || echo app).sh" /root/provision.sh
 done
 # The password goes in on standard input, never on a command line (ps, shell history).
 if [ "$DRY_RUN" = 1 ]; then
     echo "+ pct exec $DB_ID -- env APP_IP=$APP_IP DB_IP=$DB_IP bash /root/provision.sh  (password on stdin)"
-    echo "+ pct exec $APP_ID -- env ... bash /root/provision.sh  (password on stdin)"
+    echo "+ pct exec $APP_ID -- env ... bash /root/provision.sh  (password and updater token on stdin)"
 else
     printf '%s\n' "$PG_PASSWORD" | pct exec "$DB_ID" -- env APP_IP="$APP_IP" DB_IP="$DB_IP" ALLOW_PLAIN="$ALLOW_PLAIN" bash /root/provision.sh
-    printf '%s\n' "$PG_PASSWORD" | pct exec "$APP_ID" -- env SITE="$SITE" VERSION="$VERSION" DB_IP="$DB_IP" \
-        HOST_IP="$HOST_IP" ALLOW_PLAIN="$ALLOW_PLAIN" bash /root/provision.sh
+    printf '%s\n%s\n' "$PG_PASSWORD" "$UPDATER_TOKEN" | pct exec "$APP_ID" -- env SITE="$SITE" VERSION="$VERSION" \
+        DB_IP="$DB_IP" HOST_IP="$HOST_IP" ALLOW_PLAIN="$ALLOW_PLAIN" bash /root/provision.sh
 fi
+
+step "The updater agent on this host (bms-updater, $HOST_IP:8701; milestone 12b)"
+run install -d -m 0755 /usr/local/lib/devine-bms /etc/devine-bms /var/lib/devine-bms/updater
+run install -m 0755 "$HERE/../updater/bms_updater.py" /usr/local/lib/devine-bms/bms_updater.py
+run install -m 0644 "$HERE/../updater/bms-updater.service" /etc/systemd/system/bms-updater.service
+if [ "$DRY_RUN" = 1 ]; then
+    echo "+ write /etc/devine-bms/updater.env (0600: the token, CT $APP_ID and $DB_ID, http://$APP_IP)"
+else
+    (umask 077; cat > /etc/devine-bms/updater.env <<ENV
+# Devine BMS updater (deploy/proxmox/create-site.sh). The token is also in bms-app's bms.env.
+BMS_UPDATER_TOKEN=$UPDATER_TOKEN
+BMS_UPDATER_LISTEN=$HOST_IP:8701
+BMS_APP_CT=$APP_ID
+BMS_DB_CT=$DB_ID
+BMS_APP_URL=http://$APP_IP
+ENV
+)
+fi
+run systemctl daemon-reload
+run systemctl enable bms-updater.service
+run systemctl restart bms-updater.service
 
 echo
 echo "Done. Site $SITE: bms-db is CT $DB_ID, bms-app is CT $APP_ID."
@@ -181,4 +206,5 @@ echo "Next:"
 echo "  1. Remote access: $HERE/tailscale-host.sh --site $SITE   (then share this host into the support tailnet)"
 echo "  2. First admin: from this host, open the first-run page through the private bridge, for example"
 echo "     ssh -L 8080:$APP_IP:80 root@<this host>  and browse to http://localhost:8080"
-echo "  3. MS/TP trunks: install bms-mstp on this host (mstp/README.md) with BMS_MSTP_LISTEN=$HOST_IP:47900"
+echo "  3. Updates: Setup -> Updates in the web app (an admin uploads a release; snapshots need LVM-thin or ZFS storage)"
+echo "  4. MS/TP trunks: install bms-mstp on this host (mstp/README.md) with BMS_MSTP_LISTEN=$HOST_IP:47900"

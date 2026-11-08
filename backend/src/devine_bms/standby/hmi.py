@@ -21,6 +21,7 @@ from typing import Any
 import httpx
 from sqlalchemy import select
 
+from devine_bms import __version__
 from devine_bms.db import models as db
 from devine_bms.standby.listen import SerialListener
 from devine_bms.standby.server import TOKEN_HEADER
@@ -313,6 +314,7 @@ class StandbyService:
         healthy = round(now - self.ok_since) if self.server_ok and self.ok_since is not None else None
         return {"name": self.cfg.hmi_name, "mode": self.mode, "serverOk": self.server_ok,
                 "serverUrl": self.cfg.server_url.rstrip("/"),
+                "version": __version__, "lastUpdate": _last_update(self.cfg),
                 "serverHealthyS": healthy,
                 "serverLostS": round(now - self.last_ok) if not self.server_ok else None,
                 "takeoverAfterS": self.cfg.takeover_after_s, "failbackAfterS": self.cfg.failback_after_s,
@@ -336,3 +338,11 @@ def _write_atomic(path: Path, text: str, rw_cmd: str = "", ro_cmd: str = "") -> 
     from devine_bms.standalone.state import write_atomic
 
     write_atomic(path, text, rw_cmd, ro_cmd)  # the config partition is read-only except while writing
+
+
+def _last_update(cfg) -> dict | None:
+    """The result of the last update of this Pi (milestone 12b), written by bms-pi-update."""
+    try:
+        return json.loads((Path(getattr(cfg, "update_dir", "")) / "last-update.json").read_text())
+    except (OSError, ValueError, TypeError):
+        return None

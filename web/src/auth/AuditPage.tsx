@@ -7,7 +7,7 @@ import { auditQuery, getAudit } from "./authApi";
 
 const ACTIONS = ["", "login", "support-login", "login-failed", "logout", "first-run", "user-add", "user-change", "user-remove", "password",
   "unlock", "2fa", "settings", "put", "delete", "rename", "import", "commit", "apply-template", "create-from-template",
-  "rollout", "reset-override", "unlink", "scan"];
+  "rollout", "reset-override", "unlink", "scan", "update-start", "update", "update-hmi"];
 
 export function AuditTable({ rows }: { rows: AuditRow[] }) {
   return (

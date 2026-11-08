@@ -108,6 +108,10 @@ def test_create_site_dry_run(tmp_path):
     assert "pct set 202 --dev0 path=/dev/ttyBMS-rs485-1,gid=20,mode=0660" in out
     assert "password on stdin" in out
     assert "BMS_MSTP_LISTEN=10.77.0.1:47900" in out
+    # Milestone 12b: the updater agent on the host, its token never on a command line.
+    assert "install -m 0755" in out and "/usr/local/lib/devine-bms/bms_updater.py" in out
+    assert "systemctl enable bms-updater.service" in out and "updater.env (0600" in out
+    assert "password and updater token on stdin" in out
 
 
 @pytest.mark.parametrize("args, message", [

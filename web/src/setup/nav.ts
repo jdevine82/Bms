@@ -13,6 +13,7 @@ export type Section =
   | "equipment"
   | "site"
   | "standalone"
+  | "updates"
   | "changes"
   | "users"
   | "security"

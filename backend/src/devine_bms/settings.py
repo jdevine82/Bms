@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     mstp_stop_cmd: str = ""
     pi_ports: str = ""  # the Pi's own adapters, for example: rs485_1=/dev/ttyBMS-rs485-1,trunk1=/dev/ttyBMS-trunk1
 
+    # Updates (milestone 12b). Site server: the host's updater agent and its token (an environment
+    # variable only), and where bms-app keeps releases (for pushing to the standby HMIs).
+    updater_url: str = ""  # for example http://10.77.0.1:8701
+    updater_token: str = ""
+    release_dir: str = "/opt/devine-bms/releases"
+    # Pi (standalone or standby): the updates folder on the config partition (the waiting release and
+    # last-update.json, written by bms-pi-update as root) and the command that stages an upload.
+    update_dir: str = "/var/lib/devine-bms/config/updates"
+    pi_update_cmd: str = ""  # for example: sudo -n /usr/local/sbin/bms-pi-update stage
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
