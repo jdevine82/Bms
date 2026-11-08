@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     mstp_stop_cmd: str = ""
     pi_ports: str = ""  # the Pi's own adapters, for example: rs485_1=/dev/ttyBMS-rs485-1,trunk1=/dev/ttyBMS-trunk1
 
+    # Device logins on the site's own Mosquitto (bms-app): the root helper, through sudo.
+    mqtt_users_cmd: str = ""  # for example: sudo -n /usr/local/sbin/bms-mqtt-users
+
     # Updates (milestone 12b). Site server: the host's updater agent and its token (an environment
     # variable only), and where bms-app keeps releases (for pushing to the standby HMIs).
     updater_url: str = ""  # for example http://10.77.0.1:8701

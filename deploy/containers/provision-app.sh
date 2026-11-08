@@ -52,10 +52,12 @@ BMS_UPDATER_URL=http://$HOST_IP:8701
 BMS_UPDATER_TOKEN=$UPDATER_TOKEN
 # The site's Mosquitto: name this variable as passwordEnv for user bms in the MQTT broker settings.
 BMS_MQTT_PASSWORD=$MQTT_PASSWORD
+# Device logins on it, from Setup -> Buses and networks.
+BMS_MQTT_USERS_CMD=sudo -n /usr/local/sbin/bms-mqtt-users
 $([ "$ALLOW_PLAIN" = 1 ] && echo "BMS_ALLOW_PLAIN_POSTGRES=true")
 ENVEOF
 if [ -f "$ENV" ]; then  # keep what an installer added by hand (alarm delivery keys, standby token)
-    grep -vE '^(# Devine BMS site|BMS_SITE_NAME|BMS_PG_PASSWORD|BMS_DATABASE_URL|BMS_CONFIG_PATH|BMS_WEB_DIST|BMS_LISTEN_HOST|# tailscale serve|BMS_TRUSTED_PROXIES|# Updates \(milestone 12b\)|BMS_UPDATER_URL|BMS_UPDATER_TOKEN|# The site.s Mosquitto|BMS_MQTT_PASSWORD|BMS_ALLOW_PLAIN_POSTGRES)' \
+    grep -vE '^(# Devine BMS site|BMS_SITE_NAME|BMS_PG_PASSWORD|BMS_DATABASE_URL|BMS_CONFIG_PATH|BMS_WEB_DIST|BMS_LISTEN_HOST|# tailscale serve|BMS_TRUSTED_PROXIES|# Updates \(milestone 12b\)|BMS_UPDATER_URL|BMS_UPDATER_TOKEN|# The site.s Mosquitto|BMS_MQTT_PASSWORD|# Device logins on it|BMS_MQTT_USERS_CMD|BMS_ALLOW_PLAIN_POSTGRES)' \
         "$ENV" >> "$ENV.new" || true
 fi
 chown root:bms "$ENV.new"
@@ -63,18 +65,25 @@ chmod 0640 "$ENV.new"
 mv "$ENV.new" "$ENV"
 umask 022
 
-step "Mosquitto (user bms, no anonymous access)"
+step "Mosquitto (user bms, no anonymous access; device logins from the web app)"
 cat > /etc/mosquitto/conf.d/devine-bms.conf <<MQ
 # Devine BMS (deploy/containers/provision-app.sh)
 listener 1883
 allow_anonymous false
 password_file /etc/mosquitto/devine-bms.passwd
 MQ
-rm -f /etc/mosquitto/devine-bms.passwd
-mosquitto_passwd -b -c /etc/mosquitto/devine-bms.passwd bms "$MQTT_PASSWORD" 2>/dev/null
-chown root:mosquitto /etc/mosquitto/devine-bms.passwd
-chmod 0640 /etc/mosquitto/devine-bms.passwd
+# The helper the backend uses (through sudo) for device logins: Setup -> Buses and networks.
+tar -xzf "$TARBALL" --wildcards -O '*/deploy/containers/bms-mqtt-users' > /usr/local/sbin/bms-mqtt-users
+chmod 0755 /usr/local/sbin/bms-mqtt-users
+cat > /etc/sudoers.d/devine-bms-mqtt <<'SUDO'
+# Devine BMS: device logins on the site's Mosquitto (milestone 13 follow-up). Nothing else as root.
+bms ALL=(root) NOPASSWD: /usr/local/sbin/bms-mqtt-users list, /usr/local/sbin/bms-mqtt-users add *, /usr/local/sbin/bms-mqtt-users remove *
+SUDO
+chmod 0440 /etc/sudoers.d/devine-bms-mqtt
+visudo -cf /etc/sudoers.d/devine-bms-mqtt >/dev/null
 systemctl enable --now mosquitto >/dev/null
+# The BMS's own login; device logins already in the file are kept (the password is on stdin).
+printf '%s\n' "$MQTT_PASSWORD" | BMS_MQTT_RELOAD_CMD="" /usr/local/sbin/bms-mqtt-users set-bms
 systemctl restart mosquitto
 
 step "the backend service"

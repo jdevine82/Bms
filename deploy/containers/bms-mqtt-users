@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Device logins on the site's own Mosquitto (bms-app), run as root through sudo by the backend
+(Setup -> Buses and networks -> Device logins). Standard library only.
+
+    bms-mqtt-users list             the logins, as a JSON list (the BMS's own login is left out)
+    bms-mqtt-users add NAME         add a login, or give an existing one a new password; the
+                                    password is read from standard input, never a command line
+    bms-mqtt-users remove NAME      remove a login
+    bms-mqtt-users set-bms          (install only) the BMS's own login "bms", password on stdin
+
+Mosquitto hashes the password itself (mosquitto_passwd -U on a root-only temporary file); this
+script then puts the hashed line into the password file and asks Mosquitto to reload it.
+Settings for tests: BMS_MQTT_PASSWD_FILE, BMS_MQTT_RELOAD_CMD, BMS_MQTT_PASSWD_BIN, BMS_MQTT_GROUP.
+"""
+
+from __future__ import annotations
+
+import grp
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+PASSWD = os.environ.get("BMS_MQTT_PASSWD_FILE", "/etc/mosquitto/devine-bms.passwd")
+RELOAD = os.environ.get("BMS_MQTT_RELOAD_CMD", "systemctl reload-or-restart mosquitto")
+TOOL = os.environ.get("BMS_MQTT_PASSWD_BIN", "mosquitto_passwd")
+GROUP = os.environ.get("BMS_MQTT_GROUP", "mosquitto")
+NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+OWN = "bms"  # the BMS's own login: managed by the install, not from the web app
+
+
+def fail(message: str, code: int = 1):
+    print(f"bms-mqtt-users: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def read_lines() -> list[str]:
+    try:
+        with open(PASSWD, encoding="utf-8") as f:
+            return [line.rstrip("\n") for line in f if line.strip()]
+    except FileNotFoundError:
+        return []
+
+
+def names(lines: list[str]) -> list[str]:
+    return [line.split(":", 1)[0] for line in lines if ":" in line]
+
+
+def write_lines(lines: list[str]) -> None:
+    folder = os.path.dirname(PASSWD) or "."
+    fd, tmp = tempfile.mkstemp(prefix=".devine-bms-passwd-", dir=folder)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + ("\n" if lines else ""))
+        try:
+            os.chown(tmp, 0, grp.getgrnam(GROUP).gr_gid)
+        except (KeyError, PermissionError):
+            pass  # tests, or no mosquitto group
+        os.chmod(tmp, 0o640)
+        os.replace(tmp, PASSWD)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def hashed(name: str, password: str) -> str:
+    """name:<Mosquitto's own hash> for this password."""
+    with tempfile.TemporaryDirectory() as d:
+        os.chmod(d, 0o700)
+        plain = os.path.join(d, "p")
+        fd = os.open(plain, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(f"{name}:{password}\n")
+        r = subprocess.run([TOOL, "-U", plain], capture_output=True, text=True)
+        if r.returncode != 0:
+            fail(f"mosquitto_passwd failed: {r.stderr.strip() or r.stdout.strip()}")
+        with open(plain, encoding="utf-8") as f:
+            line = f.read().strip()
+    if not line.startswith(f"{name}:$"):
+        fail("mosquitto_passwd did not hash the password")
+    return line
+
+
+def reload() -> None:
+    if not RELOAD:
+        return
+    r = subprocess.run(shlex.split(RELOAD), capture_output=True, text=True)
+    if r.returncode != 0:
+        fail(f"reloading Mosquitto failed: {r.stderr.strip()}")
+
+
+def set_login(name: str) -> None:
+    password = sys.stdin.readline().rstrip("\n")
+    if len(password) < 16:
+        fail("the password (on standard input) must be at least 16 characters")
+    if ":" in password or "\n" in password:
+        fail("the password cannot contain : or a new line")
+    line = hashed(name, password)
+    lines = [x for x in read_lines() if not x.startswith(f"{name}:")]
+    write_lines(lines + [line])
+    reload()
+
+
+def main(argv: list[str]) -> None:
+    if len(argv) < 2:
+        fail("usage: bms-mqtt-users list | add NAME | remove NAME | set-bms", 2)
+    cmd = argv[1]
+    if cmd == "list" and len(argv) == 2:
+        print(json.dumps(sorted(n for n in names(read_lines()) if n != OWN)))
+        return
+    if cmd == "set-bms" and len(argv) == 2:
+        set_login(OWN)
+        return
+    if cmd in ("add", "remove") and len(argv) == 3:
+        name = argv[2]
+        if not NAME.match(name):
+            fail("a login name is letters, digits, . _ - (up to 64), starting with a letter or digit", 2)
+        if name == OWN:
+            fail("'bms' is the BMS's own login and is not changed here", 2)
+        if cmd == "add":
+            set_login(name)
+            return
+        lines = read_lines()
+        if name not in names(lines):
+            fail(f"no login '{name}'", 3)
+        write_lines([x for x in lines if not x.startswith(f"{name}:")])
+        reload()
+        return
+    fail("usage: bms-mqtt-users list | add NAME | remove NAME | set-bms", 2)
+
+
+if __name__ == "__main__":
+    main(sys.argv)

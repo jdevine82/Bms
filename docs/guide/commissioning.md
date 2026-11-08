@@ -36,7 +36,7 @@ saved, goes live without a restart, and is recorded in the audit log.
 | Modbus RTU over TCP | A serial-to-Ethernet gateway that passes raw RTU frames. |
 | Modbus TCP gateway | A gateway that converts Modbus TCP to RTU (devices by unit ID). |
 | BACnet MS/TP | A trunk run by `bms-mstp` on the host ([Site server](install-site-server.md), step 4). MAC 0 is the server and MAC 1 the Pi on every trunk; never give them to devices. |
-| MQTT broker | Usually the site's own Mosquitto. The password is given only as the name of an environment variable. |
+| MQTT broker | Usually the site's own Mosquitto. The password is given only as the name of an environment variable. On the site's own broker (`127.0.0.1`), **Device logins** gives each device its own login. |
 
 BACnet/IP and Modbus TCP devices need no bus: they have their own address. The bus screen shows each connection live,
 with MS/TP trunk counters.

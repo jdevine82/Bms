@@ -102,6 +102,14 @@ async def switch(admin, on: bool):
     assert r.status_code == 200, r.text
 
 
+def site_today() -> date:
+    """Today in the example site's time zone: a range of "today" is the site's day."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo("Australia/Sydney")).date()
+
+
 def meta_grid(meta: dict):
     """A request with meta and no rows, as phable sends one."""
     from phable import Grid as PGrid
@@ -190,8 +198,9 @@ async def test_read_nav_his_and_watches_with_phable(tmp_path, content_type):
                 out["equip_pts"] = c.read_all('point and equipRef->dis == "Main power meter" and unit == "kW"')
                 power = next(r for r in out["points"].rows if r["devineName"] == "site_meter1_power")
                 out["byid"] = c.read_by_id(power["id"])
-                out["his"] = c.his_read_by_id(power["id"], date.today())
-                out["his2"] = c.his_read_by_ids([power["id"], out["byid"]["id"]], date.today())
+                today = site_today()  # the site's date (Sydney), not this machine's
+                out["his"] = c.his_read_by_id(power["id"], today)
+                out["his2"] = c.his_read_by_ids([power["id"], out["byid"]["id"]], today)
                 out["nav_root"] = c.call("nav")
                 sub = c.call("watchSub", PGrid.to_grid([{"id": power["id"]}], {"watchDis": "test",
                                                                                   "lease": phable.Number(2, "min")}))

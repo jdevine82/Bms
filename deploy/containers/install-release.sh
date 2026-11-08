@@ -55,6 +55,12 @@ for v in "${ALL[@]}"; do
     if [ "$n" -gt 3 ] && [ "$v" != "$VERSION" ] && [ "$v" != "$PREVIOUS" ]; then rm -rf "${BASE:?}/$v"; fi
 done
 
+# Root helpers that come with the release (site server only: where Mosquitto runs).
+if [ "${BMS_INSTALL_HELPERS:-1}" = 1 ] && [ "$(id -u)" = 0 ] && command -v mosquitto_passwd >/dev/null \
+        && [ -f "$DEST/deploy/containers/bms-mqtt-users" ]; then
+    install -m 0755 "$DEST/deploy/containers/bms-mqtt-users" /usr/local/sbin/bms-mqtt-users
+fi
+
 if [ "$RESTART" = 1 ] && command -v systemctl >/dev/null && systemctl cat bms-backend.service >/dev/null 2>&1; then
     step "restarting bms-backend"
     systemctl restart bms-backend.service

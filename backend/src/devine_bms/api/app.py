@@ -35,6 +35,7 @@ from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.standalone_api import build_standalone_router
 from devine_bms.api.standby_api import build_standby_router
 from devine_bms.api.haystack_api import build_haystack_router
+from devine_bms.api.mqtt_logins_api import build_mqtt_logins_router
 from devine_bms.api.updates_api import build_updates_router
 from devine_bms.api.timezones import iana_zone
 from devine_bms.auth.service import AuthService
@@ -265,6 +266,9 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         lambda: state.get("gate"), lambda: state.get("standby")))
     app.include_router(build_updates_router(lambda: state.get("updates")))
     app.include_router(build_haystack_router(lambda: state.get("haystack")))
+    app.include_router(build_mqtt_logins_router(
+        lambda: getattr(getattr(state.get("runtime"), "settings", None), "mqtt_users_cmd", ""),
+        lambda: state["auth"].record if state.get("auth") else None))
     app.include_router(build_setup_router(lambda: state.get("setup"), lambda: state.get("runtime"),
                                           lambda: state.get("discover")))
 
