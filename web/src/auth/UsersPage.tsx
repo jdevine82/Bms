@@ -18,7 +18,7 @@ export function UsersPage() {
   const users = useLoad(() => listUsers(), []);
   const [selected, setSelected] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ username: "", dis: "", role: "operator" as Role, password: "", platform: false });
+  const [form, setForm] = useState({ username: "", dis: "", role: "operator" as Role, password: "", platform: false, apiClient: false });
   const [newPw, setNewPw] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const u = (users.data ?? []).find((x) => x.username === selected) ?? null;
@@ -44,7 +44,7 @@ export function UsersPage() {
                   <span className="mono muted small">{x.username}</span>
                 </span>
                 <span className="pick-side">
-                  <Badge tone={x.role === "admin" ? "info" : "muted"}>{x.role}</Badge>
+                  {x.apiClient ? <Badge tone="info">API client</Badge> : <Badge tone={x.role === "admin" ? "info" : "muted"}>{x.role}</Badge>}
                   {!x.enabled && <Badge tone="muted">Disabled</Badge>}
                   {x.locked && <Badge tone="bad">Locked</Badge>}
                   {x.totp && <span className="small muted">2FA</span>}
@@ -61,20 +61,26 @@ export function UsersPage() {
             <h2>New account</h2>
             <label className="stack"><span>Name</span><input aria-label="Name" value={form.dis} onChange={(e) => setForm({ ...form, dis: e.target.value })} /></label>
             <label className="stack"><span>User name</span><input aria-label="User name" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} /></label>
-            <label className="stack"><span>Role</span>
-              <select aria-label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-                {(Object.keys(ROLE_TEXT) as Role[]).map((r) => <option key={r} value={r}>{ROLE_TEXT[r]}</option>)}
-              </select></label>
-            <label className="stack"><span>First password (they can change it)</span>
-              <input aria-label="First password" type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
-            <label className="check"><input type="checkbox" checked={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.checked })} /> Platform admin account</label>
+            <label className="check"><input type="checkbox" checked={form.apiClient} onChange={(e) => setForm({ ...form, apiClient: e.target.checked })} /> Haystack API client (a program, not a person)</label>
+            {form.apiClient ? (
+              <p className="muted small">An API client reads the site through the Haystack API only (SCRAM login, viewer rights). It cannot log in to
+                the web app or the HMI. Give the program its user name and password; switch the API on in Setup → Security.</p>
+            ) : (
+              <label className="stack"><span>Role</span>
+                <select aria-label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
+                  {(Object.keys(ROLE_TEXT) as Role[]).map((r) => <option key={r} value={r}>{ROLE_TEXT[r]}</option>)}
+                </select></label>
+            )}
+            <label className="stack"><span>{form.apiClient ? "Password (for the program's settings)" : "First password (they can change it)"}</span>
+              <input aria-label={form.apiClient ? "Password for the program" : "First password"} type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
+            {!form.apiClient && <label className="check"><input type="checkbox" checked={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.checked })} /> Platform admin account</label>}
             <div className="actions">
               <ActionButton primary disabled={!form.username || !form.dis || !form.password} onClick={async () => {
                 try {
                   await addUser(form);
                   setOutcome({ kind: "ok", message: `Added ${form.username}.` });
                   setSelected(form.username.trim().toLowerCase()); setAdding(false);
-                  setForm({ username: "", dis: "", role: "operator", password: "", platform: false });
+                  setForm({ username: "", dis: "", role: "operator", password: "", platform: false, apiClient: false });
                   await users.reload();
                 } catch (e) { setOutcome(outcomeFrom(e)); }
               }}>Add account</ActionButton>
@@ -84,10 +90,14 @@ export function UsersPage() {
           <div className="form">
             <h2>{u.dis}</h2>
             <p className="muted"><span className="mono">{u.username}</span>{u.lastLogin ? ` · last login ${new Date(u.lastLogin).toLocaleString()}` : " · never logged in"}</p>
-            <label className="stack"><span>Role</span>
-              <select aria-label="Role" value={u.role} onChange={(e) => act(() => changeUser(u.username, { role: e.target.value as Role }), `${u.username} is now ${e.target.value}; it applies from their next login.`)}>
-                {(Object.keys(ROLE_TEXT) as Role[]).map((r) => <option key={r} value={r}>{ROLE_TEXT[r]}</option>)}
-              </select></label>
+            {u.apiClient ? (
+              <p className="muted small">Haystack API client: reads the site through the Haystack API only, with viewer rights.</p>
+            ) : (
+              <label className="stack"><span>Role</span>
+                <select aria-label="Role" value={u.role} onChange={(e) => act(() => changeUser(u.username, { role: e.target.value as Role }), `${u.username} is now ${e.target.value}; it applies from their next login.`)}>
+                  {(Object.keys(ROLE_TEXT) as Role[]).map((r) => <option key={r} value={r}>{ROLE_TEXT[r]}</option>)}
+                </select></label>
+            )}
             <label className="check"><input type="checkbox" checked={u.enabled} disabled={u.username === me.username}
               onChange={(e) => act(() => changeUser(u.username, { enabled: e.target.checked }), e.target.checked ? "Enabled." : "Disabled and signed out.")} /> Account enabled</label>
             {u.locked && (

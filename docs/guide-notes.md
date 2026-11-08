@@ -60,6 +60,23 @@ milestone adds to it.
 - Standby HMIs updating after the server; the HMI table; a standalone Pi's own page; `last-update.json`.
 - Troubleshooting: "the updater on the host does not answer" (`bms-updater`, token), "cannot snapshot", a rollback that failed (the site needs attention: `pct listsnapshot`, `pct rollback` by hand).
 
+## Haystack API (milestone 12a-Haystack)
+
+- What it is for (analytics and energy tools), and that it is read-only.
+- Making an API client account; switching the API on; the address over Tailscale and on the LAN.
+- What a tool sees:
+  - ids and refs;
+  - `devineName`;
+  - `curVal` only for Good values;
+  - history gaps.
+- The limits: 31 days a hisRead, watches, 30 requests every 10 s, tokens ending after 60 minutes idle.
+- The model export (Setup → Site).
+- Troubleshooting:
+  - 404: the API is off;
+  - 401 or 403: wrong password, a person's account, or locked;
+  - 429: too many requests;
+  - "not logged": the point has no `his`.
+
 ## Users and logins
 
 - First admin on the first-run page, from a browser on the server itself only.

@@ -84,7 +84,8 @@ def install_guard(app, get_auth: Callable[[], AuthService | None]) -> None:
     @app.middleware("http")
     async def guard(request: Request, call_next):
         path = request.url.path
-        if not path.startswith("/api/"):
+        if not path.startswith("/api/") or path.startswith("/api/haystack/"):
+            # The Haystack API does its own authentication (SCRAM, API clients only: milestone 12a-Haystack).
             return await call_next(request)
         auth = get_auth()
         client = request_client(request)

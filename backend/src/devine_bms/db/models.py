@@ -262,6 +262,10 @@ class User(Base):
     totp_secret: Mapped[str | None] = mapped_column(String(64))  # set once 2FA is confirmed
     totp_pending: Mapped[str | None] = mapped_column(String(64))  # during 2FA set-up
     pin_hash: Mapped[str | None] = mapped_column(Text)  # HMI PIN (milestone 7A), separate from the password
+    # A Haystack API client (milestone 12a-Haystack): viewer rights, the Haystack API only, no web or HMI login.
+    api_client: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Its SCRAM SHA-256 keys {salt, i, storedKey, serverKey} (base64), made when its password is set.
+    scram: Mapped[dict | None] = mapped_column(JSONB)
     failed_logins: Mapped[int] = mapped_column(nullable=False, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

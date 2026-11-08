@@ -51,6 +51,12 @@ export function SitePage() {
         <button type="button" className="btn" disabled={!current} onClick={() => current && download(`${current.site.name}-setup.json`, JSON.stringify(current, null, 2))}>
           Export the setup
         </button>
+        <h3>Haystack model</h3>
+        <p className="small">Sites, rooms, equipment and points with their Haystack tags (no live values or history).</p>
+        <div className="row">
+          <a className="btn" href="/api/haystack-export?format=json" download>Export Haystack JSON</a>
+          <a className="btn" href="/api/haystack-export?format=zinc" download>Export Zinc</a>
+        </div>
         <hr />
         <FilePick label="Choose a setup file to import" accept=".json,application/json" onText={async (text, name) => {
           try {
