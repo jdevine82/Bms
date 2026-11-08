@@ -1,0 +1,105 @@
+#!/bin/bash
+# Update the BMS on a Pi with a read-only root (milestone 12b, decision 031).
+#   bms-pi-update stage RELEASE   (the backend, through sudo) copy the release onto the config
+#                                 partition, turn the overlay off, reboot in 5 seconds
+#   bms-pi-update apply           (bms-pi-update.service at boot) with a release waiting: install it
+#                                 side by side, switch /opt/devine-bms/current, restart the backend,
+#                                 check /api/health answers the new version (2 minutes), switch back
+#                                 if not; write last-update.json; turn the overlay on; reboot
+# Every system command can be replaced through the environment (tests, a bench Pi without overlay).
+set -euo pipefail
+CONF="${BMS_CONF:-/var/lib/devine-bms/config}"
+DIR="$CONF/updates"
+BASE="${BMS_BASE:-/opt/devine-bms}"
+RW="${BMS_RW_CMD-/usr/local/sbin/bms-state-rw rw}"
+RO="${BMS_RO_CMD-/usr/local/sbin/bms-state-rw ro}"
+OVERLAY_OFF="${BMS_OVERLAY_OFF_CMD:-raspi-config nonint disable_overlayfs}"
+OVERLAY_ON="${BMS_OVERLAY_ON_CMD:-raspi-config nonint enable_overlayfs}"
+OVERLAY_ACTIVE="${BMS_OVERLAY_ACTIVE_CMD:-findmnt -n -o FSTYPE / | grep -qx overlay}"
+REBOOT_LATER="${BMS_REBOOT_LATER_CMD:-systemd-run --on-active=5 /usr/bin/systemctl reboot}"
+REBOOT="${BMS_REBOOT_CMD:-systemctl reboot}"
+RESTART="${BMS_RESTART_CMD:-systemctl restart bms-backend.service}"
+HEALTH="${BMS_HEALTH_URL:-http://127.0.0.1/api/health}"
+WAIT="${BMS_UPDATE_WAIT_S:-120}"
+log() { echo "bms-pi-update: $*"; }
+fail() { echo "bms-pi-update: ERROR: $*" >&2; exit 1; }
+writable() { if [ -n "$RW" ]; then $RW; fi; }
+readonly_again() { if [ -n "$RO" ]; then $RO || true; fi; }
+
+result() {  # state version from reason
+    writable
+    mkdir -p "$DIR"
+    python3 - "$DIR/last-update.json" "$@" <<'PY'
+import json, sys, datetime
+path, state, version, prev, reason = sys.argv[1:6]
+json.dump({"state": state, "version": version, "from": prev or None, "reason": reason or None,
+           "at": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")}, open(path, "w"))
+PY
+    rm -f "$DIR/pending.tar.gz"
+    sync
+    readonly_again
+}
+
+case "${1:-}" in
+stage)
+    REL="${2:?usage: bms-pi-update stage RELEASE}"
+    if [ ! -f "$REL" ] || [ -L "$REL" ]; then fail "$REL is missing"; fi
+    # Called through sudo by the backend: accept only something shaped like a release, and keep the
+    # copy readable by root only, so this cannot be used to read other files.
+    tar -tzf "$REL" 2>/dev/null | head -1 | grep -Eq '^devine-bms-[0-9A-Za-z.+-]+/?$' \
+        || fail "$REL is not a Devine BMS release"
+    umask 077
+    writable
+    mkdir -p "$DIR"
+    cp "$REL" "$DIR/pending.tar.gz.new"
+    sync
+    mv "$DIR/pending.tar.gz.new" "$DIR/pending.tar.gz"
+    sync
+    readonly_again
+    if eval "$OVERLAY_ACTIVE"; then $OVERLAY_OFF; fi
+    log "staged; restarting into the update"
+    $REBOOT_LATER
+    ;;
+apply)
+    [ -f "$DIR/pending.tar.gz" ] || exit 0
+    PREVIOUS="$(readlink "$BASE/current" 2>/dev/null || true)"
+    PREV_V="$(basename "${PREVIOUS:-none}")"
+    if eval "$OVERLAY_ACTIVE"; then
+        result failed "?" "$PREV_V" "the read-only overlay was still on, so nothing could be installed"
+        exit 0
+    fi
+    TOP="$(tar -tzf "$DIR/pending.tar.gz" | head -1 | cut -d/ -f1)"
+    NEW_V="$(tar -xzf "$DIR/pending.tar.gz" -O "$TOP/VERSION" 2>/dev/null | tr -d '[:space:]' || true)"
+    log "installing $NEW_V (now $PREV_V)"
+    INSTALLER="$(mktemp)"
+    trap 'rm -f "$INSTALLER"' EXIT
+    if ! tar -xzf "$DIR/pending.tar.gz" --wildcards -O '*/deploy/containers/install-release.sh' > "$INSTALLER" \
+        || ! BMS_BASE="$BASE" bash "$INSTALLER" "$DIR/pending.tar.gz" --no-restart; then
+        result failed "$NEW_V" "$PREV_V" "the release could not be installed (see journalctl -u bms-pi-update)"
+        $OVERLAY_ON; $REBOOT; exit 0
+    fi
+    $RESTART || true
+    ok=0
+    for _ in $(seq 1 "$WAIT"); do
+        if curl -fsS "$HEALTH" 2>/dev/null | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin).get('version') == sys.argv[1] else 1)" "$NEW_V"; then
+            ok=1; break
+        fi
+        sleep 1
+    done
+    if [ "$ok" = 1 ]; then
+        log "$NEW_V answers"
+        result passed "$NEW_V" "$PREV_V" ""
+    else
+        log "$NEW_V did not answer: switching back to $PREV_V"
+        if [ -n "$PREVIOUS" ]; then ln -sfn "$PREVIOUS" "$BASE/current.new" && mv -T "$BASE/current.new" "$BASE/current"; fi
+        $RESTART || true
+        result rolled-back "$NEW_V" "$PREV_V" "the new version did not answer within $WAIT s; $PREV_V is back"
+    fi
+    $OVERLAY_ON
+    $REBOOT
+    ;;
+*)
+    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+    exit 2
+    ;;
+esac

@@ -1,6 +1,6 @@
 # Milestone 12b: Updates with snapshot, health check and rollback
 
-Status: **in progress** (8 Nov 2026). Main spec: 11 (updates), 7 (admins do updates), 16 (bench test 12), 18 (milestone 12). Builds on 12a (`deploy/`, decision 030).
+Status: **built**; bench test 12 on real Proxmox and a real Pi to do (8 Nov 2026). Main spec: 11 (updates), 7 (admins do updates), 16 (bench test 12), 18 (milestone 12). Builds on 12a (`deploy/`, decision 030).
 
 ## Decisions
 
@@ -48,3 +48,45 @@ Status: **in progress** (8 Nov 2026). Main spec: 11 (updates), 7 (admins do upda
 - **Health limits:** 180 s to answer, 60 s stable. Devices: every device online before must be online after; a device that went down by coincidence fails the update (safe side).
 - **Releases kept:** the last 3 snapshots and the last 3 installed versions in each container and on each Pi.
 - **Internet:** installing a release runs `pip install`, so the site needs internet (PyPI) during an update, as at install.
+
+## What was built
+
+- **The host agent:**
+  - `deploy/updater/bms_updater.py` with its unit `bms-updater.service`, using the standard library only.
+  - It checks the release, snapshots `bms-db` then `bms-app`, pushes the release and runs the release's own installer.
+  - It health-checks: the version, the devices, then 60 s stable with no new restarts.
+  - On failure it stops, rolls back and restarts both containers, then waits for the old version.
+  - It keeps the last 3 snapshots, reports to the backend, and keeps its state in `state.json`. One update runs at a time.
+  - If the agent restarts mid-update, its state shows as failed, so it can be checked by hand.
+  - `create-site.sh` installs it and makes its token, which reaches `bms-app` on stdin.
+- **Container side:** `deploy/containers/install-release.sh`. It installs side by side, switches `current` atomically and keeps 3 versions; `provision-app.sh` uses it too.
+- **Backend:**
+  - `updates/` with `release.py` (the same checks as the agent; a test keeps them in step) and `service.py`.
+  - `api/updates_api.py`: `GET /api/updates`, `POST /api/updates/upload` (admins), `POST /api/updates/report` (agent token), `POST /api/standby/update` (standby token, standby HMIs only).
+  - The HMIs' standby state now has `version` and `lastUpdate`.
+- **Pi:**
+  - `hmi/standalone/bms-pi-update` (`stage` and `apply`) and `bms-pi-update.service`.
+  - The versioned layout (`/opt/devine-bms/<version>`, `current`).
+  - `BMS_PI_UPDATE_CMD` and `BMS_UPDATE_DIR` in the env file.
+  - A sudoers entry for `bms-pi-update stage` only. `stage` accepts only a release-shaped file and keeps its copy root-only.
+- **Web:** Setup → Updates, with the version, Install, the progress steps, the result, the standby HMIs (version, last update, last push) and the history. The audit filter has `update-start`, `update` and `update-hmi`.
+- **Tests:**
+  - `tests/test_updater.py` (16): the agent with a stand-in pct.
+  - `tests/test_updates.py` (5): a real backend and agent on two ports, the HMI push, a rollback report, permissions, Pi staging, the two release checks agreeing.
+  - `tests/test_pi_update.py` (7): the installer and the Pi update with stand-in commands, including the switch back.
+  - `tests/test_deploy.py`: the agent install in the dry run.
+  - `web/tests/updates.mjs`: in the browser, with `tests/fake_updater.py`.
+
+Not tested here: `pct snapshot`, `rollback` and `listsnapshot` output on real Proxmox storage; `raspi-config` overlay switching and the reboots on a real Pi; `pip install` during an update (needs internet). These are bench test 12.
+
+## How to set up
+
+- **Site server:** nothing extra. `create-site.sh` installs the agent; run it again on a site made before 12b. The containers' storage must support snapshots (LVM-thin or ZFS). With `dir` storage the update is refused before anything changes.
+- **Updating:**
+  1. Build a release from a committed checkout (`deploy/build-release.sh`).
+  2. Open Setup → Updates, choose the file, then Install.
+  3. Watch the steps. The page carries on by itself while the site restarts.
+- **Pis:** run `provision.sh` again on each Pi (versioned layout, `bms-pi-update`, sudoers). Standby HMIs then update by themselves after the server; a standalone Pi has Setup → Updates.
+- **Checking:**
+  - the agent: `systemctl status bms-updater` and `/var/lib/devine-bms/updater/state.json` on the host;
+  - a Pi: `/var/lib/devine-bms/config/updates/last-update.json` and `journalctl -u bms-pi-update`.

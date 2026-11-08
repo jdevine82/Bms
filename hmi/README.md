@@ -72,6 +72,20 @@ Then on the server set `BMS_HMI_URLS=http://<this Pi's address>` and restart it.
 With MS/TP trunks, the Pi needs its own `bms-mstp` as MAC 1 (`../mstp/README.md`), started and stopped through
 `BMS_MSTP_START_CMD` and `BMS_MSTP_STOP_CMD`. More in `../docs/specs/m11-hmi-takeover.md`, "How to set up".
 
+## Updates on a Pi (milestone 12b)
+
+A Pi with the backend (standalone, or an HMI in standby) is updated from the web app:
+- standalone: Setup → Updates on the Pi;
+- standby: the site server sends each release to its HMIs after its own update has passed.
+
+The steps:
+1. The release is copied onto the config partition.
+2. The read-only overlay is turned off and the Pi restarts.
+3. `bms-pi-update.service` installs the release into `/opt/devine-bms/<version>`, switches `/opt/devine-bms/current`, and checks that the new version answers within 2 minutes. If it does not, it switches back.
+4. It writes `updates/last-update.json` on the config partition, turns the overlay on and restarts.
+
+The update takes about 3 minutes, and the HMI cannot take over while it runs. It needs internet for `pip install`. Pis set up before milestone 12b: run `provision.sh` again to get the versioned layout and `bms-pi-update`.
+
 ## Standalone mode (the Pi is the whole system)
 
 Milestone 11a, main spec 3.1. The Pi runs the backend, PostgreSQL in RAM and the touch screen. Nothing is written to

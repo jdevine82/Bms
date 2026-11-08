@@ -27,19 +27,28 @@ step "Creating the bms user"
 id bms >/dev/null 2>&1 || useradd --system --home-dir /var/lib/devine-bms --shell /usr/sbin/nologin bms
 for group in dialout plugdev; do getent group "$group" >/dev/null && usermod -aG "$group" bms; done
 
-step "Installing the backend and web app"
-install -d -m 0755 /opt/devine-bms/app
+step "Installing the backend and web app (/opt/devine-bms/<version>, linked as current; milestone 12b)"
+VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$REPO/backend/pyproject.toml" | head -1)"
+[ -n "$VERSION" ] || fail "no version in backend/pyproject.toml"
+DEST="/opt/devine-bms/$VERSION"
+install -d -m 0755 "$DEST" "$DEST/web" "$DEST/deploy"
 rsync -a --delete --exclude node_modules --exclude .venv --exclude '__pycache__' \
-    "$REPO/backend" "$REPO/config" "$REPO/simulators" /opt/devine-bms/app/
-rsync -a --delete "$REPO/web/dist/" /opt/devine-bms/app/web/dist/
-[ -x /opt/devine-bms/venv/bin/python ] || python3 -m venv /opt/devine-bms/venv
-/opt/devine-bms/venv/bin/pip install --quiet --upgrade pip
-/opt/devine-bms/venv/bin/pip install --quiet /opt/devine-bms/app/backend
+    "$REPO/backend" "$REPO/config" "$DEST/"
+rsync -a --delete "$REPO/web/dist/" "$DEST/web/dist/"
+rsync -a --delete "$REPO/deploy/containers" "$DEST/deploy/"
+echo "$VERSION" > "$DEST/VERSION"
+[ -x "$DEST/venv/bin/python" ] || python3 -m venv "$DEST/venv"
+"$DEST/venv/bin/pip" install --quiet --upgrade pip
+"$DEST/venv/bin/pip" install --quiet "$DEST/backend"
+ln -sfn "$DEST" /opt/devine-bms/current
+rm -rf /opt/devine-bms/app /opt/devine-bms/venv  # the layout before milestone 12b
 
 step "PostgreSQL in RAM (the SD card copy of PostgreSQL is not used)"
 systemctl disable --now postgresql >/dev/null 2>&1 || true
-install -m 0755 "$HERE/bms-pgram" "$HERE/bms-state-rw" "$HERE/bms-usb" "$HERE/bms-net" /usr/local/sbin/
-install -m 0644 "$HERE/bms-pgram.service" "$HERE/bms-backend.service" /etc/systemd/system/
+install -m 0755 "$HERE/bms-pgram" "$HERE/bms-state-rw" "$HERE/bms-usb" "$HERE/bms-net" "$HERE/bms-pi-update" \
+    /usr/local/sbin/
+install -m 0644 "$HERE/bms-pgram.service" "$HERE/bms-backend.service" "$HERE/bms-pi-update.service" \
+    /etc/systemd/system/
 
 step "Settings (/etc/devine-bms/standalone.env)"
 install -d -m 0755 /etc/devine-bms
@@ -53,7 +62,7 @@ BMS_PG_SUPER_PASSWORD=$SUPER
 BMS_DATABASE_URL=postgresql+asyncpg://bms:$PW@localhost:5432/bms
 BMS_ALLOW_PLAIN_POSTGRES=true
 BMS_LISTEN_HOST=0.0.0.0
-BMS_WEB_DIST=/opt/devine-bms/app/web/dist
+BMS_WEB_DIST=/opt/devine-bms/current/web/dist
 BMS_CONFIG_PATH=/var/lib/devine-bms/config/site.json
 BMS_STATE_FILE=/var/lib/devine-bms/config/site-state.json
 BMS_STATE_RW_CMD=sudo -n /usr/local/sbin/bms-state-rw rw
@@ -79,11 +88,18 @@ if [ "$PI_MODE" = standby ]; then
         echo "# BMS_MSTP_START_CMD=sudo -n /usr/bin/systemctl start bms-mstp@trunk1"
     } >> /etc/devine-bms/standalone.env
 fi
+# Milestone 12b: the current layout and updates from the web app (kept up to date on every run).
+sed -i -e 's|^BMS_WEB_DIST=.*|BMS_WEB_DIST=/opt/devine-bms/current/web/dist|' \
+    -e '/^BMS_PI_UPDATE_CMD=/d' -e '/^BMS_UPDATE_DIR=/d' /etc/devine-bms/standalone.env
+{
+    echo "BMS_PI_UPDATE_CMD=sudo -n /usr/local/sbin/bms-pi-update stage"
+    echo "BMS_UPDATE_DIR=/var/lib/devine-bms/config/updates"
+} >> /etc/devine-bms/standalone.env
 chown root:bms /etc/devine-bms/standalone.env
 chmod 0640 /etc/devine-bms/standalone.env
 cat > /etc/sudoers.d/devine-bms <<'SUDO'
 # Devine BMS standalone: the only things the backend may do as root.
-bms ALL=(root) NOPASSWD: /usr/local/sbin/bms-state-rw, /usr/local/sbin/bms-usb, /usr/local/sbin/bms-net
+bms ALL=(root) NOPASSWD: /usr/local/sbin/bms-state-rw, /usr/local/sbin/bms-usb, /usr/local/sbin/bms-net, /usr/local/sbin/bms-pi-update stage *
 SUDO
 chmod 0440 /etc/sudoers.d/devine-bms
 visudo -cf /etc/sudoers.d/devine-bms >/dev/null
@@ -118,7 +134,7 @@ install -d -m 0755 /etc/systemd/journald.conf.d
 printf '[Journal]\nStorage=volatile\nRuntimeMaxUse=32M\n' > /etc/systemd/journald.conf.d/devine-bms.conf
 
 systemctl daemon-reload
-systemctl enable bms-pgram.service bms-backend.service
+systemctl enable bms-pgram.service bms-backend.service bms-pi-update.service
 
 if [ "$READONLY" -eq 1 ]; then
     step "Read-only root file system (overlay; undo with: sudo raspi-config nonint disable_overlayfs)"

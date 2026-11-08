@@ -17,6 +17,7 @@ import type { Section } from "./nav";
 import { navigate, useHash } from "./nav";
 import { SitePage } from "./SitePage";
 import { StandalonePage } from "./StandalonePage";
+import { UpdatesPage } from "./UpdatesPage";
 import "./setup.css";
 import { WizardPage } from "./Wizard";
 
@@ -35,6 +36,7 @@ const SECTIONS: { key: Section; label: string; group: string }[] = [
   { key: "alarm-delivery", label: "Alarm delivery", group: "Alarms" },
   { key: "site", label: "Site and setup file", group: "Site" },
   { key: "standalone", label: "Standalone", group: "Site" },
+  { key: "updates", label: "Updates", group: "Site" },
   { key: "users", label: "Users", group: "Site" },
   { key: "security", label: "Security", group: "Site" },
   { key: "audit", label: "Audit log", group: "Site" },
@@ -90,6 +92,7 @@ export function SetupApp() {
         {section === "graphics" && <GraphicsSetupPage />}
         {section === "site" && <SitePage />}
         {section === "standalone" && <StandalonePage />}
+        {section === "updates" && <UpdatesPage />}
         {section === "alarm-definitions" && <AlarmDefinitionsPage />}
         {section === "alarm-delivery" && <DeliverySettingsPage />}
         {section === "users" && <UsersPage />}
