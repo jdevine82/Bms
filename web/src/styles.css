@@ -440,3 +440,8 @@ a.button {
 .held-banner { padding: 8px 16px; background: var(--bad); color: #fff; font-weight: 600; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .held-banner { color: #1a0b0a; } }
 :root[data-theme="dark"] .held-banner { color: #1a0b0a; }
+
+/* Maintenance counters (main spec 5.10) */
+.counter-due { color: var(--bad); font-weight: 600; }
+.equip-counters { margin-top: 16px; }
+.equip-counters table th { text-align: left; font-weight: 500; padding-right: 12px; }

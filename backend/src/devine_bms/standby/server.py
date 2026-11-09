@@ -94,6 +94,7 @@ async def cache_payload(sessions, site_name: str) -> dict:
 
     async with sessions() as session:
         config = await export_dict(session, site_name)
+        config.pop("counters", None)  # the HMI does not count; and they would change the revision every minute
         site = await session.scalar(select(db.Site).where(db.Site.name == site_name))
         users = (await session.scalars(select(db.User).where(db.User.site_id == site.id, db.User.enabled.is_(True),
                                                              db.User.pin_hash.is_not(None)))).all()

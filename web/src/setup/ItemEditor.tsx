@@ -68,7 +68,7 @@ function Field({ path, value, onChange }: { path: string[]; value: any; onChange
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
     return (
       <fieldset>
-        <legend>{key === "connection" ? "Connection" : key === "template" ? "Template" : label(key)}</legend>
+        <legend>{key === "connection" ? "Connection" : key === "template" ? "Template" : key === "service" ? "Service interval" : label(key)}</legend>
         {Object.entries(value).map(([k, v]) => (
           <Field key={k} path={[...path, k]} value={v} onChange={(nv) => onChange({ ...value, [k]: nv })} />
         ))}

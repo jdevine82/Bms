@@ -17,6 +17,8 @@ The level is always shown by its name and shape as well as by colour. Critical a
 - A value above or below a limit, or in a given state (for example a fault input on), for longer than its delay.
 - A value that has stopped updating (stale).
 - A device that stops answering, where the installer set an offline alarm.
+- A **service due**: equipment has run the hours, or made the starts, set as its service interval. An admin marks the
+  service done on Setup → Equipment, which clears it.
 
 A value that is Bad (the device not answering) never raises a limit alarm. You get one offline alarm instead of a flood.
 

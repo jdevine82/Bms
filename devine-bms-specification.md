@@ -445,6 +445,7 @@ Logic can be written outside the editor and pasted in, as Node-RED does with its
 - **Remote support** runs over Tailscale with the customer's consent (section 1), and the admin role is needed for these tools (section 7).
 
 ### 5.10 Maintenance counters (decided)
+Built 9 Nov 2026 (`docs/specs/counters.md`, decision 033): counter points are made automatically for equipment with a run-state point.
 - **Run hours and start counts are in v1 (decided).** Any equipment with a run state point (a true/false sensor role tagged `run`, 5.1.2) gets a **run-hours counter** and a **start counter** automatically. They are counted by the BMS from the state changes it sees.
 - **Where they show:** on the equipment panel (the tap-to-control screen, 6.4, and the web app), and as read-only points that logic (5.3.1), alarms (5.5) and trends can use.
 - **Service reminders:** each piece of equipment (or its template) can set a service interval in hours or starts. When it is reached the BMS raises an alarm at a chosen level (default Info, 5.5) with a message such as "Service due: ac1_indoor, 2,000 hours". An admin marks the service as done, which resets the "since service" counter and writes an audit entry (5.6). Total hours are never reset.
@@ -849,6 +850,7 @@ All figures are proposals and should be adjusted.
 | Tag vocabulary | Project Haystack 4 standard library plus a house def library for missing meanings; picked from a menu; versioned files in the repository; site admins can add site-only custom tags, marked custom and not used by templates (5.2) |
 | Haystack compatibility | Pinned to haystack-defs v4.0.0 (not Xeto); tag sets and house library in Appendix A. Data model is Haystack 4 (site, space, equip, point, refs); read-only Haystack HTTP API with SCRAM login, off by default; no pointWrite in v1 (5.12) |
 | Haystack API logins | **API client accounts only** (viewer rights, no web or HMI login); people's accounts cannot use the API (decision 032, milestone 12a-Haystack) |
+| Maintenance counter points | **Made automatically** for equipment with a run-state point, on a built-in BMS counters device (decision 033) |
 | Discover screen | Scan per network (BACnet/IP, MS/TP, Modbus TCP and RTU), results listed live, click or multi-select to add; template suggested from vendor, model and object signature; Modbus devices without an ID need a template picked by hand (5.1.3) |
 | Scan during HMI takeover | Allowed with a warning and confirmation; not blocked (5.1.3) |
 | Add several devices | Add selected adds several discovered devices in one go; each is tested and failures stay in the list (5.1.3) |

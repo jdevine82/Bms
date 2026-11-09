@@ -63,6 +63,8 @@ class SetupService:
     @staticmethod
     def revision(data: dict) -> str:
         """A short fingerprint of a whole setup, so an editor can tell whether it changed meanwhile."""
+        # Counters change every minute (5.10): they are not part of what an editor changes.
+        data = {k: v for k, v in data.items() if k != "counters"}
         text = json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(text.encode()).hexdigest()[:16]
 
@@ -234,6 +236,12 @@ class SetupService:
 
     async def _apply(self, data: dict, client: str, action: str, kind: str | None, name: str | None,
                      summary: str, before: Any, after: Any, check_only: bool, draft: bool = False) -> dict:
+        from devine_bms.counters.derive import derive
+
+        if isinstance(data, dict) and isinstance(data.get("points", []), list):
+            data, counted = derive(data)  # counter points follow the run-state points (5.10)
+            if counted:
+                summary = f"{summary}; {'; '.join(counted)}"[:1000]
         try:
             config, warnings = parse_config(data)
         except ConfigError as exc:
@@ -248,6 +256,17 @@ class SetupService:
         await self._reload()
         return {"ok": True, "applied": True, "warnings": _issues(warnings),
                 "report": {"created": report.created, "updated": report.updated, "disabled": report.disabled}}
+
+    async def ensure_counters(self) -> list[str]:
+        """At start-up: counter points for equipment that has run-state points (5.10), for sites set
+        up before counters existed. Nothing changes when they are already there."""
+        from devine_bms.counters.derive import derive
+
+        data = await self.export()
+        _, changes = derive(data)
+        if changes:
+            await self._apply(data, "counters", "put", "points", None, "maintenance counters", None, None, False)
+        return changes
 
     async def _reload(self) -> None:
         if self.reload is not None:
@@ -294,6 +313,8 @@ def _rename_in(data: dict, kind: str, old: str, new: str) -> dict:
         for p in data.get("points", []):
             if p.get("equip") == old:
                 p["equip"] = new
+            if isinstance(p.get("address"), dict) and p["address"].get("counter") and p["address"].get("equip") == old:
+                p["address"]["equip"] = new  # a counter keeps its point and history (5.10)
         for f in data.get("feeds", []):
             for end in ("from", "to"):
                 if f.get(end) == old:

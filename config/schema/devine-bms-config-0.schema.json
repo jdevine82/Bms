@@ -360,6 +360,105 @@
       "title": "ByteOrder",
       "type": "string"
     },
+    "CounterAddress": {
+      "additionalProperties": false,
+      "description": "A point on the BMS counters device (main spec 5.10): one counter of one piece of equipment.",
+      "properties": {
+        "counter": {
+          "enum": [
+            "run_hours",
+            "starts"
+          ],
+          "title": "Counter",
+          "type": "string"
+        },
+        "equip": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Equip",
+          "type": "string"
+        }
+      },
+      "required": [
+        "counter",
+        "equip"
+      ],
+      "title": "CounterAddress",
+      "type": "object"
+    },
+    "CounterConnection": {
+      "additionalProperties": false,
+      "description": "The built-in BMS counters device (main spec 5.10): no wire, nothing to set. Its points are\nmade and removed by the BMS for every piece of equipment with a run-state point.",
+      "properties": {},
+      "title": "CounterConnection",
+      "type": "object"
+    },
+    "CounterState": {
+      "additionalProperties": false,
+      "description": "One piece of equipment's maintenance counters in an export (main spec 5.10). An import uses\nthem only for equipment that has no counts yet (a site moved to a new server).",
+      "properties": {
+        "equip": {
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Equip",
+          "type": "string"
+        },
+        "runHours": {
+          "minimum": 0,
+          "title": "Runhours",
+          "type": "number"
+        },
+        "starts": {
+          "minimum": 0,
+          "title": "Starts",
+          "type": "integer"
+        },
+        "serviceHoursMark": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Servicehoursmark",
+          "type": "number"
+        },
+        "serviceStartsMark": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Servicestartsmark",
+          "type": "integer"
+        },
+        "servicedAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Servicedat"
+        },
+        "servicedBy": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Servicedby"
+        }
+      },
+      "required": [
+        "equip",
+        "runHours",
+        "starts"
+      ],
+      "title": "CounterState",
+      "type": "object"
+    },
     "CustomSymbol": {
       "additionalProperties": false,
       "description": "A site's own symbol (main spec 6.4, milestone 9B): drawn in the editor or imported.\n\n`svg` is cleaned (graphics/sanitize.py) and has `state-off` and `state-on` groups.",
@@ -462,7 +561,8 @@
             "bacnet_ip",
             "bacnet_mstp",
             "mqtt",
-            "logic"
+            "logic",
+            "counter"
           ],
           "title": "Protocol",
           "type": "string"
@@ -486,6 +586,9 @@
             },
             {
               "$ref": "#/$defs/LogicConnection"
+            },
+            {
+              "$ref": "#/$defs/CounterConnection"
             }
           ],
           "title": "Connection"
@@ -584,6 +687,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/TemplateLink"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "service": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceInterval"
             },
             {
               "type": "null"
@@ -700,6 +814,17 @@
           ],
           "default": null,
           "title": "Logic"
+        },
+        "service": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceInterval"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "notes": {
           "default": [],
@@ -1977,6 +2102,9 @@
             },
             {
               "$ref": "#/$defs/VariableAddress"
+            },
+            {
+              "$ref": "#/$defs/CounterAddress"
             }
           ],
           "title": "Address"
@@ -2212,6 +2340,59 @@
         "h"
       ],
       "title": "RoomItem",
+      "type": "object"
+    },
+    "ServiceInterval": {
+      "additionalProperties": false,
+      "description": "A service reminder for equipment (main spec 5.10): an alarm when the run hours or the starts\nsince the last service reach the interval. Total counts are never reset.",
+      "properties": {
+        "hours": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1000000,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hours"
+        },
+        "starts": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 10000000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Starts"
+        },
+        "level": {
+          "$ref": "#/$defs/AlarmLevel",
+          "default": "info"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        }
+      },
+      "title": "ServiceInterval",
       "type": "object"
     },
     "Site": {
@@ -3104,6 +3285,14 @@
         "$ref": "#/$defs/LogicSnippet"
       },
       "title": "Logicsnippets",
+      "type": "array"
+    },
+    "counters": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CounterState"
+      },
+      "title": "Counters",
       "type": "array"
     }
   },

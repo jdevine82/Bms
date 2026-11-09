@@ -110,6 +110,8 @@ class Equip(_Model):
     parent: Name | None = None  # the "part of" link (main spec 5.2)
     tags: Tags = {}
     template: TemplateLink | None = None
+    # Service reminder (5.10); without one, the template's applies.
+    service: ServiceInterval | None = None
 
 
 class Feed(_Model):
@@ -254,6 +256,11 @@ class LogicConnection(_Model):
     """The built-in BMS logic device (milestone 10C): no wire, nothing to set."""
 
 
+class CounterConnection(_Model):
+    """The built-in BMS counters device (main spec 5.10): no wire, nothing to set. Its points are
+    made and removed by the BMS for every piece of equipment with a run-state point."""
+
+
 class MqttConnection(_Model):
     """An MQTT device: the broker it publishes to, and its optional availability topic.
 
@@ -300,6 +307,16 @@ class AlarmLevel(StrEnum):
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
+
+
+class ServiceInterval(_Model):
+    """A service reminder for equipment (main spec 5.10): an alarm when the run hours or the starts
+    since the last service reach the interval. Total counts are never reset."""
+
+    hours: float | None = Field(default=None, gt=0, le=1_000_000)
+    starts: int | None = Field(default=None, gt=0, le=10_000_000)
+    level: AlarmLevel = AlarmLevel.INFO
+    message: str | None = Field(default=None, max_length=200)
 
 
 class PointAlarm(_Model):
@@ -355,10 +372,11 @@ class Device(_Model):
     # bacnet_mstp: a BACnet MS/TP device on a trunk from `buses`.
     # mqtt: a device that publishes to an MQTT broker from `buses`.
     # logic: the built-in BMS logic device; its points are logic variables (milestone 10C).
-    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip", "bacnet_mstp", "mqtt", "logic"]
+    # counter: the built-in BMS counters device; run hours and starts of equipment (5.10).
+    protocol: Literal["modbus_tcp", "modbus", "bacnet_ip", "bacnet_mstp", "mqtt", "logic", "counter"]
     connection: (
         ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection | MqttConnection
-        | LogicConnection
+        | LogicConnection | CounterConnection
     )
     enabled: bool = True
     offline_alarm: OfflineAlarm | None = None
@@ -372,7 +390,10 @@ class Device(_Model):
             "bacnet_mstp": BacnetMstpConnection,
             "mqtt": MqttConnection,
             "logic": LogicConnection,
+            "counter": CounterConnection,
         }[self.protocol]
+        if wanted is CounterConnection and isinstance(self.connection, LogicConnection):
+            self.connection = CounterConnection()  # both are empty: the protocol decides
         if not isinstance(self.connection, wanted):
             raise ValueError(f"protocol '{self.protocol}' needs a {wanted.__name__} connection")
         return self
@@ -406,6 +427,13 @@ class BacnetAddress(_Model):
     object_type: BacnetObjectType
     instance: int = Field(ge=0, le=4194302)
     property: Literal["presentValue"] = "presentValue"
+
+
+class CounterAddress(_Model):
+    """A point on the BMS counters device (main spec 5.10): one counter of one piece of equipment."""
+
+    counter: Literal["run_hours", "starts"]
+    equip: Name
 
 
 class VariableAddress(_Model):
@@ -464,7 +492,7 @@ class Point(_Model):
     unit: str | None = None
     enum: list[str] | None = None
     tags: Tags = {}
-    address: ModbusAddress | BacnetAddress | MqttAddress | VariableAddress
+    address: ModbusAddress | BacnetAddress | MqttAddress | VariableAddress | CounterAddress
     poll_class: PollClass = PollClass.NORMAL
     stale_after_s: float | None = Field(default=None, gt=0)
     his: bool = True
@@ -506,6 +534,8 @@ class EquipTemplate(_Model):
     # Control logic for every instance (milestone 10C): a devine-bms-logic/1 diagram whose point
     # blocks name roles; it is checked against the roles when it is published.
     logic: dict[str, Any] | None = None
+    # Service reminder for every instance (5.10), unless the equipment sets its own.
+    service: ServiceInterval | None = None
     notes: list[str] = []
 
 
@@ -681,6 +711,19 @@ class LogicSnippet(_Model):
     fragment: dict[str, Any]  # devine-bms-logic/1 blocks, wires and variables
 
 
+class CounterState(_Model):
+    """One piece of equipment's maintenance counters in an export (main spec 5.10). An import uses
+    them only for equipment that has no counts yet (a site moved to a new server)."""
+
+    equip: Name
+    run_hours: float = Field(ge=0)
+    starts: int = Field(ge=0)
+    service_hours_mark: float = Field(default=0, ge=0)
+    service_starts_mark: int = Field(default=0, ge=0)
+    serviced_at: str | None = None
+    serviced_by: str | None = Field(default=None, max_length=64)
+
+
 class SiteConfig(_Model):
     schema_: Literal["devine-bms-config/0"] = Field(alias="schema")
     site: Site
@@ -696,6 +739,7 @@ class SiteConfig(_Model):
     graphics: list[Graphic] = []  # milestone 9
     symbols: list[CustomSymbol] = []  # the site's own symbols (milestone 9B)
     logic_snippets: list[LogicSnippet] = []  # milestone 10C
+    counters: list[CounterState] = []  # maintenance counters and service marks (5.10)
 
 
 def json_schema() -> dict[str, Any]:

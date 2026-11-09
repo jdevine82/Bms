@@ -116,6 +116,17 @@ setup meanwhile, the save is refused rather than overwriting their work.
 - Commands go out on the bus's own connection between polls and are read back. BACnet commands from people use
   priority 8, logic uses 10 and schedules 16.
 
+## Maintenance counters
+
+- Equipment with a run-state point (a true/false **sensor** tagged `run`) gets **run hours** and **starts** counters
+  automatically. They are two read-only points on the BMS counters device, `<room>_<equip>_run_hours` and `_starts`,
+  usable in trends, alarms and logic. If the device reports its own run hours, tag that point `devineRunHours`: it is used
+  instead.
+- **Service interval:** Setup → Equipment → the equipment → **Service interval**, in run hours or starts, with the alarm
+  level. An equipment template can carry a default (`service` in the template). When it comes due, a "Service due"
+  alarm is raised; **Service done** restarts the "since service" counts (totals never reset).
+- Time when the run state is Bad or Stale is not counted, and the counters show as estimated.
+
 ## Schedules
 
 On the **Schedules** page (operators and admins):

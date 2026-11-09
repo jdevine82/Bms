@@ -112,7 +112,7 @@ class Runtime:
         for device in self.config.devices:
             if device.protocol == "modbus_tcp":
                 groups.append((device.name, ModbusClient.for_tcp_device(device.name, device.connection), [device]))
-            elif device.protocol not in ("modbus", "bacnet_ip", "bacnet_mstp", "mqtt", "logic"):  # logic: not polled
+            elif device.protocol not in ("modbus", "bacnet_ip", "bacnet_mstp", "mqtt", "logic", "counter"):  # not polled
                 log.warning("device %s: protocol %s is not supported yet", device.name, device.protocol)
         for name, client, members in groups:
             states = [DeviceState(d, self.config.points_for(d.id), self.tracker) for d in members]

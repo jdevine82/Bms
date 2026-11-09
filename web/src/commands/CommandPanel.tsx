@@ -1,6 +1,7 @@
 // Command one point (main spec 5.6): set a lasting value, or hand mode for a chosen time, and
 // release to auto. Every start/stop and every override is confirmed first. Used by the web
 // app and the HMI (bigger controls there).
+import { CounterLine } from "../setup/EquipCounters";
 import { useEffect, useState } from "react";
 import type { LiveValue, Point } from "../api";
 import { formatValue } from "../format";
@@ -83,6 +84,7 @@ export function CommandPanel({ point, live, onClose, big = false, tz }: {
           <h3>{point.dis}</h3>
           <div className="muted small">Now: {formatValue(point, live)}{point.override ? "" : " · auto"}</div>
           {point.override && <OverrideBadge point={point} tz={tz} />}
+          {point.equip && <CounterLine equip={point.equip.name} />}
         </div>
         <button type="button" className="btn-plain" onClick={onClose} aria-label="Close">Close</button>
       </div>

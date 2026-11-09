@@ -97,7 +97,9 @@ One JSON file with the whole setup:
 - buses, devices and points, with their addresses, tags, alarms, write limits and occupancy values;
 - device and equipment templates;
 - graphics and site symbols;
-- logic snippets.
+- logic snippets;
+- maintenance counters: service intervals on equipment and templates (`service`), and the counts and service marks
+  (`counters`; an import uses them only for equipment with no counts yet).
 
 Its JSON Schema is `config/schema/devine-bms-config-0.schema.json`, and examples are in `config/`.
 - Export and import it in Setup → Site, or with `setup.cli export` and `setup.cli import`.

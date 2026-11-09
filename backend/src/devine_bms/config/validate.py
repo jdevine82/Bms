@@ -23,6 +23,7 @@ from devine_bms.config.model import (
     PointType,
     SiteConfig,
     VariableAddress,
+    CounterAddress,
 )
 from devine_bms.drivers.modbus.codec import DataType
 from devine_bms.haystack.library import TagLibrary, load_library
@@ -262,6 +263,7 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
                 "bacnet_mstp": (BacnetAddress, "BACnet"),
                 "mqtt": (MqttAddress, "MQTT"),
                 "logic": (VariableAddress, "BMS logic"),
+                "counter": (CounterAddress, "BMS counters"),
             }.get(device.protocol, (ModbusAddress, "Modbus"))
             if not isinstance(point.address, wanted):
                 error(where, f"device '{point.device}' is {label}, so the point needs a {label} address")
@@ -276,12 +278,21 @@ def check_config(config: SiteConfig, library: TagLibrary) -> list[Issue]:
             _check_bacnet_point(where, point, error)
         elif isinstance(point.address, VariableAddress):
             pass  # the variable is checked when logic runs (variables live in the database)
+        elif isinstance(point.address, CounterAddress):
+            if point.address.equip not in equips:
+                error(where, f"counter of unknown equipment '{point.address.equip}'")
+            if point.type != PointType.SENSOR or point.kind != Kind.NUMBER:
+                error(where, "a counter point is a Number sensor (counted by the BMS)")
         else:
             _check_mqtt_point(where, point, error)
 
         prefix = _name_prefix(point, equips)
         if prefix and not point.name.startswith(prefix):
             warning(where, f"name does not follow <room>_<equipment>_<function>; expected it to start '{prefix}'")
+
+    for c in config.counters:  # maintenance counters in an export (5.10)
+        if c.equip not in equips:
+            warning(f"counters.{c.equip}", "counters of unknown equipment are not imported")
 
     return issues
 
@@ -299,6 +310,8 @@ def writable(point) -> bool:
         return not a.object_type.value.endswith("Input")
     if isinstance(a, VariableAddress):
         return True
+    if isinstance(a, CounterAddress):
+        return False
     return bool(a.command_topic)
 
 

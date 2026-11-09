@@ -17,6 +17,8 @@ from devine_bms.config.model import (
     MqttAddress,
     MqttBroker,
     MqttConnection,
+    CounterAddress,
+    CounterConnection,
     LogicConnection,
     VariableAddress,
     BacnetSettings,
@@ -68,7 +70,7 @@ class RuntimeDevice:
     protocol: str
     connection: (
         ModbusTcpConnection | ModbusBusConnection | BacnetIpConnection | BacnetMstpConnection | MqttConnection
-        | LogicConnection
+        | LogicConnection | CounterConnection
     )
     enabled: bool
     bus_id: uuid.UUID | None = None
@@ -92,7 +94,7 @@ class RuntimePoint:
     kind: Kind
     unit: str | None
     enum: tuple[str, ...] | None
-    address: ModbusAddress | BacnetAddress | MqttAddress | VariableAddress
+    address: ModbusAddress | BacnetAddress | MqttAddress | VariableAddress | CounterAddress
     poll_class: PollClass
     stale_after_s: float | None
     his: bool
@@ -140,6 +142,8 @@ def point_writable(point_type: str, address) -> bool:
         return not address.object_type.value.endswith("Input")
     if isinstance(address, VariableAddress):
         return True
+    if isinstance(address, CounterAddress):
+        return False  # counters are counted by the BMS (5.10)
     return bool(getattr(address, "command_topic", None))
 
 
