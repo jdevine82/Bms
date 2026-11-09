@@ -79,6 +79,8 @@ the server itself, or from a listed network, and fix the list. Remote people com
 | Nothing is polled; the web app shows a red banner | As above: an HMI is in direct mode. |
 | MS/TP devices go Bad together | `STATS` on the service shows lost tokens and CRC errors: wiring, termination, baud rate, or a duplicate MAC. MAC 0 and 1 are reserved. |
 | MQTT points Bad (down) | The broker connection: the password variable (`passwordEnv`) is not set in `bms.env`, or the backend was not restarted after setting it. |
+| An MQTT device cannot connect to the site broker | Its login on Setup → Buses and networks → Device logins (give it a new password and enter it on the device); `pct exec 202 -- journalctl -u mosquitto`. |
+| Logic will not publish: "the astro time switch needs the site's latitude and longitude" | Setup → Site: set the latitude and longitude. |
 | Alarm emails or SMS not arriving | Setup → Alarm delivery → Test; the delivery log on the Alarms page; the password or key variable in `bms.env`. Failed sends retry for 24 hours. |
 | Standby HMI: "bus not clear" | Something still polls a serial line the HMI shares: the server is still running, or another master is on the line. |
 | Standby HMI: "the server refused the cache" | `BMS_STANDBY_TOKEN` differs between the server and the Pi. |

@@ -4,6 +4,7 @@ import { EquipLogicPanel } from "../logic/EquipLogicPanel";
 import type { Health, Kind, Obj } from "./api";
 import { getHealth, listItems } from "./api";
 import { ItemEditor } from "./ItemEditor";
+import { MqttLogins } from "./MqttLogins";
 import { TestReadPanel } from "./TestRead";
 import { Badge, useLoad } from "./ui";
 
@@ -158,6 +159,7 @@ export function ItemsPage({ kind }: { kind: Kind }) {
               </div>
             )}
             {kind === "buses" && !adding && <BusHealth health={health.data} name={item.name} />}
+            {kind === "buses" && !adding && item.type === "mqtt_broker" && ["127.0.0.1", "localhost"].includes(String(item.host)) && <MqttLogins />}
             {kind === "equips" && !adding && <EquipLogicPanel equip={item.name} />}
           </>
         ) : (

@@ -26,6 +26,17 @@ export function SitePage() {
             <div className="form-row"><label htmlFor="s-name">Name</label><input id="s-name" value={s.name} readOnly /></div>
             <div className="form-row"><label htmlFor="s-dis">Display name</label><input id="s-dis" value={s.dis} onChange={(e) => setSite({ ...s, dis: e.target.value })} /></div>
             <div className="form-row"><label htmlFor="s-tz">Time zone (Haystack name)</label><input id="s-tz" value={s.tz ?? ""} onChange={(e) => setSite({ ...s, tz: e.target.value })} /></div>
+            <div className="form-row"><label htmlFor="s-lat">Latitude</label>
+              <input id="s-lat" inputMode="decimal" placeholder="for example -33.87" value={coord(s, "lat")}
+                     onChange={(e) => setSite(withCoord(s, "lat", e.target.value))} /></div>
+            <div className="form-row"><label htmlFor="s-lng">Longitude</label>
+              <input id="s-lng" inputMode="decimal" placeholder="for example 151.21" value={coord(s, "lng")}
+                     onChange={(e) => setSite(withCoord(s, "lng", e.target.value))} /></div>
+            <p className="muted small">The site's location: sunrise and sunset in control logic (the astro block) use it. Decimal degrees;
+              south and west are negative. Leave both empty for none.</p>
+            <div className="form-row"><label htmlFor="s-area">Floor area (m²)</label>
+              <input id="s-area" inputMode="decimal" value={s.areaM2 ?? ""}
+                     onChange={(e) => setSite({ ...s, areaM2: e.target.value.trim() === "" ? null : e.target.value })} /></div>
             <div className="form-row">
               <label htmlFor="s-bacnet">BACnet settings (JSON; null for none)</label>
               <textarea id="s-bacnet" className="json short" value={b} onChange={(e) => setBacnet(e.target.value)} />
@@ -33,7 +44,7 @@ export function SitePage() {
             <div className="actions">
               <ActionButton primary onClick={async () => {
                 try {
-                  const r = await put("/api/setup/site", { site: s, bacnet: JSON.parse(b) });
+                  const r = await put("/api/setup/site", { site: cleanSite(s), bacnet: JSON.parse(b) });
                   setOutcome({ kind: "ok", message: "Saved and live.", issues: r.warnings });
                   setSite(null); setBacnet(null); await cfg.reload();
                 } catch (e) { setOutcome(outcomeFrom(e)); }
@@ -109,4 +120,36 @@ function OverrideTimes() {
       </div>
     </div>
   );
+}
+
+// The location as typed (text while editing), and the site as saved: numbers, or no location at all.
+function coord(s: Obj, k: "lat" | "lng"): string {
+  const g = s._geo ?? s.geoCoord;
+  return g && g[k] !== undefined && g[k] !== null ? String(g[k]) : "";
+}
+
+function withCoord(s: Obj, k: "lat" | "lng", v: string): Obj {
+  const g = { lat: coord(s, "lat"), lng: coord(s, "lng"), [k]: v };
+  return { ...s, _geo: g };
+}
+
+function cleanSite(s: Obj): Obj {
+  const { _geo, ...site } = s;
+  if (_geo !== undefined) {
+    const lat = String(_geo.lat).trim();
+    const lng = String(_geo.lng).trim();
+    if (!lat && !lng) site.geoCoord = null;
+    else if (!lat || !lng) throw new Error("give both the latitude and the longitude, or neither");
+    else {
+      const g = { lat: Number(lat), lng: Number(lng) };
+      if (!Number.isFinite(g.lat) || !Number.isFinite(g.lng)) throw new Error("the latitude and longitude are numbers, for example -33.87 and 151.21");
+      site.geoCoord = g;
+    }
+  }
+  if (site.areaM2 !== null && site.areaM2 !== undefined) {
+    const a = Number(site.areaM2);
+    if (!Number.isFinite(a) || a <= 0) throw new Error("the floor area is a number of square metres");
+    site.areaM2 = a;
+  }
+  return site;
 }

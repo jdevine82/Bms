@@ -42,6 +42,7 @@ All start with `BMS_`. Defaults in brackets.
 | `BMS_CLICKSEND_API_KEY` | The ClickSend API key, for SMS. |
 | (your name) | An ntfy token, if a self-hosted ntfy server needs one. |
 | `BMS_MQTT_PASSWORD` | On a site server, the site Mosquitto's password for user `bms`; name it as the broker's `passwordEnv`. |
+| `BMS_MQTT_USERS_CMD` | On a site server, the helper for device logins on the site broker: `sudo -n /usr/local/sbin/bms-mqtt-users`. Empty elsewhere (no Device logins panel). |
 
 ### Standalone (`BMS_MODE=standalone`; set by `provision.sh`)
 
@@ -130,7 +131,7 @@ Its JSON Schema is `config/schema/devine-bms-config-0.schema.json`, and examples
 
 ### Setup → Site (admins)
 
-Display name, time zone, BACnet settings, **override times** (the hand-mode choices, default 1, 2 or 8 hours with 2 as
+Display name, time zone, latitude and longitude, floor area, BACnet settings, **override times** (the hand-mode choices, default 1, 2 or 8 hours with 2 as
 the default), the setup file export and import, and the Haystack model export.
 
 ### Setup → Standalone (a standalone Pi)

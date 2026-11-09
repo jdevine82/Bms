@@ -86,9 +86,9 @@ ssh -L 8080:10.77.0.10:80 root@<host address>
 
 Open http://localhost:8080, then enter your name, a user name and a password of at least 10 characters. Then:
 
-- **Setup → Site:** the site's display name and time zone (a Haystack name such as `Sydney`). If logic will use sunrise
-  and sunset (the astro block), the site also needs its location. There is no field for it yet: export the setup
-  (Setup → Site), set `site.geoCoord` (`{"lat": -33.87, "lng": 151.21}`), and import it again.
+- **Setup → Site:** the site's display name, time zone (a Haystack name such as `Sydney`), and its **latitude and
+  longitude** (decimal degrees; south and west negative). Logic's sunrise and sunset (the astro block) need the location.
+  The floor area is optional.
 - **Setup → Users:** the platform admin (support) account and the customer's admin. See [Logins and users](users-and-logins.md).
 - **Setup → Security:** consider **Allowed networks**, because passwords cross the LAN unencrypted (main spec 8). Include the
   tailnet range `100.64.0.0/10` if people log in remotely.
@@ -145,15 +145,14 @@ the host with the support tailnet.
 - user name `bms`;
 - password variable (`passwordEnv`) `BMS_MQTT_PASSWORD`.
 
-Devices (Tasmota, Shelly, Zigbee2MQTT and so on) need their own Mosquitto accounts. Add them in the container:
+Each device (Tasmota, Shelly, Zigbee2MQTT and so on) gets its own login: open the broker on Setup → Buses and networks,
+then **Device logins → Add login**. The BMS makes a strong password and shows it once; type it into the device's MQTT
+settings straight away. **New password** and **Remove** are there too, and every change is in the audit log. The BMS
+does not keep these passwords.
 
-```bash
-pct exec 202 -- mosquitto_passwd /etc/mosquitto/devine-bms.passwd <device-user>
-```
-
-```bash
-pct exec 202 -- systemctl restart mosquitto
-```
+This uses a small root helper in `bms-app` (`/usr/local/sbin/bms-mqtt-users`, allowed for the `bms` user through sudo),
+installed by `create-site.sh` and refreshed by each update. On a site built before it existed, run `create-site.sh`
+again: it keeps the existing logins.
 
 ## 6. Alarm delivery
 

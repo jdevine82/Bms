@@ -33,7 +33,8 @@ def _script(path: Path, text: str) -> str:
 def install(tmp_path: Path, tarball: Path) -> subprocess.CompletedProcess:
     fake_pip = _script(tmp_path / "pip.sh", 'mkdir -p "$1/venv/bin"\n')
     return subprocess.run(["bash", str(INSTALL), str(tarball), "--no-restart"], capture_output=True, text=True,
-                          env={**os.environ, "BMS_BASE": str(tmp_path / "opt"), "BMS_PIP_INSTALL": fake_pip})
+                          env={**os.environ, "BMS_BASE": str(tmp_path / "opt"), "BMS_PIP_INSTALL": fake_pip,
+                               "BMS_INSTALL_HELPERS": "0"})
 
 
 def test_install_side_by_side_and_keep_three(tmp_path):
@@ -82,7 +83,7 @@ echo "restart $v" >> {self.log}
                     "BMS_OVERLAY_ACTIVE_CMD": "true" if overlay_active else "false",
                     "BMS_REBOOT_LATER_CMD": f"{logcmd} reboot-later", "BMS_REBOOT_CMD": f"{logcmd} reboot",
                     "BMS_RESTART_CMD": restart, "BMS_HEALTH_URL": f"file://{health}", "BMS_UPDATE_WAIT_S": "2",
-                    "BMS_PIP_INSTALL": str(tmp_path / "pip.sh")}
+                    "BMS_PIP_INSTALL": str(tmp_path / "pip.sh"), "BMS_INSTALL_HELPERS": "0"}
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["bash", str(PI_UPDATE), *args], capture_output=True, text=True, env=self.env)
