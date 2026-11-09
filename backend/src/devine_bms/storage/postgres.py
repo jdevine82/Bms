@@ -22,6 +22,8 @@ from devine_bms.config.model import (
     BacnetSettings,
     MqttAddress,
     MqttConnection,
+    CounterAddress,
+    CounterConnection,
     LogicConnection,
     VariableAddress,
     Bus,
@@ -43,7 +45,9 @@ from devine_bms.runtime_model import (
 )
 
 _BUS = TypeAdapter(Bus)
-def _address(data: dict) -> ModbusAddress | BacnetAddress | MqttAddress | VariableAddress:
+def _address(data: dict) -> ModbusAddress | BacnetAddress | MqttAddress | VariableAddress | CounterAddress:
+    if "counter" in data:
+        return CounterAddress.model_validate(data)
     if "variable" in data:
         return VariableAddress.model_validate(data)
     if "topic" in data:
@@ -60,6 +64,7 @@ _CONNECTIONS = {
     "bacnet_mstp": BacnetMstpConnection,
     "mqtt": MqttConnection,
     "logic": LogicConnection,
+    "counter": CounterConnection,
 }
 from devine_bms.values import HisRow, Status
 

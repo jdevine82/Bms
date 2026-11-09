@@ -34,6 +34,7 @@ from devine_bms.api.schedules_api import build_schedules_router
 from devine_bms.api.setup_api import build_setup_router
 from devine_bms.api.standalone_api import build_standalone_router
 from devine_bms.api.standby_api import build_standby_router
+from devine_bms.api.counters_api import build_counters_router
 from devine_bms.api.haystack_api import build_haystack_router
 from devine_bms.api.mqtt_logins_api import build_mqtt_logins_router
 from devine_bms.api.updates_api import build_updates_router
@@ -160,6 +161,8 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
                 await runtime.reload()
                 if state.get("logic") is not None:
                     await state["logic"].reload()
+                if state.get("counters") is not None:
+                    await state["counters"].reload()
 
             state["setup"] = SetupService(sessions, runtime.site_name, reload_all)
             state["discover"] = DiscoverManager(runtime, state["setup"])
@@ -223,6 +226,16 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
 
             state["haystack"] = HaystackService(sessions, runtime.site_name, state["auth"], runtime,
                                                 "standby" if standby else "full")
+            if not standby:  # maintenance counters (5.10): the server counts; an HMI does not
+                from devine_bms.counters.engine import CounterEngine
+
+                try:
+                    await state["setup"].ensure_counters()  # counter points for sites set up before counters
+                except Exception:  # noqa: BLE001 -- counting is never a reason not to start
+                    log.exception("making the counter points failed")
+                state["counters"] = CounterEngine(runtime, sessions, runtime.site_name, state["alarms"],
+                                                  state["auth"].record)
+                await state["counters"].start()
             state["logic_service"] = LogicService(state["logic"], sessions, state["auth"].record, state["setup"])
             state["prune"] = asyncio.create_task(_prune_forever(state["auth"], state["alarms"]), name="retention")
         try:
@@ -238,7 +251,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
             if state.get("standalone") is not None:
                 await state["standalone"].stop()
                 await state["standalone"].keeper.stop()  # the last save
-            for name in ("logic", "schedules", "commands", "alarms", "delivery"):
+            for name in ("counters", "logic", "schedules", "commands", "alarms", "delivery"):
                 if name == "logic" and state.get("standby") is not None:
                     continue  # an HMI runs no logic, so it has no outputs to put to their fail-safe
                 if state.get(name) is not None:
@@ -266,6 +279,7 @@ def create_app(runtime_factory: RuntimeFactory = default_runtime, web_dist: Path
         lambda: state.get("gate"), lambda: state.get("standby")))
     app.include_router(build_updates_router(lambda: state.get("updates")))
     app.include_router(build_haystack_router(lambda: state.get("haystack")))
+    app.include_router(build_counters_router(lambda: state.get("counters")))
     app.include_router(build_mqtt_logins_router(
         lambda: getattr(getattr(state.get("runtime"), "settings", None), "mqtt_users_cmd", ""),
         lambda: state["auth"].record if state.get("auth") else None))

@@ -50,12 +50,14 @@ DAILY_S = 24 * 3600
 # Kept through a power cut, parents before children.
 KEPT = [db.Site, db.Space, db.Equip, db.EquipFeed, db.Bus, db.Device, db.Point, db.PointAlias, db.User,
         db.DeviceTemplateRow, db.HolidayCalendar, db.Schedule, db.LogicDiagram, db.LogicVersion,
-        db.LogicVariable, db.LogicInstance]
+        db.LogicVariable, db.LogicInstance, db.EquipCounter]
 KEPT_TABLES = {m.__tablename__ for m in KEPT}
 # Changes that alone do not make a save worth a write to the card.
 QUIET = {
     "app_user": {"failed_logins", "locked_until", "last_login", "updated_at"},
     "site": {"updated_at"},
+    # Counting changes all the time: saved daily and on stop; a service or a reminder saves at once (5.10).
+    "equip_counter": {"run_s", "starts", "unseen_s", "last_state", "updated_at"},
 }
 
 

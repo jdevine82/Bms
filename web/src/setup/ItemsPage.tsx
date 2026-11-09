@@ -1,6 +1,7 @@
 // Devices, buses, rooms and equipment: a list and an editor (main spec 5.1).
 import { useMemo, useState } from "react";
 import { EquipLogicPanel } from "../logic/EquipLogicPanel";
+import { EquipCounters } from "./EquipCounters";
 import type { Health, Kind, Obj } from "./api";
 import { getHealth, listItems } from "./api";
 import { ItemEditor } from "./ItemEditor";
@@ -161,6 +162,7 @@ export function ItemsPage({ kind }: { kind: Kind }) {
             {kind === "buses" && !adding && <BusHealth health={health.data} name={item.name} />}
             {kind === "buses" && !adding && item.type === "mqtt_broker" && ["127.0.0.1", "localhost"].includes(String(item.host)) && <MqttLogins />}
             {kind === "equips" && !adding && <EquipLogicPanel equip={item.name} />}
+            {kind === "equips" && !adding && <EquipCounters key={item.name} equip={item.name} item={item} onSaved={() => void items.reload()} />}
           </>
         ) : (
           <p className="muted">Pick one from the list, or add one.</p>

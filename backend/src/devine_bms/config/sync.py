@@ -9,6 +9,7 @@ since they are only links.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from dataclasses import dataclass, field
 
 from sqlalchemy import delete, select
@@ -61,10 +62,26 @@ async def sync_config(session: AsyncSession, config: cfg.SiteConfig) -> SyncRepo
             site_id=site.id, name=item.name, dis=item.dis, tags=dict(item.tags),
             space_id=spaces[item.space].id if item.space else None, enabled=True,
             template=_link(item.template),
+            service=item.service.model_dump(mode="json", exclude_none=True) if item.service else None,
         )
     await session.flush()
     for item in config.equips:  # parents in a second pass, so order in the file does not matter
         equips[item.name].parent_equip_id = equips[item.parent].id if item.parent else None
+
+    # Maintenance counters (5.10): only for equipment with no counts yet (a site moved to a new
+    # server). A running site's own counts are newer than any file.
+    if config.counters:
+        have = {r for r in (await session.scalars(select(db.EquipCounter.equip_id))).all()}
+        for item in config.counters:
+            equip = equips.get(item.equip)
+            if equip is None or equip.id in have:
+                continue
+            session.add(db.EquipCounter(
+                equip_id=equip.id, run_s=item.run_hours * 3600.0, starts=item.starts, unseen_s=0.0,
+                service_hours_mark=item.service_hours_mark, service_starts_mark=item.service_starts_mark,
+                serviced_at=datetime.fromisoformat(item.serviced_at) if item.serviced_at else None,
+                serviced_by=item.serviced_by))
+        await session.flush()
 
     await session.execute(delete(db.EquipFeed).where(db.EquipFeed.site_id == site.id))
     for item in config.feeds:

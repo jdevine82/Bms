@@ -42,7 +42,8 @@ async def test_bulk_create_indoor_units_from_the_gateway_template():
             "repeat": {"from": 1, "to": 3, "step": 100},
         })).json()
         assert result["applied"], result
-        assert result["report"]["created"] == {"equip": 3, "point": 36}
+        # 12 points each, plus each unit's two maintenance counters on the BMS counters device (5.10).
+        assert result["report"]["created"] == {"equip": 3, "point": 42, "device": 1}
         assert result["warnings"] == []  # every required role is bound
         points = {p["name"]: p for p in (await client.get("/api/setup/points")).json()}
         temp = points["office_ac02_room_temp"]

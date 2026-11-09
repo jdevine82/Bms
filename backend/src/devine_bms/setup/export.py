@@ -56,7 +56,7 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
         "equips": [
             _drop_none({"name": e.name, "dis": e.dis, "space": space_names.get(e.space_id),
                         "parent": equip_names.get(e.parent_equip_id), "tags": dict(e.tags),
-                        "template": e.template})
+                        "template": e.template, "service": e.service})
             for e in equips
         ],
         "feeds": sorted(
@@ -94,6 +94,16 @@ async def export_dict(session: AsyncSession, site_name: str | None = None) -> di
         data["symbols"] = list(site.settings["symbols"])
     if site.settings.get("graphics"):
         data["graphics"] = list(site.settings["graphics"])
+    # Maintenance counters and service marks (main spec 5.10): the BMS's own counts.
+    counted = (await session.execute(
+        select(db.EquipCounter, db.Equip.name).join(db.Equip, db.Equip.id == db.EquipCounter.equip_id)
+        .where(db.Equip.site_id == site.id).order_by(db.Equip.name))).all()
+    if counted:
+        data["counters"] = [_drop_none({
+            "equip": name, "runHours": round(c.run_s / 3600.0, 4), "starts": int(c.starts),
+            "serviceHoursMark": round(c.service_hours_mark, 4), "serviceStartsMark": int(c.service_starts_mark),
+            "servicedAt": c.serviced_at.isoformat() if c.serviced_at else None, "servicedBy": c.serviced_by})
+            for c, name in counted]
     return data
 
 

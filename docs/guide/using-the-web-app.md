@@ -50,6 +50,9 @@ Graphics).
   - **Release to auto** ends it early.
   - Starting and stopping equipment always uses hand mode and asks you to confirm.
 
+For equipment with run hours, the panel also shows them and the number of starts, and **Service due** when a service is
+due. Admins mark a service done on Setup → Equipment.
+
 While a point is in hand mode it shows a **hand badge**, who set it and when it ends. Hand mode always wins over
 schedules and control logic. Every command is in the audit log.
 

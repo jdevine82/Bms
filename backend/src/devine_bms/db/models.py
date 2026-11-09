@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -99,6 +100,26 @@ class Equip(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     # Made from an equipment template: {id, version, bindings, parameters} (main spec 5.1.2).
     template: Mapped[dict | None] = mapped_column(JSONB)
+    # Service reminder {hours, starts, level, message} (main spec 5.10).
+    service: Mapped[dict | None] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = _updated()
+
+
+class EquipCounter(Base):
+    """Run hours and starts of one piece of equipment, counted by the BMS (main spec 5.10).
+    Totals are never reset; a service sets the marks the "since service" counts start from."""
+
+    __tablename__ = "equip_counter"
+    equip_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("equip.id", ondelete="CASCADE"), primary_key=True)
+    run_s: Mapped[float] = mapped_column(Double, nullable=False, server_default="0")
+    starts: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    unseen_s: Mapped[float] = mapped_column(Double, nullable=False, server_default="0")  # state Bad or Stale
+    last_state: Mapped[bool | None] = mapped_column(Boolean)  # the last state seen (Good)
+    service_hours_mark: Mapped[float] = mapped_column(Double, nullable=False, server_default="0")
+    service_starts_mark: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    serviced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    serviced_by: Mapped[str | None] = mapped_column(String(64))
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when the reminder fired
     updated_at: Mapped[datetime] = _updated()
 
 
